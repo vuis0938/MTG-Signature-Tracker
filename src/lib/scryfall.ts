@@ -104,6 +104,55 @@ export async function fetchCardBySetAndNumber(
 }
 
 /**
+ * 按卡牌名称模糊搜索（用于 Arena / MTGO / Plain Text 格式）
+ */
+export async function fetchCardByName(
+  cardName: string
+): Promise<ScryfallCard | null> {
+  const startTime = Date.now();
+
+  try {
+    const url = `${BASE_URL}/cards/named?fuzzy=${encodeURIComponent(cardName)}`;
+    console.log(`[Scryfall] GET ${url}`);
+
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": USER_AGENT,
+        Accept: "application/json",
+      },
+    });
+
+    if (res.status === 404) {
+      console.warn(`[Scryfall] 模糊搜索未找到: ${cardName}`);
+      return null;
+    }
+
+    if (res.status === 429) {
+      console.warn("[Scryfall] 触发速率限制，等待 2 秒后重试...");
+      await delay(2000);
+      return fetchCardByName(cardName);
+    }
+
+    if (!res.ok) {
+      console.error(`[Scryfall] HTTP ${res.status} for fuzzy: ${cardName}`);
+      return null;
+    }
+
+    const card: ScryfallCard = await res.json();
+
+    const elapsed = Date.now() - startTime;
+    if (elapsed < MIN_DELAY_MS) {
+      await delay(MIN_DELAY_MS - elapsed);
+    }
+
+    return card;
+  } catch (error) {
+    console.error(`[Scryfall] 模糊搜索请求失败: ${cardName}`, error);
+    return null;
+  }
+}
+
+/**
  * 从 ScryfallCard 提取统一的画家数组
  * 处理普通卡和双面牌
  */

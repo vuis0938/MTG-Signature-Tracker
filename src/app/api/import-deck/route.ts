@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { parse } from "papaparse";
-import https from "node:https";
-import http from "node:http";
+import { parse as parseCSVPapa } from "papaparse";
 import { supabase } from "@/lib/supabase";
 import {
   fetchCardBySetAndNumber,
+  fetchCardByName,
   extractArtists,
   extractImageUrl,
 } from "@/lib/scryfall";
@@ -14,133 +13,121 @@ interface CardRow {
   name: string;
   setCode: string;
   collectorNumber: string;
+  fuzzy?: boolean; // 是否需要模糊搜索
 }
 
-// ─── HTTP 请求辅助 ────────────────────────────────────────
+// ─── 格式解析 ─────────────────────────────────────────────
 
-/** 用原生 https 模块发请求（绕过 Cloudflare TLS 指纹检测） */
-function nativeFetch(url: string): Promise<{ status: number; text: string }> {
-  return new Promise((resolve, reject) => {
-    const parsed = new URL(url);
-    const transport = parsed.protocol === "https:" ? https : http;
-
-    const req = transport.get(
-      url,
-      {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
-          Accept: "application/json",
-          "Accept-Language": "en-US,en;q=0.9",
-          Referer: "https://www.moxfield.com/",
-          Origin: "https://www.moxfield.com",
-        },
-        // 关键：禁用 ALPN 协商中的 HTTP/2 通告，贴近 curl 行为
-        // @ts-expect-error Node typings may miss ALPNProtocols on get options
-        ALPNProtocols: ["http/1.1"],
-      },
-      (res) => {
-        let body = "";
-        res.setEncoding("utf8");
-        res.on("data", (chunk: string) => (body += chunk));
-        res.on("end", () =>
-          resolve({ status: res.statusCode ?? 0, text: body })
-        );
-      }
-    );
-
-    req.on("error", reject);
-    req.setTimeout(15000, () => {
-      req.destroy();
-      reject(new Error("请求超时"));
-    });
-  });
-}
-
-// ─── Moxfield URL 解析 ────────────────────────────────────
-
-/** 从 Moxfield 链接提取套牌 ID，如 abc123-def456 */
-function extractDeckId(url: string): string | null {
-  const match = url.match(/moxfield\.com\/decks\/([a-zA-Z0-9_-]+)/);
-  return match ? match[1] : null;
-}
-
-/** 从 Moxfield API 获取套牌数据 */
-async function fetchMoxfieldDeck(deckId: string): Promise<CardRow[]> {
-  const apiUrl = `https://api2.moxfield.com/v3/decks/all/${encodeURIComponent(deckId)}`;
-  console.log(`[Moxfield] GET ${apiUrl}`);
-
-  const { status, text } = await nativeFetch(apiUrl);
-
-  if (status !== 200) {
-    // 如果返回的是 Cloudflare 拦截页面
-    if (text.includes("Cloudflare") || text.includes("Attention Required")) {
-      throw new Error("Moxfield 的防护系统拦截了请求，请改用 CSV 方式导入");
-    }
-    throw new Error(`获取 Moxfield 套牌失败 (HTTP ${status})`);
-  }
-
-  const data = JSON.parse(text);
+/**
+ * 解析 Moxfield 格式：
+ *   1 Sol Ring (CMM) 345
+ *   1 Arcane Signet (ELD) 314 *F*
+ *   1 Lightning Bolt (2X2) 123
+ */
+function parseMoxfieldFormat(text: string): CardRow[] {
   const rows: CardRow[] = [];
+  // 匹配: [数量] 卡名 (系列代码) 编号 [*F*]
+  const re = /^(\d+)\s+(.+?)\s+\((\w+)\)\s+(\S+)/i;
 
-  // Moxfield 结构: { boards: { mainboard: { cards: [...] }, sideboard: {...} } }
-  // 也兼容: { mainboard: {...}, sideboard: {...} }
-  const boards = data.boards || data;
-
-  for (const boardName of ["mainboard", "sideboard", "commanders", "companions"]) {
-    const board = boards[boardName];
-    if (!board?.cards) continue;
-
-    for (const [key, entry] of Object.entries(board.cards) as [string, any][]) {
-      const card = entry.card;
-      if (!card) continue;
-
-      const setCode = card.set || "";
-      const collectorNumber = card.cn || "";
-
-      // tokens / emblems 往往没有 set + cn，跳过
-      if (!setCode || !collectorNumber) continue;
-
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    const cleaned = trimmed.replace(/\s*\*[FS]\*\s*/g, ""); // 移除 *F* 等标记
+    const m = cleaned.match(re);
+    if (m) {
       rows.push({
-        count: String(entry.quantity || 1),
-        name: card.name || "",
-        setCode,
-        collectorNumber: String(collectorNumber),
+        count: m[1],
+        name: m[2].trim(),
+        setCode: m[3],
+        collectorNumber: m[4],
       });
     }
-  }
-
-  if (rows.length === 0) {
-    throw new Error("Moxfield 返回的套牌数据中没有卡牌信息");
   }
 
   return rows;
 }
 
-// ─── CSV 解析 ─────────────────────────────────────────────
+/**
+ * 解析格式: 1 Card Name
+ * （Arena / MTGO / Plain Text 都用这个）
+ */
+function parseNameFormat(text: string): CardRow[] {
+  const rows: CardRow[] = [];
+  const re = /^(\d+)?\s*(.+)$/i;
 
-function parseMoxfieldCSV(csvText: string): CardRow[] {
-  const result = parse<Record<string, string>>(csvText, {
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const m = trimmed.match(re);
+    if (m) {
+      const name = m[2].trim();
+      // 跳过明显的非卡牌行
+      if (name.startsWith("//") || name.startsWith("#")) continue;
+      if (name.length < 2 || name.length > 100) continue;
+      rows.push({
+        count: m[1] || "1",
+        name,
+        setCode: "",
+        collectorNumber: "",
+        fuzzy: true,
+      });
+    }
+  }
+
+  return rows;
+}
+
+/**
+ * 自动检测格式并解析
+ */
+function parseDeckText(text: string): CardRow[] {
+  // 先试 Moxfield 格式（含系列代码 + 编号）
+  const moxfield = parseMoxfieldFormat(text);
+  if (moxfield.length > 0) {
+    console.log(`[Import] 检测为 Moxfield 格式，共 ${moxfield.length} 行`);
+    return moxfield;
+  }
+
+  // 再试 CSV（含 header 行）
+  if (text.includes(",") && /count|quantity|edition|set/i.test(text.split("\n")[0])) {
+    const rows = parseCSV(text);
+    if (rows.length > 0) {
+      console.log(`[Import] 检测为 CSV 格式，共 ${rows.length} 行`);
+      return rows;
+    }
+  }
+
+  // 否则当作纯文本牌名清单
+  const nameRows = parseNameFormat(text);
+  if (nameRows.length > 0) {
+    console.log(`[Import] 检测为纯文本牌名格式，共 ${nameRows.length} 行`);
+    return nameRows;
+  }
+
+  return [];
+}
+
+// ─── CSV 解析（保留作为后备） ──────────────────────────────
+
+function parseCSV(csvText: string): CardRow[] {
+  const result = parseCSVPapa<Record<string, string>>(csvText, {
     header: true,
     skipEmptyLines: true,
-    transformHeader: (h) => h.trim().toLowerCase(),
+    transformHeader: (h: string) => h.trim().toLowerCase(),
   });
 
   const headers = result.meta.fields ?? [];
-  const countCol = headers.find((h) => h.includes("count") || h.includes("quantity")) ?? "";
-  const editionCol = headers.find((h) => h.includes("edition") || h.includes("set")) ?? "";
-  const numberCol = headers.find((h) => h.includes("collector") || h.includes("number")) ?? "";
-  const nameCol = headers.find((h) => h === "name" || h.includes("card")) ?? "";
+  const countCol = headers.find((h: string) => h.includes("count") || h.includes("quantity")) ?? "";
+  const editionCol = headers.find((h: string) => h.includes("edition") || h.includes("set")) ?? "";
+  const numberCol = headers.find((h: string) => h.includes("collector") || h.includes("number")) ?? "";
+  const nameCol = headers.find((h: string) => h === "name" || h.includes("card")) ?? "";
 
   if (!editionCol || !numberCol) {
-    throw new Error(
-      `CSV 列名不匹配。需要 Edition(系列代码) 和 Collector Number(编号) 列。\n找到: ${headers.join(", ")}`
-    );
+    return [];
   }
 
   return result.data
-    .filter((row) => row[numberCol]?.trim() && row[editionCol]?.trim())
-    .map((row) => ({
+    .filter((row: Record<string, string>) => row[numberCol]?.trim() && row[editionCol]?.trim())
+    .map((row: Record<string, string>) => ({
       count: (row[countCol] || "1").trim(),
       name: (row[nameCol] || "").trim(),
       setCode: row[editionCol].trim(),
@@ -148,75 +135,33 @@ function parseMoxfieldCSV(csvText: string): CardRow[] {
     }));
 }
 
-// ─── 去重 ─────────────────────────────────────────────────
-
-function dedupeCards(rows: CardRow[]): CardRow[] {
-  const seen = new Set<string>();
-  return rows.filter((row) => {
-    const key = `${row.setCode}|${row.collectorNumber}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
 // ─── API Handler ──────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, csv, url } = body as { name?: string; csv?: string; url?: string };
+    const { name, text } = body as { name?: string; text?: string };
 
     if (!name?.trim()) {
       return NextResponse.json({ error: "请输入套牌名称" }, { status: 400 });
     }
+    if (!text?.trim()) {
+      return NextResponse.json({ error: "请粘贴 Moxfield 导出的牌表内容" }, { status: 400 });
+    }
 
-    // ── 1. 确定数据来源 ──
-    let rows: CardRow[];
-    let source: string;
-
-    // 优先尝试 Moxfield URL
-    const deckId = url ? extractDeckId(url) : null;
-    if (deckId) {
-      try {
-        rows = await fetchMoxfieldDeck(deckId);
-        source = "Moxfield URL";
-      } catch (e) {
-        return NextResponse.json(
-          { error: e instanceof Error ? e.message : "获取 Moxfield 数据失败" },
-          { status: 400 }
-        );
-      }
-    } else if (csv?.trim()) {
-      // CSV 作为备选
-      try {
-        rows = parseMoxfieldCSV(csv);
-      } catch (e) {
-        return NextResponse.json(
-          { error: e instanceof Error ? e.message : "CSV 解析失败" },
-          { status: 400 }
-        );
-      }
-      source = "Moxfield CSV";
-    } else {
+    // ── 1. 解析 ──
+    const rows = parseDeckText(text);
+    if (rows.length === 0) {
       return NextResponse.json(
-        { error: "请粘贴 Moxfield 套牌链接或 CSV 数据" },
+        { error: "无法识别格式。请使用 Moxfield 的 Copy for Moxfield 或 Plain Text 格式" },
         { status: 400 }
       );
     }
 
-    if (rows.length === 0) {
-      return NextResponse.json({ error: "没有找到有效卡牌数据" }, { status: 400 });
-    }
-
-    // ── 2. 去重 ──
-    const uniqueCards = dedupeCards(rows);
-    console.log(`[Import] 共 ${rows.length} 行，去重后 ${uniqueCards.length} 张`);
-
-    // ── 3. 创建套牌 ──
+    // ── 2. 创建套牌 ──
     const { data: deck, error: deckError } = await supabase
       .from("decks")
-      .insert({ name: name.trim(), source })
+      .insert({ name: name.trim(), source: "Moxfield Text" })
       .select("id")
       .single();
 
@@ -227,23 +172,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── 4. 逐张查询 Scryfall ──
+    // ── 3. 逐张查询 Scryfall ──
     const results: Array<{ success: boolean; name: string; error?: string }> = [];
     let successCount = 0;
     let failCount = 0;
 
-    for (const card of uniqueCards) {
-      const scryfallCard = await fetchCardBySetAndNumber(
-        card.setCode,
-        card.collectorNumber
-      );
+    for (const card of rows) {
+      const scryfallCard = card.fuzzy
+        ? await fetchCardByName(card.name)
+        : await fetchCardBySetAndNumber(card.setCode, card.collectorNumber);
 
       if (!scryfallCard) {
         failCount++;
         results.push({
           success: false,
           name: card.name || `${card.setCode}/${card.collectorNumber}`,
-          error: "Scryfall 未找到",
+          error: card.fuzzy ? "Scryfall 模糊搜索未找到" : "Scryfall 未找到",
         });
         continue;
       }
@@ -256,8 +200,8 @@ export async function POST(request: NextRequest) {
         scryfall_id: scryfallCard.id,
         card_name: scryfallCard.name,
         set_name: scryfallCard.set_name,
-        set_code: card.setCode,
-        collector_number: card.collectorNumber,
+        set_code: scryfallCard.set,
+        collector_number: scryfallCard.collector_number,
         artist_names: artists,
         image_url: imageUrl,
       });
@@ -278,10 +222,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       deckId: deck.id,
-      source,
-      total: uniqueCards.length,
+      total: rows.length,
       successCount,
       failCount,
+      format: rows[0]?.fuzzy ? "fuzzy" : "precise",
       results,
     });
   } catch (error) {

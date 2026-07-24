@@ -38,10 +38,8 @@ export default function DecksPage() {
 
   // 导入表单状态
   const [showImport, setShowImport] = useState(false);
-  const [importMode, setImportMode] = useState<"url" | "csv">("csv");
   const [deckName, setDeckName] = useState("");
-  const [moxfieldUrl, setMoxfieldUrl] = useState("");
-  const [csvText, setCsvText] = useState("");
+  const [deckText, setDeckText] = useState("");
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string>("");
 
@@ -110,13 +108,8 @@ export default function DecksPage() {
       setImportResult("请输入套牌名称");
       return;
     }
-
-    if (importMode === "url" && !moxfieldUrl.trim()) {
-      setImportResult("请粘贴 Moxfield 套牌链接");
-      return;
-    }
-    if (importMode === "csv" && !csvText.trim()) {
-      setImportResult("请粘贴 Moxfield CSV 数据");
+    if (!deckText.trim()) {
+      setImportResult("请粘贴 Moxfield 牌表内容");
       return;
     }
 
@@ -124,29 +117,21 @@ export default function DecksPage() {
     setImportResult("正在导入...");
 
     try {
-      const body: Record<string, string> = { name: deckName };
-      if (importMode === "url") {
-        body.url = moxfieldUrl;
-      } else {
-        body.csv = csvText;
-      }
-
       const res = await fetch("/api/import-deck", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ name: deckName, text: deckText }),
       });
 
       const data = await res.json();
 
       if (data.success) {
         setImportResult(
-          `✅ 导入完成！共 ${data.total} 张独特卡牌，成功 ${data.successCount} 张` +
+          `✅ 导入完成！共 ${data.total} 张，成功 ${data.successCount} 张` +
             (data.failCount > 0 ? `，失败 ${data.failCount} 张` : "")
         );
         setDeckName("");
-        setMoxfieldUrl("");
-        setCsvText("");
+        setDeckText("");
         setShowImport(false);
         loadDecks();
       } else {
@@ -192,28 +177,10 @@ export default function DecksPage() {
           <CardHeader>
             <CardTitle>导入 Moxfield 套牌</CardTitle>
             <CardDescription>
-              从 Moxfield 导出 CSV，粘贴内容即可导入
+              在 Moxfield 中点击 Copy for Moxfield（或 Copy Plain Text），粘贴到下方
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* 导入方式切换 */}
-            <div className="flex gap-2">
-              <Button
-                variant={importMode === "url" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setImportMode("url")}
-              >
-                🔗 粘贴链接
-              </Button>
-              <Button
-                variant={importMode === "csv" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setImportMode("csv")}
-              >
-                📄 粘贴 CSV
-              </Button>
-            </div>
-
             <div className="space-y-2">
               <Label htmlFor="deckName">套牌名称</Label>
               <Input
@@ -223,34 +190,28 @@ export default function DecksPage() {
                 onChange={(e) => setDeckName(e.target.value)}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="text">牌表内容</Label>
+              <Textarea
+                id="text"
+                placeholder={`支持以下格式，直接粘贴即可：
+1 Sol Ring (CMM) 345
+1 Arcane Signet (ELD) 314
+...（Moxfield 格式）
 
-            {importMode === "url" ? (
-              <div className="space-y-2">
-                <Label htmlFor="url">Moxfield 套牌链接（实验性）</Label>
-                <Input
-                  id="url"
-                  placeholder="https://www.moxfield.com/decks/xxxxx"
-                  value={moxfieldUrl}
-                  onChange={(e) => setMoxfieldUrl(e.target.value)}
-                />
-                <p className="text-xs text-amber-600">
-                  ⚠️ 链接方式可能因防护拦截失败，推荐使用上方 CSV 方式
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Label htmlFor="csv">Moxfield CSV 数据</Label>
-                <Textarea
-                  id="csv"
-                  placeholder="粘贴 Moxfield 导出的 CSV 内容..."
-                  rows={6}
-                  value={csvText}
-                  onChange={(e) => setCsvText(e.target.value)}
-                  className="font-mono text-xs"
-                />
-              </div>
-            )}
-
+或纯文本牌名：
+1 Sol Ring
+1 Arcane Signet
+...（Arena / MTGO / Plain Text）`}
+                rows={8}
+                value={deckText}
+                onChange={(e) => setDeckText(e.target.value)}
+                className="font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground">
+                💡 推荐用 Moxfield 的 <b>Copy for Moxfield</b> 格式（含系列信息，识别最准）。PC 和手机都能一键复制粘贴。
+              </p>
+            </div>
             <div className="flex items-center gap-3">
               <Button onClick={handleImport} disabled={importing}>
                 {importing ? "导入中..." : "开始导入"}
