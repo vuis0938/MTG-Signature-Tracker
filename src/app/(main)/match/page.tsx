@@ -47,6 +47,42 @@ export default function MatchPage() {
   const [matching, setMatching] = useState(false);
   const [matched, setMatched] = useState<Map<string, CardEntry[]>>(new Map());
   const [unmatched, setUnmatched] = useState<string[]>([]);
+
+  // 三态切换（复用 decks 页逻辑）
+  async function toggleStatus(cardId: string) {
+    // 找到当前卡牌
+    let currentStatus = 0;
+    for (const cards of matched.values()) {
+      const found = cards.find((c) => c.id === cardId);
+      if (found) { currentStatus = found.status; break; }
+    }
+
+    const newStatus = (currentStatus + 1) % 3;
+
+    // 乐观更新匹配列表
+    setMatched((prev) => {
+      const next = new Map(prev);
+      for (const [artist, cards] of next) {
+        next.set(
+          artist,
+          cards
+            .map((c) => (c.id === cardId ? { ...c, status: newStatus } : c))
+            .filter((c) => c.status === 0) // 非未签的移出列表
+        );
+      }
+      // 清除空的画家条目
+      for (const [artist, cards] of next) {
+        if (cards.length === 0) next.delete(artist);
+      }
+      return next;
+    });
+
+    // 写入数据库
+    await supabase
+      .from("cards")
+      .update({ status: newStatus, is_signed: newStatus === 2 })
+      .eq("id", cardId);
+  }
   const [hasRun, setHasRun] = useState(false);
 
   useEffect(() => {
@@ -356,21 +392,40 @@ Kev Walker - Table 5
                             {deckCards.map((card) => (
                               <div
                                 key={card.id}
-                                className="w-24 rounded-lg overflow-hidden border border-border"
+                                onClick={() => toggleStatus(card.id)}
+                                className={`relative w-24 rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 ${
+                                  card.status >= 1
+                                    ? "border-green-500"
+                                    : "border-border hover:shadow-md"
+                                }`}
+                                title={["未签", "送签中", "已签"][card.status ?? 0]}
                               >
-                                {card.image_url ? (
-                                  <img
-                                    src={card.image_url}
-                                    alt={card.card_name}
-                                    className="w-full"
-                                    loading="lazy"
-                                  />
-                                ) : (
-                                  <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
-                                    {card.card_name}
+                                <div className={card.status >= 1 ? "opacity-75" : ""}>
+                                  {card.image_url ? (
+                                    <img
+                                      src={card.image_url}
+                                      alt={card.card_name}
+                                      className="w-full"
+                                      loading="lazy"
+                                    />
+                                  ) : (
+                                    <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
+                                      {card.card_name}
+                                    </div>
+                                  )}
+                                </div>
+                                {card.status >= 1 && (
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <div
+                                      className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg ${
+                                        card.status === 2 ? "bg-green-500" : "bg-blue-500"
+                                      }`}
+                                    >
+                                      {card.status === 2 ? "✓" : "…"}
+                                    </div>
                                   </div>
                                 )}
-                                <div className="bg-black/60 text-white text-[10px] px-1 py-0.5 text-center truncate">
+                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-1 py-0.5 text-center truncate">
                                   {card.card_name}
                                 </div>
                               </div>
