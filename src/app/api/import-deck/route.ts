@@ -15,43 +15,52 @@ interface CardRow {
   collectorNumber: string;
 }
 
-// ─── 快速 Scryfall 查询（跳过内置延迟，由批次控制速率） ───
+// ─── Scryfall 查询（带自动重试） ───
 
 const SCRYFALL_UA = "MTG-Signature-Tracker/1.0";
+const MAX_RETRIES = 2;
 
-async function quickFetchCard(setCode: string, cn: string): Promise<ScryfallCard | null> {
+/** 判断是否为可重试的临时错误（非 404 的失败都可能是瞬时的） */
+function isRetryable(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
+async function quickFetchCard(
+  setCode: string,
+  cn: string,
+  attempt = 0
+): Promise<ScryfallCard | null> {
   const url = `https://api.scryfall.com/cards/${encodeURIComponent(setCode.toLowerCase())}/${encodeURIComponent(cn)}`;
   try {
     const res = await fetch(url, {
       headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
     });
-    if (res.status === 404) return null;
-    if (res.status === 429) {
-      await delay(2000);
-      return quickFetchCard(setCode, cn);
-    }
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
-  }
-}
 
-/** 兜底：精确定位失败时用卡名模糊搜索 */
-async function fuzzyFetchCard(cardName: string): Promise<ScryfallCard | null> {
-  const url = `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(cardName)}`;
-  try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
-    });
+    // 404 是真找不到，不重试
     if (res.status === 404) return null;
-    if (res.status === 429) {
-      await delay(2000);
-      return fuzzyFetchCard(cardName);
+
+    // 可重试的错误
+    if (isRetryable(res.status) || !res.ok) {
+      if (attempt < MAX_RETRIES) {
+        const wait = res.status === 429 ? 2000 : 1000 * (attempt + 1);
+        console.warn(`[Scryfall] ${setCode}/${cn} HTTP ${res.status}, ${wait}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
+        await delay(wait);
+        return quickFetchCard(setCode, cn, attempt + 1);
+      }
+      console.error(`[Scryfall] ${setCode}/${cn} 重试 ${MAX_RETRIES} 次后仍失败`);
+      return null;
     }
-    if (!res.ok) return null;
+
     return await res.json();
-  } catch {
+  } catch (err) {
+    // 网络错误也重试
+    if (attempt < MAX_RETRIES) {
+      const wait = 1000 * (attempt + 1);
+      console.warn(`[Scryfall] ${setCode}/${cn} 网络错误, ${wait}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
+      await delay(wait);
+      return quickFetchCard(setCode, cn, attempt + 1);
+    }
+    console.error(`[Scryfall] ${setCode}/${cn} 网络错误，重试耗尽:`, err);
     return null;
   }
 }
