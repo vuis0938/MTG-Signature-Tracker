@@ -1,0 +1,87 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+import {
+  Layers,
+  GitCompare,
+  Settings,
+} from "lucide-react";
+
+const navItems = [
+  {
+    href: "/decks",
+    label: "牌表",
+    icon: Layers,
+  },
+  {
+    href: "/match",
+    label: "匹配",
+    icon: GitCompare,
+  },
+  {
+    href: "/settings",
+    label: "设置",
+    icon: Settings,
+  },
+] as const;
+
+export function NavBar() {
+  const pathname = usePathname();
+
+  return (
+    <>
+      {/* 桌面端：顶部导航 */}
+      <header className="hidden md:flex h-14 items-center gap-4 border-b bg-background px-6 sticky top-0 z-50">
+        <Link href="/decks" className="flex items-center gap-2 font-semibold">
+          🃏 MTG 签绘管家
+        </Link>
+        <nav className="flex items-center gap-1 ml-4">
+          {navItems.map((item) => {
+            const isActive = pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                  isActive
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                )}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+      </header>
+
+      {/* 移动端：底部导航 */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-background">
+        <div className="flex items-center justify-around h-14">
+          {navItems.map((item) => {
+            const isActive = pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-0.5 w-full h-full transition-colors",
+                  isActive
+                    ? "text-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <item.icon className="h-5 w-5" />
+                <span className="text-xs">{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+    </>
+  );
+}
