@@ -531,25 +531,28 @@ export default function DecksPage() {
                                   }
                                   className={`relative w-24 rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 ${
                                     isSigned
-                                      ? "opacity-50"
+                                      ? "border-green-500"
                                       : "border-border hover:shadow-md"
                                   }`}
                                   title={statusLabels[status]}
                                 >
-                                  {card.image_url ? (
-                                    <img
-                                      src={card.image_url}
-                                      alt={card.card_name}
-                                      className="w-full"
-                                      loading="lazy"
-                                    />
-                                  ) : (
-                                    <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
-                                      {card.card_name}
-                                    </div>
-                                  )}
+                                  {/* 卡图区域 — 仅这块半透明 */}
+                                  <div className={isSigned ? "opacity-50" : ""}>
+                                    {card.image_url ? (
+                                      <img
+                                        src={card.image_url}
+                                        alt={card.card_name}
+                                        className="w-full"
+                                        loading="lazy"
+                                      />
+                                    ) : (
+                                      <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
+                                        {card.card_name}
+                                      </div>
+                                    )}
+                                  </div>
 
-                                  {/* 状态圆 — 居中显示 */}
+                                  {/* 状态圆 — 保持完全不透明 */}
                                   {isSigned && (
                                     <div className="absolute inset-0 flex items-center justify-center">
                                       <div
