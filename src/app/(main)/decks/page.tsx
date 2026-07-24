@@ -234,6 +234,40 @@ export default function DecksPage() {
     }
   }
 
+  // 切换已签/未签
+  async function toggleSigned(cardId: string, currentSigned: boolean, deckId: string) {
+    const newSigned = !currentSigned;
+
+    // 乐观更新本地状态
+    setCards((prev) => {
+      const updated = { ...prev };
+      if (updated[deckId]) {
+        updated[deckId] = updated[deckId].map((c) =>
+          c.id === cardId ? { ...c, is_signed: newSigned } : c
+        );
+      }
+      return updated;
+    });
+
+    // 更新统计
+    setDeckStats((prev) => {
+      const stats = { ...prev };
+      if (stats[deckId]) {
+        stats[deckId] = {
+          ...stats[deckId],
+          unsigned: stats[deckId].unsigned + (newSigned ? -1 : 1),
+        };
+      }
+      return stats;
+    });
+
+    // 写入数据库
+    await supabase
+      .from("cards")
+      .update({ is_signed: newSigned, signed_date: newSigned ? new Date().toISOString().split("T")[0] : null })
+      .eq("id", cardId);
+  }
+
   // 按画家分组
   function groupCardsByArtist(cardList: CardEntry[]): Map<string, CardEntry[]> {
     const map = new Map<string, CardEntry[]>();
@@ -462,11 +496,19 @@ export default function DecksPage() {
                             {artistCards.map((card) => (
                               <div
                                 key={card.id}
-                                className={`relative w-24 rounded-lg overflow-hidden border ${
+                                onClick={() =>
+                                  toggleSigned(card.id, card.is_signed, deck.id)
+                                }
+                                className={`relative w-24 rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 ${
                                   card.is_signed
                                     ? "opacity-50 border-green-500"
-                                    : "border-border"
+                                    : "border-border hover:shadow-md"
                                 }`}
+                                title={
+                                  card.is_signed
+                                    ? "已签（点击撤销）"
+                                    : "未签（点击标记已签）"
+                                }
                               >
                                 {card.image_url ? (
                                   <img
@@ -480,7 +522,12 @@ export default function DecksPage() {
                                     {card.card_name}
                                   </div>
                                 )}
-                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-1 py-0.5 text-center">
+                                {card.is_signed && (
+                                  <div className="absolute top-1 right-1 bg-green-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                                    ✓
+                                  </div>
+                                )}
+                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-1 py-0.5 text-center truncate">
                                   {card.card_name}
                                 </div>
                               </div>
