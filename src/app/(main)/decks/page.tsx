@@ -38,7 +38,9 @@ export default function DecksPage() {
 
   // 导入表单状态
   const [showImport, setShowImport] = useState(false);
+  const [importMode, setImportMode] = useState<"url" | "csv">("url");
   const [deckName, setDeckName] = useState("");
+  const [moxfieldUrl, setMoxfieldUrl] = useState("");
   const [csvText, setCsvText] = useState("");
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string>("");
@@ -108,7 +110,12 @@ export default function DecksPage() {
       setImportResult("请输入套牌名称");
       return;
     }
-    if (!csvText.trim()) {
+
+    if (importMode === "url" && !moxfieldUrl.trim()) {
+      setImportResult("请粘贴 Moxfield 套牌链接");
+      return;
+    }
+    if (importMode === "csv" && !csvText.trim()) {
       setImportResult("请粘贴 Moxfield CSV 数据");
       return;
     }
@@ -117,10 +124,17 @@ export default function DecksPage() {
     setImportResult("正在导入...");
 
     try {
+      const body: Record<string, string> = { name: deckName };
+      if (importMode === "url") {
+        body.url = moxfieldUrl;
+      } else {
+        body.csv = csvText;
+      }
+
       const res = await fetch("/api/import-deck", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: deckName, csv: csvText }),
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
@@ -131,6 +145,7 @@ export default function DecksPage() {
             (data.failCount > 0 ? `，失败 ${data.failCount} 张` : "")
         );
         setDeckName("");
+        setMoxfieldUrl("");
         setCsvText("");
         setShowImport(false);
         loadDecks();
@@ -177,10 +192,28 @@ export default function DecksPage() {
           <CardHeader>
             <CardTitle>导入 Moxfield 套牌</CardTitle>
             <CardDescription>
-              在 Moxfield 中导出套牌为 CSV，将内容粘贴到下方
+              两种方式任选：粘贴套牌链接（推荐）或粘贴 CSV 内容
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* 导入方式切换 */}
+            <div className="flex gap-2">
+              <Button
+                variant={importMode === "url" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setImportMode("url")}
+              >
+                🔗 粘贴链接
+              </Button>
+              <Button
+                variant={importMode === "csv" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setImportMode("csv")}
+              >
+                📄 粘贴 CSV
+              </Button>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="deckName">套牌名称</Label>
               <Input
@@ -190,17 +223,34 @@ export default function DecksPage() {
                 onChange={(e) => setDeckName(e.target.value)}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="csv">Moxfield CSV 数据</Label>
-              <Textarea
-                id="csv"
-                placeholder="粘贴 Moxfield 导出的 CSV 内容..."
-                rows={8}
-                value={csvText}
-                onChange={(e) => setCsvText(e.target.value)}
-                className="font-mono text-xs"
-              />
-            </div>
+
+            {importMode === "url" ? (
+              <div className="space-y-2">
+                <Label htmlFor="url">Moxfield 套牌链接</Label>
+                <Input
+                  id="url"
+                  placeholder="https://www.moxfield.com/decks/xxxxx"
+                  value={moxfieldUrl}
+                  onChange={(e) => setMoxfieldUrl(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  手机上直接复制网址粘贴即可，不需要导出文件
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="csv">Moxfield CSV 数据</Label>
+                <Textarea
+                  id="csv"
+                  placeholder="粘贴 Moxfield 导出的 CSV 内容..."
+                  rows={6}
+                  value={csvText}
+                  onChange={(e) => setCsvText(e.target.value)}
+                  className="font-mono text-xs"
+                />
+              </div>
+            )}
+
             <div className="flex items-center gap-3">
               <Button onClick={handleImport} disabled={importing}>
                 {importing ? "导入中..." : "开始导入"}
