@@ -466,9 +466,8 @@ export default function DecksPage() {
                         {deck.name}
                       </CardTitle>
                       <CardDescription>
-                        {new Date(deck.created_at).toLocaleDateString("zh-CN")}
                         {deckStats[deck.id] &&
-                          ` · 共 ${deckStats[deck.id].total} 张` +
+                          `共 ${deckStats[deck.id].total} 张` +
                             (deckStats[deck.id].unsigned > 0
                               ? ` · ${deckStats[deck.id].unsigned} 待签`
                               : "") +
@@ -481,6 +480,8 @@ export default function DecksPage() {
                             0
                               ? ` · ${deckStats[deck.id].total - deckStats[deck.id].unsigned - deckStats[deck.id].pending} 已签`
                               : "")}
+                        <br />
+                        上次更新时间：{new Date(deck.created_at).toLocaleDateString("zh-CN")}
                       </CardDescription>
                     </div>
                   </div>
