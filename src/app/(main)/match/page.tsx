@@ -65,14 +65,8 @@ export default function MatchPage() {
       for (const [artist, cards] of next) {
         next.set(
           artist,
-          cards
-            .map((c) => (c.id === cardId ? { ...c, status: newStatus } : c))
-            .filter((c) => c.status === 0) // 非未签的移出列表
+          cards.map((c) => (c.id === cardId ? { ...c, status: newStatus } : c))
         );
-      }
-      // 清除空的画家条目
-      for (const [artist, cards] of next) {
-        if (cards.length === 0) next.delete(artist);
       }
       return next;
     });
@@ -130,13 +124,12 @@ export default function MatchPage() {
     setMatching(true);
     setHasRun(true);
 
-    // 查询选中套牌的所有待签卡牌 (status=0)
+    // 查询选中套牌的所有卡牌
     const deckIds = Array.from(selectedDecks);
     const { data: cards } = await supabase
       .from("cards")
       .select("*")
       .in("deck_id", deckIds)
-      .eq("status", 0)
       .order("artist_names");
 
     // 构建画家 → 卡牌索引

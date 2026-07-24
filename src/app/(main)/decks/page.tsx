@@ -289,11 +289,7 @@ export default function DecksPage() {
     // 写入数据库
     await supabase
       .from("cards")
-      .update({
-        status: newStatus,
-        is_signed: newStatus === 2,
-        signed_date: newStatus === 2 ? new Date().toISOString().split("T")[0] : null,
-      })
+      .update({ status: newStatus, is_signed: newStatus === 2 })
       .eq("id", cardId);
   }
 
