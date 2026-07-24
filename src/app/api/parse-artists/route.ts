@@ -59,31 +59,43 @@ function parseWithRegex(rawText: string): string[] {
   const artists: string[] = [];
 
   for (const line of lines) {
-    // 跳过太短/太长的行
-    if (line.length < 3 || line.length > 120) continue;
+    if (line.length < 3 || line.length > 200) continue;
+    if (line.startsWith("http") || line.startsWith("#")) continue;
 
     let name = line;
 
-    // 去掉序号: "1." "1)" "①"
-    name = name.replace(/^[\d]+[\.\)、]\s*/, "");
-    // 去掉 Markdown 序号
-    name = name.replace(/^[\*\-\+]\s*/, "");
+    // 去掉序号前缀: "1." "1)" "①" "1 -"
+    name = name.replace(/^[\d]+[\.\)、\-]\s*/, "");
+    name = name.replace(/^[\*\-\+]\s+/, "");
 
-    // 按常见分隔符拆分，取第一段（去掉摊位号、价格等）
+    // 按分隔符拆分，取第一段
     name = name.split(/\s*\|\s*|\s{2,}|\t/)[0].trim();
 
-    // 去掉纯数字和特殊字符结尾
-    name = name.replace(/\s*[\d\$€£]+\s*$/, "").trim();
+    // 去掉末尾的日期: 8/1/2026, 2026/8/1, Aug 1 2026 等
+    name = name.replace(/\s+\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b.*$/, "");
+    name = name.replace(/\s+\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}\b.*$/, "");
 
-    // 过滤：太短、纯数字、URL
+    // 去掉末尾的价格: $8, $16, $8 & $16, 8 USD 等
+    name = name.replace(/\s+\$[\d]+(\s*[&\/]\s*\$[\d]+)*\s*$/, "");
+    name = name.replace(/\s+[\d]+\s*(USD|EUR|GBP|JPY|元)\s*$/i, "");
+
+    // 去掉末尾残留数字和时间
+    name = name.replace(/\s+\d{1,2}:\d{2}.*$/, "");
+    name = name.replace(/\s+\d+\s*$/, "");
+
+    // 去掉末尾的标记: *F*, *S*, etc
+    name = name.replace(/\s*\*[A-Z]\*\s*$/, "");
+
+    name = name.trim();
+
+    // 过滤无效结果
     if (name.length < 3) continue;
-    if (/^[\d\s\.\-\+\$€£]*$/.test(name)) continue;
-    if (name.startsWith("http")) continue;
+    // 纯数字/符号行
+    if (/^[\d\s\.\-\+\$€£\/\\:~]+$/.test(name)) continue;
 
     artists.push(name);
   }
 
-  // 去重
   return [...new Set(artists)];
 }
 
