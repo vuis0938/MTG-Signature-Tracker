@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parse } from "papaparse";
+import https from "node:https";
+import http from "node:http";
 import { supabase } from "@/lib/supabase";
 import {
   fetchCardBySetAndNumber,
@@ -12,6 +14,47 @@ interface CardRow {
   name: string;
   setCode: string;
   collectorNumber: string;
+}
+
+// ─── HTTP 请求辅助 ────────────────────────────────────────
+
+/** 用原生 https 模块发请求（绕过 Cloudflare TLS 指纹检测） */
+function nativeFetch(url: string): Promise<{ status: number; text: string }> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const transport = parsed.protocol === "https:" ? https : http;
+
+    const req = transport.get(
+      url,
+      {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
+          Accept: "application/json",
+          "Accept-Language": "en-US,en;q=0.9",
+          Referer: "https://www.moxfield.com/",
+          Origin: "https://www.moxfield.com",
+        },
+        // 关键：禁用 ALPN 协商中的 HTTP/2 通告，贴近 curl 行为
+        // @ts-expect-error Node typings may miss ALPNProtocols on get options
+        ALPNProtocols: ["http/1.1"],
+      },
+      (res) => {
+        let body = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk: string) => (body += chunk));
+        res.on("end", () =>
+          resolve({ status: res.statusCode ?? 0, text: body })
+        );
+      }
+    );
+
+    req.on("error", reject);
+    req.setTimeout(15000, () => {
+      req.destroy();
+      reject(new Error("请求超时"));
+    });
+  });
 }
 
 // ─── Moxfield URL 解析 ────────────────────────────────────
@@ -27,15 +70,17 @@ async function fetchMoxfieldDeck(deckId: string): Promise<CardRow[]> {
   const apiUrl = `https://api2.moxfield.com/v3/decks/all/${encodeURIComponent(deckId)}`;
   console.log(`[Moxfield] GET ${apiUrl}`);
 
-  const res = await fetch(apiUrl, {
-    headers: { "User-Agent": "MTG-Signature-Tracker/1.0", Accept: "application/json" },
-  });
+  const { status, text } = await nativeFetch(apiUrl);
 
-  if (!res.ok) {
-    throw new Error(`获取 Moxfield 套牌失败 (HTTP ${res.status})`);
+  if (status !== 200) {
+    // 如果返回的是 Cloudflare 拦截页面
+    if (text.includes("Cloudflare") || text.includes("Attention Required")) {
+      throw new Error("Moxfield 的防护系统拦截了请求，请改用 CSV 方式导入");
+    }
+    throw new Error(`获取 Moxfield 套牌失败 (HTTP ${status})`);
   }
 
-  const data = await res.json();
+  const data = JSON.parse(text);
   const rows: CardRow[] = [];
 
   // Moxfield 结构: { boards: { mainboard: { cards: [...] }, sideboard: {...} } }

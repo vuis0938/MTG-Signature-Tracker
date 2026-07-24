@@ -38,7 +38,7 @@ export default function DecksPage() {
 
   // 导入表单状态
   const [showImport, setShowImport] = useState(false);
-  const [importMode, setImportMode] = useState<"url" | "csv">("url");
+  const [importMode, setImportMode] = useState<"url" | "csv">("csv");
   const [deckName, setDeckName] = useState("");
   const [moxfieldUrl, setMoxfieldUrl] = useState("");
   const [csvText, setCsvText] = useState("");
@@ -192,7 +192,7 @@ export default function DecksPage() {
           <CardHeader>
             <CardTitle>导入 Moxfield 套牌</CardTitle>
             <CardDescription>
-              两种方式任选：粘贴套牌链接（推荐）或粘贴 CSV 内容
+              从 Moxfield 导出 CSV，粘贴内容即可导入
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -226,15 +226,15 @@ export default function DecksPage() {
 
             {importMode === "url" ? (
               <div className="space-y-2">
-                <Label htmlFor="url">Moxfield 套牌链接</Label>
+                <Label htmlFor="url">Moxfield 套牌链接（实验性）</Label>
                 <Input
                   id="url"
                   placeholder="https://www.moxfield.com/decks/xxxxx"
                   value={moxfieldUrl}
                   onChange={(e) => setMoxfieldUrl(e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground">
-                  手机上直接复制网址粘贴即可，不需要导出文件
+                <p className="text-xs text-amber-600">
+                  ⚠️ 链接方式可能因防护拦截失败，推荐使用上方 CSV 方式
                 </p>
               </div>
             ) : (
