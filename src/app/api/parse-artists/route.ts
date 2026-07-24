@@ -18,7 +18,7 @@ async function parseWithLLM(rawText: string): Promise<{ artists: string[]; model
   // 优先 DeepSeek
   if (DEEPSEEK_KEY) {
     return {
-      artists: await callOpenAICompatible("https://api.deepseek.com/v1", DEEPSEEK_KEY, "deepseek-chat", rawText),
+      artists: await callOpenAICompatible("https://api.deepseek.com/v1", DEEPSEEK_KEY, "deepseek-v4-flash", rawText),
       model: "deepseek",
     };
   }
@@ -48,15 +48,17 @@ async function callOpenAICompatible(
     body: JSON.stringify({
       model,
       max_tokens: 1024,
-      temperature: 0,
       messages: [
-        { role: "system", content: "你只返回 JSON 数组，不返回其他文字。" },
         { role: "user", content: `${PROMPT}\n\n原文：\n---\n${rawText}\n---` },
       ],
     }),
   });
 
-  if (!res.ok) throw new Error(`API 错误 (HTTP ${res.status})`);
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error("[DeepSeek] 错误响应:", errText);
+    throw new Error(`API 错误 (HTTP ${res.status}): ${errText.slice(0, 200)}`);
+  }
 
   const data = await res.json();
   const text: string = data.choices?.[0]?.message?.content || "";
