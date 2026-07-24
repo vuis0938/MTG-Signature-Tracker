@@ -100,9 +100,10 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 创建套牌 ──
+    const userName = request.cookies.get("user_name")?.value || "默认用户";
     const { data: deck, error: deckError } = await supabase
       .from("decks")
-      .insert({ name: name.trim(), source: "Copy for Moxfield" })
+      .insert({ name: name.trim(), source: "Copy for Moxfield", user_name: userName })
       .select("id")
       .single();
 

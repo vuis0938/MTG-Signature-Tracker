@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/user";
 import { Upload, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 
 interface Deck {
@@ -72,6 +73,7 @@ export default function DecksPage() {
     const { data, error } = await supabase
       .from("decks")
       .select("*")
+      .eq("user_name", getCurrentUser())
       .order("created_at", { ascending: false });
 
     if (!error && data) {

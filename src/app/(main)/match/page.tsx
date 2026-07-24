@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/user";
 import Fuse from "fuse.js";
 import { Search, Download, CheckSquare, Square } from "lucide-react";
 
@@ -83,6 +84,7 @@ export default function MatchPage() {
     supabase
       .from("decks")
       .select("id,name")
+      .eq("user_name", getCurrentUser())
       .order("created_at", { ascending: false })
       .then(({ data }) => {
         if (data) {
