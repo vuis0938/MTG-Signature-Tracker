@@ -25,6 +25,7 @@ interface Deck {
 interface DeckStats {
   total: number;
   unsigned: number;
+  pending: number;
 }
 
 interface CardEntry {
@@ -35,6 +36,7 @@ interface CardEntry {
   artist_names: string[];
   image_url: string | null;
   is_signed: boolean;
+  status: number; // 0=未签, 1=送签中, 2=已签
 }
 
 export default function DecksPage() {
@@ -89,11 +91,17 @@ export default function DecksPage() {
               .from("cards")
               .select("*", { count: "exact", head: true })
               .eq("deck_id", deck.id)
-              .eq("is_signed", false),
+              .eq("status", 0),
+            supabase
+              .from("cards")
+              .select("*", { count: "exact", head: true })
+              .eq("deck_id", deck.id)
+              .eq("status", 1),
           ]);
           statsMap[deck.id] = {
             total: total ?? 0,
             unsigned: unsigned ?? 0,
+            pending: pending ?? 0,
           };
         })
       );
@@ -234,16 +242,16 @@ export default function DecksPage() {
     }
   }
 
-  // 切换已签/未签
-  async function toggleSigned(cardId: string, currentSigned: boolean, deckId: string) {
-    const newSigned = !currentSigned;
+  // 三态切换：0=未签 → 1=送签中 → 2=已签 → 0=未签
+  async function toggleStatus(cardId: string, currentStatus: number, deckId: string) {
+    const newStatus = (currentStatus + 1) % 3;
 
     // 乐观更新本地状态
     setCards((prev) => {
       const updated = { ...prev };
       if (updated[deckId]) {
         updated[deckId] = updated[deckId].map((c) =>
-          c.id === cardId ? { ...c, is_signed: newSigned } : c
+          c.id === cardId ? { ...c, status: newStatus, is_signed: newStatus === 2 } : c
         );
       }
       return updated;
@@ -253,9 +261,17 @@ export default function DecksPage() {
     setDeckStats((prev) => {
       const stats = { ...prev };
       if (stats[deckId]) {
+        const delta: Record<number, { u: number; p: number }> = {
+          0: { u: 1, p: 0 },
+          1: { u: 0, p: 1 },
+          2: { u: 0, p: 0 },
+        };
+        const old = delta[currentStatus] ?? { u: 0, p: 0 };
+        const now = delta[newStatus] ?? { u: 0, p: 0 };
         stats[deckId] = {
           ...stats[deckId],
-          unsigned: stats[deckId].unsigned + (newSigned ? -1 : 1),
+          unsigned: stats[deckId].unsigned - old.u + now.u,
+          pending: stats[deckId].pending - old.p + now.p,
         };
       }
       return stats;
@@ -264,7 +280,11 @@ export default function DecksPage() {
     // 写入数据库
     await supabase
       .from("cards")
-      .update({ is_signed: newSigned, signed_date: newSigned ? new Date().toISOString().split("T")[0] : null })
+      .update({
+        status: newStatus,
+        is_signed: newStatus === 2,
+        signed_date: newStatus === 2 ? new Date().toISOString().split("T")[0] : null,
+      })
       .eq("id", cardId);
   }
 
@@ -453,11 +473,11 @@ export default function DecksPage() {
                         {new Date(deck.created_at).toLocaleDateString("zh-CN")}
                         {deckStats[deck.id] && (
                           <span className="ml-2">
-                            {deckStats[deck.id].unsigned > 0
-                              ? `${deckStats[deck.id].unsigned} 张待签`
-                              : deckStats[deck.id].total > 0
-                                ? "🎉 全部已签"
-                                : ""}
+                            {deckStats[deck.id].unsigned > 0 && `${deckStats[deck.id].unsigned} 待签 `}
+                            {deckStats[deck.id].pending > 0 && `${deckStats[deck.id].pending} 送签中 `}
+                            {deckStats[deck.id].unsigned === 0 && deckStats[deck.id].pending === 0 && deckStats[deck.id].total > 0
+                              ? "🎉 全部已签"
+                              : ""}
                           </span>
                         )}
                       </CardDescription>
@@ -493,45 +513,60 @@ export default function DecksPage() {
                             🎨 {artist} ({artistCards.length})
                           </h4>
                           <div className="flex flex-wrap gap-3">
-                            {artistCards.map((card) => (
-                              <div
-                                key={card.id}
-                                onClick={() =>
-                                  toggleSigned(card.id, card.is_signed, deck.id)
-                                }
-                                className={`relative w-24 rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 ${
-                                  card.is_signed
-                                    ? "opacity-50 border-green-500"
-                                    : "border-border hover:shadow-md"
-                                }`}
-                                title={
-                                  card.is_signed
-                                    ? "已签（点击撤销）"
-                                    : "未签（点击标记已签）"
-                                }
-                              >
-                                {card.image_url ? (
-                                  <img
-                                    src={card.image_url}
-                                    alt={card.card_name}
-                                    className="w-full"
-                                    loading="lazy"
-                                  />
-                                ) : (
-                                  <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
+                            {artistCards.map((card) => {
+                              const status = card.status ?? (card.is_signed ? 2 : 0);
+                              const statusStyles: Record<number, string> = {
+                                0: "border-border hover:shadow-md",
+                                1: "border-blue-400 bg-blue-50/30 opacity-90",
+                                2: "opacity-50 border-green-500",
+                              };
+                              const statusLabels: Record<number, string> = {
+                                0: "未签（点击切换为送签中）",
+                                1: "送签中（点击切换为已签）",
+                                2: "已签（点击切换为未签）",
+                              };
+                              const statusIcons: Record<number, string | null> = {
+                                0: null,
+                                1: "📤",
+                                2: "✓",
+                              };
+
+                              return (
+                                <div
+                                  key={card.id}
+                                  onClick={() =>
+                                    toggleStatus(card.id, status, deck.id)
+                                  }
+                                  className={`relative w-24 rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 ${statusStyles[status]}`}
+                                  title={statusLabels[status]}
+                                >
+                                  {card.image_url ? (
+                                    <img
+                                      src={card.image_url}
+                                      alt={card.card_name}
+                                      className="w-full"
+                                      loading="lazy"
+                                    />
+                                  ) : (
+                                    <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
+                                      {card.card_name}
+                                    </div>
+                                  )}
+                                  {statusIcons[status] && (
+                                    <div
+                                      className={`absolute top-1 right-1 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center ${
+                                        status === 2 ? "bg-green-500" : "bg-blue-500"
+                                      }`}
+                                    >
+                                      {statusIcons[status]}
+                                    </div>
+                                  )}
+                                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-1 py-0.5 text-center truncate">
                                     {card.card_name}
                                   </div>
-                                )}
-                                {card.is_signed && (
-                                  <div className="absolute top-1 right-1 bg-green-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                                    ✓
-                                  </div>
-                                )}
-                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-1 py-0.5 text-center truncate">
-                                  {card.card_name}
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       ))}
