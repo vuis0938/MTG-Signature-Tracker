@@ -1,16 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
 
-// 格式: "用户名:密码, 用户名:密码"
-function parseUsers(): Map<string, string> {
-  const raw = process.env.SECRET_KEYS || "";
-  const map = new Map<string, string>();
-  for (const entry of raw.split(",")) {
-    const [name, pw] = entry.trim().split(":");
-    if (name && pw) map.set(name.trim(), pw.trim());
-  }
-  return map;
+function setCookies(response: NextResponse, username: string, password: string) {
+  response.cookies.set("auth_token", password, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 60 * 60 * 24 * 365,
+    path: "/",
+  });
+  response.cookies.set("user_name", username, {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 60 * 60 * 24 * 365,
+    path: "/",
+  });
 }
 
+// POST: 登录
 export async function POST(request: NextRequest) {
   try {
     const { username, password } = await request.json();
@@ -19,35 +27,58 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "请输入用户名和密码" }, { status: 400 });
     }
 
-    const users = parseUsers();
-    const expectedPassword = users.get(username);
+    const { data: users } = await supabase
+      .from("users")
+      .select("*")
+      .eq("username", username)
+      .limit(1);
 
-    if (!expectedPassword || password !== expectedPassword) {
+    if (!users || users.length === 0) {
+      return NextResponse.json({ error: "用户名或密码不正确" }, { status: 401 });
+    }
+
+    if (users[0].password !== password) {
       return NextResponse.json({ error: "用户名或密码不正确" }, { status: 401 });
     }
 
     const response = NextResponse.json({ success: true, user: username });
-
-    // auth_token: 验证身份
-    response.cookies.set("auth_token", password, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 365,
-      path: "/",
-    });
-
-    // user_name: 数据隔离
-    response.cookies.set("user_name", username, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 365,
-      path: "/",
-    });
-
+    setCookies(response, username, password);
     return response;
   } catch {
     return NextResponse.json({ error: "请求格式错误" }, { status: 400 });
+  }
+}
+
+// PUT: 注册
+export async function PUT(request: NextRequest) {
+  try {
+    const { username, password } = await request.json();
+
+    if (!username || !password) {
+      return NextResponse.json({ error: "请输入用户名和密码" }, { status: 400 });
+    }
+    if (username.length < 2 || username.length > 30) {
+      return NextResponse.json({ error: "用户名需 2-30 个字符" }, { status: 400 });
+    }
+    if (password.length < 4) {
+      return NextResponse.json({ error: "密码至少 4 个字符" }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from("users")
+      .insert({ username: username.trim(), password });
+
+    if (error) {
+      if (error.code === "23505") {
+        return NextResponse.json({ error: "该用户名已被注册" }, { status: 409 });
+      }
+      return NextResponse.json({ error: "注册失败，请重试" }, { status: 500 });
+    }
+
+    const response = NextResponse.json({ success: true, user: username });
+    setCookies(response, username, password);
+    return response;
+  } catch {
+    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 
 export default function LoginPage() {
+  const [isRegister, setIsRegister] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -27,9 +28,9 @@ export default function LoginPage() {
 
     try {
       const res = await fetch("/api/auth", {
-        method: "POST",
+        method: isRegister ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: username.trim(), password }),
       });
 
       if (res.ok) {
@@ -37,7 +38,7 @@ export default function LoginPage() {
         router.refresh();
       } else {
         const data = await res.json();
-        setError(data.error || "登录失败");
+        setError(data.error || "操作失败");
       }
     } catch {
       setError("网络错误，请检查连接后重试");
@@ -51,7 +52,9 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">🃏 MTG 签绘管家</CardTitle>
-          <CardDescription>请输入用户名和密码</CardDescription>
+          <CardDescription>
+            {isRegister ? "注册新账号" : "请输入用户名和密码"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -81,9 +84,21 @@ export default function LoginPage() {
               <p className="text-sm text-destructive">{error}</p>
             )}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "验证中..." : "登录"}
+              {loading ? "处理中..." : isRegister ? "注册并登录" : "登录"}
             </Button>
           </form>
+          <p className="text-center text-sm text-muted-foreground mt-4">
+            {isRegister ? "已有账号？" : "没有账号？"}
+            <button
+              onClick={() => {
+                setIsRegister(!isRegister);
+                setError("");
+              }}
+              className="ml-1 text-primary hover:underline"
+            >
+              {isRegister ? "去登录" : "注册"}
+            </button>
+          </p>
         </CardContent>
       </Card>
     </div>
