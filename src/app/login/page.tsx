@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/card";
 
 export default function LoginPage() {
-  const [secret, setSecret] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -28,14 +29,15 @@ export default function LoginPage() {
       const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ secret }),
+        body: JSON.stringify({ username, password }),
       });
 
       if (res.ok) {
         router.push("/decks");
         router.refresh();
       } else {
-        setError("密钥不正确，请重试");
+        const data = await res.json();
+        setError(data.error || "登录失败");
       }
     } catch {
       setError("网络错误，请检查连接后重试");
@@ -49,19 +51,29 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">🃏 MTG 签绘管家</CardTitle>
-          <CardDescription>请输入访问密钥以继续</CardDescription>
+          <CardDescription>请输入用户名和密码</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="secret">访问密钥</Label>
+              <Label htmlFor="username">用户名</Label>
               <Input
-                id="secret"
-                type="password"
-                placeholder="请输入 SECRET_KEY"
-                value={secret}
-                onChange={(e) => setSecret(e.target.value)}
+                id="username"
+                placeholder="请输入用户名"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 autoFocus
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">密码</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="请输入密码"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 required
               />
             </div>
@@ -69,7 +81,7 @@ export default function LoginPage() {
               <p className="text-sm text-destructive">{error}</p>
             )}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "验证中..." : "进入应用"}
+              {loading ? "验证中..." : "登录"}
             </Button>
           </form>
         </CardContent>

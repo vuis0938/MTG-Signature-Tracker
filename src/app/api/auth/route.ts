@@ -6,30 +6,30 @@ function parseUsers(): Map<string, string> {
   const map = new Map<string, string>();
   for (const entry of raw.split(",")) {
     const [name, pw] = entry.trim().split(":");
-    if (name && pw) map.set(pw, name.trim());
+    if (name && pw) map.set(name.trim(), pw.trim());
   }
   return map;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { secret } = await request.json();
+    const { username, password } = await request.json();
 
-    if (!secret || typeof secret !== "string") {
-      return NextResponse.json({ error: "请提供访问密钥" }, { status: 400 });
+    if (!username || !password) {
+      return NextResponse.json({ error: "请输入用户名和密码" }, { status: 400 });
     }
 
     const users = parseUsers();
-    const userName = users.get(secret);
+    const expectedPassword = users.get(username);
 
-    if (!userName) {
-      return NextResponse.json({ error: "密钥不正确" }, { status: 401 });
+    if (!expectedPassword || password !== expectedPassword) {
+      return NextResponse.json({ error: "用户名或密码不正确" }, { status: 401 });
     }
 
-    const response = NextResponse.json({ success: true, user: userName });
+    const response = NextResponse.json({ success: true, user: username });
 
     // auth_token: 验证身份
-    response.cookies.set("auth_token", secret, {
+    response.cookies.set("auth_token", password, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -38,8 +38,8 @@ export async function POST(request: NextRequest) {
     });
 
     // user_name: 数据隔离
-    response.cookies.set("user_name", userName, {
-      httpOnly: false, // 前端可读
+    response.cookies.set("user_name", username, {
+      httpOnly: false,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 365,
