@@ -91,8 +91,8 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 8 路并行查询 Scryfall ──
-    const CONCURRENCY = 10;
-    const BATCH_DELAY = 80; // 批次间隔 ms，10 req/s 刚好卡在 Scryfall 上限
+    const CONCURRENCY = 8;
+    const BATCH_DELAY = 100; // 批次间隔 ms，8 req/s 稳定不触发限速
     const cardResults: Array<{ card: CardRow; data: ScryfallCard | null }> = [];
     const tScryfall = Date.now();
 
