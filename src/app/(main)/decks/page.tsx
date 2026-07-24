@@ -126,9 +126,11 @@ export default function DecksPage() {
       const data = await res.json();
 
       if (data.success) {
+        const t = data.timing;
         setImportResult(
-          `✅ 导入完成！共 ${data.total} 张，成功 ${data.successCount} 张` +
-            (data.failCount > 0 ? `，失败 ${data.failCount} 张` : "")
+          `✅ 导入完成！${data.successCount}/${data.total} 张成功` +
+            (data.failCount > 0 ? `，${data.failCount} 张失败` : "") +
+            ` | 耗时 ${t.total}${t.scryfall ? ` (Scryfall ${t.scryfall}${t.db ? `, DB ${t.db}` : ""})` : ""}`
         );
         setDeckName("");
         setDeckText("");

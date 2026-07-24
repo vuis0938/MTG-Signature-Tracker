@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import {
-  fetchCardBySetAndNumber,
+  ScryfallCard,
   extractArtists,
   extractImageUrl,
 } from "@/lib/scryfall";
@@ -15,35 +15,50 @@ interface CardRow {
   collectorNumber: string;
 }
 
-/**
- * 解析 Copy for Moxfield 格式：
- *   1 Sol Ring (CMM) 345
- *   1 Arcane Signet (ELD) 314 *F*
- */
+// ─── 快速 Scryfall 查询（跳过内置延迟，由批次控制速率） ───
+
+const SCRYFALL_UA = "MTG-Signature-Tracker/1.0";
+
+async function quickFetchCard(setCode: string, cn: string): Promise<ScryfallCard | null> {
+  const url = `https://api.scryfall.com/cards/${encodeURIComponent(setCode.toLowerCase())}/${encodeURIComponent(cn)}`;
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
+    });
+    if (res.status === 404) return null;
+    if (res.status === 429) {
+      await delay(2000);
+      return quickFetchCard(setCode, cn);
+    }
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+// ─── Moxfield 格式解析 ────────────────────────────────────
+
 function parseMoxfieldFormat(text: string): CardRow[] {
   const rows: CardRow[] = [];
-  // 匹配: [数量] 卡名 (系列代码) 编号 [可选标记]
   const re = /^(\d+)\s+(.+?)\s+\((\w+)\)\s+(\S+)/i;
 
   for (const line of text.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-    const cleaned = trimmed.replace(/\s*\*[FS]\*\s*/g, ""); // 移除 *F* *S* 标记
+    const cleaned = trimmed.replace(/\s*\*[FS]\*\s*/g, "");
     const m = cleaned.match(re);
     if (!m) continue;
-
-    rows.push({
-      count: m[1],
-      name: m[2].trim(),
-      setCode: m[3],
-      collectorNumber: m[4],
-    });
+    rows.push({ count: m[1], name: m[2].trim(), setCode: m[3], collectorNumber: m[4] });
   }
-
   return rows;
 }
 
+// ─── API Handler ──────────────────────────────────────────
+
 export async function POST(request: NextRequest) {
+  const t0 = Date.now();
+
   try {
     const body = await request.json();
     const { name, text } = body as { name?: string; text?: string };
@@ -59,10 +74,7 @@ export async function POST(request: NextRequest) {
     const rows = parseMoxfieldFormat(text);
     if (rows.length === 0) {
       return NextResponse.json(
-        {
-          error:
-            "未识别到有效卡牌。请确认使用的是 Moxfield 的「Copy for Moxfield」格式。\n\n格式示例：\n1 Sol Ring (CMM) 345\n1 Arcane Signet (ELD) 314",
-        },
+        { error: "未识别到有效卡牌。请使用 Moxfield 的「Copy for Moxfield」格式" },
         { status: 400 }
       );
     }
@@ -75,79 +87,68 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (deckError || !deck) {
-      return NextResponse.json(
-        { error: `创建套牌失败: ${deckError?.message}` },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: `创建套牌失败: ${deckError?.message}` }, { status: 500 });
     }
 
-    // ── 并行查询 Scryfall（每批 5 张，控制速率） ──
-    const CONCURRENCY = 5;
-    const cardResults: Array<{
-      card: CardRow;
-      scryfallCard: Awaited<ReturnType<typeof fetchCardBySetAndNumber>>;
-    }> = [];
+    // ── 8 路并行查询 Scryfall ──
+    const CONCURRENCY = 8;
+    const BATCH_DELAY = 120; // 批次间隔 ms，保持 < 10 req/s
+    const cardResults: Array<{ card: CardRow; data: ScryfallCard | null }> = [];
+    const tScryfall = Date.now();
 
     for (let i = 0; i < rows.length; i += CONCURRENCY) {
       const batch = rows.slice(i, i + CONCURRENCY);
       const batchResults = await Promise.all(
         batch.map(async (card) => ({
           card,
-          scryfallCard: await fetchCardBySetAndNumber(card.setCode, card.collectorNumber),
+          data: await quickFetchCard(card.setCode, card.collectorNumber),
         }))
       );
       cardResults.push(...batchResults);
-      // 批次间 200ms 缓冲，防止触发速率限制
-      if (i + CONCURRENCY < rows.length) await delay(200);
+      if (i + CONCURRENCY < rows.length) await delay(BATCH_DELAY);
     }
+
+    const tScryfallDone = Date.now();
 
     // ── 批量写入 Supabase ──
     const results: Array<{ success: boolean; name: string; error?: string }> = [];
     let successCount = 0;
     let failCount = 0;
-
     const cardsToInsert: Array<Record<string, unknown>> = [];
 
-    for (const { card, scryfallCard } of cardResults) {
-      if (!scryfallCard) {
+    for (const { card, data } of cardResults) {
+      if (!data) {
         failCount++;
-        results.push({
-          success: false,
-          name: card.name || `${card.setCode}/${card.collectorNumber}`,
-          error: "Scryfall 未找到",
-        });
+        results.push({ success: false, name: card.name, error: "Scryfall 未找到" });
         continue;
       }
-
-      const artists = extractArtists(scryfallCard);
-      const imageUrl = extractImageUrl(scryfallCard);
-
       cardsToInsert.push({
         deck_id: deck.id,
-        scryfall_id: scryfallCard.id,
-        card_name: scryfallCard.name,
-        set_name: scryfallCard.set_name,
+        scryfall_id: data.id,
+        card_name: data.name,
+        set_name: data.set_name,
         set_code: card.setCode,
         collector_number: card.collectorNumber,
-        artist_names: artists,
-        image_url: imageUrl,
+        artist_names: extractArtists(data),
+        image_url: extractImageUrl(data),
       });
-
       successCount++;
-      results.push({ success: true, name: scryfallCard.name });
+      results.push({ success: true, name: data.name });
     }
 
-    // 一次写入所有卡牌
+    const tBeforeDB = Date.now();
     if (cardsToInsert.length > 0) {
       const { error: batchError } = await supabase.from("cards").insert(cardsToInsert);
       if (batchError) {
-        // 降级：逐张写入
-        console.warn("[Import] 批量写入失败，降级为逐张写入:", batchError.message);
-        for (const card of cardsToInsert) {
-          await supabase.from("cards").insert(card);
+        console.warn("[Import] 批量写入失败，降级:", batchError.message);
+        for (const c of cardsToInsert) {
+          await supabase.from("cards").insert(c);
         }
       }
     }
+    const tDB = Date.now() - tBeforeDB;
+    const tTotal = ((Date.now() - t0) / 1000).toFixed(1);
+    const tS = ((tScryfallDone - tScryfall) / 1000).toFixed(1);
 
     return NextResponse.json({
       success: true,
@@ -155,13 +156,15 @@ export async function POST(request: NextRequest) {
       total: rows.length,
       successCount,
       failCount,
+      timing: {
+        total: `${tTotal}s`,
+        scryfall: `${tS}s (${rows.length} cards × ${CONCURRENCY} concurrent)`,
+        db: `${(tDB / 1000).toFixed(1)}s`,
+      },
       results,
     });
   } catch (error) {
     console.error("[Import]", error);
-    return NextResponse.json(
-      { error: "服务器内部错误，请重试" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "服务器内部错误" }, { status: 500 });
   }
 }
