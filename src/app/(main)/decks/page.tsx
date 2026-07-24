@@ -41,7 +41,11 @@ export default function DecksPage() {
   const [deckName, setDeckName] = useState("");
   const [deckText, setDeckText] = useState("");
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<string>("");
+
+  // Toast 通知
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(
+    null
+  );
 
   // 展开的套牌 + 卡牌数据
   const [expandedDeck, setExpandedDeck] = useState<string | null>(null);
@@ -105,16 +109,15 @@ export default function DecksPage() {
   // 导入套牌
   async function handleImport() {
     if (!deckName.trim()) {
-      setImportResult("请输入套牌名称");
+      setToast({ message: "请输入套牌名称", type: "error" });
       return;
     }
     if (!deckText.trim()) {
-      setImportResult("请粘贴 Moxfield 牌表内容");
+      setToast({ message: "请粘贴 Moxfield 牌表内容", type: "error" });
       return;
     }
 
     setImporting(true);
-    setImportResult("正在导入...");
 
     try {
       const res = await fetch("/api/import-deck", {
@@ -127,20 +130,21 @@ export default function DecksPage() {
 
       if (data.success) {
         const t = data.timing;
-        setImportResult(
-          `✅ 导入完成！${data.successCount}/${data.total} 张成功` +
-            (data.failCount > 0 ? `，${data.failCount} 张失败` : "") +
-            ` | 耗时 ${t.total}${t.scryfall ? ` (Scryfall ${t.scryfall}${t.db ? `, DB ${t.db}` : ""})` : ""}`
-        );
+        const msg =
+          `✅ 「${deckName}」导入完成！${data.successCount}/${data.total} 张` +
+          (data.failCount > 0 ? `，${data.failCount} 张失败` : "") +
+          ` | ${t.total}`;
+
+        setToast({ message: msg, type: "success" });
         setDeckName("");
         setDeckText("");
         setShowImport(false);
-        loadDecks();
+        await loadDecks();
       } else {
-        setImportResult(`❌ 导入失败: ${data.error}`);
+        setToast({ message: data.error, type: "error" });
       }
     } catch {
-      setImportResult("❌ 网络错误，请重试");
+      setToast({ message: "网络错误，请重试", type: "error" });
     } finally {
       setImporting(false);
     }
@@ -162,12 +166,42 @@ export default function DecksPage() {
 
   return (
     <div className="space-y-6">
+      {/* Toast 通知 */}
+      {toast && (
+        <div
+          className={`p-3 rounded-lg text-sm ${
+            toast.type === "success"
+              ? "bg-green-50 text-green-800 border border-green-200"
+              : "bg-red-50 text-red-800 border border-red-200"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span>{toast.message}</span>
+            <button
+              onClick={() => setToast(null)}
+              className="ml-3 text-current opacity-50 hover:opacity-100"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">核心牌表</h1>
           <p className="text-muted-foreground">管理你的套牌和签绘清单</p>
         </div>
-        <Button onClick={() => setShowImport(!showImport)} disabled={importing}>
+        <Button
+          onClick={() => {
+            setShowImport(!showImport);
+            if (!showImport) {
+              setDeckName("");
+              setDeckText("");
+            }
+          }}
+          disabled={importing}
+        >
           <Upload className="h-4 w-4 mr-2" />
           导入套牌
         </Button>
@@ -218,11 +252,6 @@ export default function DecksPage() {
                 取消
               </Button>
             </div>
-            {importResult && (
-              <p className={`text-sm ${importResult.startsWith("✅") ? "text-green-600" : "text-destructive"}`}>
-                {importResult}
-              </p>
-            )}
           </CardContent>
         </Card>
       )}
