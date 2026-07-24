@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 // 不需要鉴权的路由
-const PUBLIC_PATHS = ["/login", "/api/auth", "/api/setup-users"];
+const PUBLIC_PATHS = ["/login", "/api/auth"];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -21,11 +21,8 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 检查 auth_token cookie
-  const token = request.cookies.get("auth_token")?.value;
-
-  if (!token || token !== process.env.SECRET_KEY) {
-    // 未登录，重定向到登录页
+  // 检查 auth_token cookie（登录 API 已验证过密码）
+  if (!request.cookies.get("auth_token")?.value) {
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
   }
