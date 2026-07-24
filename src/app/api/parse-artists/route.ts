@@ -1,25 +1,77 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// ─── LLM 清洗 ────────────────────────────────────────────
+// ─── LLM 清洗（DeepSeek 优先，Anthropic 备选） ─────────────
 
+const DEEPSEEK_KEY = process.env.DEEPSEEK_API_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 
-async function parseWithLLM(rawText: string): Promise<string[]> {
-  const prompt = `你是一个文本解析器。以下是万智牌活动的画家出席名单原文。
-请从中提取所有画家的英文全名，返回纯 JSON 字符串数组。
+const PROMPT = `你是一个文本解析器。以下是万智牌活动的画家出席名单原文。请从中提取所有画家的英文全名，返回纯 JSON 字符串数组。
 
 规则：
 1. 只提取画家姓名，去掉序号、价格、时间、摊位号等无关信息
 2. 如果只有中文译名或昵称，保留原文不做翻译
 3. 多人合作写成一条的，拆分为独立条目
-4. 返回格式：["Name One", "Name Two", ...]
-5. 如果无法识别任何画家，返回空数组 []
+4. 仅返回 JSON 数组，不要其他任何文字
+5. 如果无法识别任何画家，返回空数组 []`;
 
-原文：
----
-${rawText}
----`;
+async function parseWithLLM(rawText: string): Promise<{ artists: string[]; model: string }> {
+  // 优先 DeepSeek
+  if (DEEPSEEK_KEY) {
+    return {
+      artists: await callOpenAICompatible("https://api.deepseek.com/v1", DEEPSEEK_KEY, "deepseek-chat", rawText),
+      model: "deepseek",
+    };
+  }
+  // 备选 Anthropic
+  if (ANTHROPIC_KEY) {
+    return {
+      artists: await callAnthropic(rawText),
+      model: "claude-haiku",
+    };
+  }
+  throw new Error("未配置 LLM API Key");
+}
 
+/** DeepSeek / OpenAI 兼容格式 */
+async function callOpenAICompatible(
+  baseUrl: string,
+  apiKey: string,
+  model: string,
+  rawText: string
+): Promise<string[]> {
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 1024,
+      temperature: 0,
+      messages: [
+        { role: "system", content: "你只返回 JSON 数组，不返回其他文字。" },
+        { role: "user", content: `${PROMPT}\n\n原文：\n---\n${rawText}\n---` },
+      ],
+    }),
+  });
+
+  if (!res.ok) throw new Error(`API 错误 (HTTP ${res.status})`);
+
+  const data = await res.json();
+  const text: string = data.choices?.[0]?.message?.content || "";
+  const match = text.match(/\[[\s\S]*\]/);
+  if (!match) return [];
+  try {
+    const artists = JSON.parse(match[0]);
+    return Array.isArray(artists) ? artists : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Anthropic Messages API */
+async function callAnthropic(rawText: string): Promise<string[]> {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -30,20 +82,16 @@ ${rawText}
     body: JSON.stringify({
       model: "claude-3-5-haiku-latest",
       max_tokens: 1024,
-      messages: [{ role: "user", content: prompt }],
+      messages: [{ role: "user", content: `${PROMPT}\n\n原文：\n---\n${rawText}\n---` }],
     }),
   });
 
-  if (!res.ok) {
-    throw new Error(`LLM API 错误 (HTTP ${res.status})`);
-  }
+  if (!res.ok) throw new Error(`Anthropic API 错误 (HTTP ${res.status})`);
 
   const data = await res.json();
-  const text = data.content?.[0]?.text || "";
-  // 提取 JSON 数组
+  const text: string = data.content?.[0]?.text || "";
   const match = text.match(/\[[\s\S]*\]/);
   if (!match) return [];
-
   try {
     const artists = JSON.parse(match[0]);
     return Array.isArray(artists) ? artists : [];
@@ -114,10 +162,11 @@ export async function POST(request: NextRequest) {
     let method: string;
 
     // 优先 LLM
-    if (ANTHROPIC_KEY) {
+    if (DEEPSEEK_KEY || ANTHROPIC_KEY) {
       try {
-        artists = await parseWithLLM(text);
-        method = "llm";
+        const result = await parseWithLLM(text);
+        artists = result.artists;
+        method = result.model;
       } catch (e) {
         console.warn("[Parse] LLM 失败，降级为正则:", e);
         artists = parseWithRegex(text);
