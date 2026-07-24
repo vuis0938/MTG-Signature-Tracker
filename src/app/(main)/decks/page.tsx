@@ -464,23 +464,23 @@ export default function DecksPage() {
                     <div>
                       <CardTitle className="text-base">
                         {deck.name}
-                        {deckStats[deck.id] && (
-                          <span className="ml-2 text-sm font-normal text-muted-foreground">
-                            ({deckStats[deck.id].unsigned}/{deckStats[deck.id].total})
-                          </span>
-                        )}
                       </CardTitle>
                       <CardDescription>
                         {new Date(deck.created_at).toLocaleDateString("zh-CN")}
-                        {deckStats[deck.id] && (
-                          <span className="ml-2">
-                            {deckStats[deck.id].unsigned > 0 && `${deckStats[deck.id].unsigned} 待签 `}
-                            {deckStats[deck.id].pending > 0 && `${deckStats[deck.id].pending} 送签中 `}
-                            {deckStats[deck.id].unsigned === 0 && deckStats[deck.id].pending === 0 && deckStats[deck.id].total > 0
-                              ? "🎉 全部已签"
-                              : ""}
-                          </span>
-                        )}
+                        {deckStats[deck.id] &&
+                          ` · 共 ${deckStats[deck.id].total} 张` +
+                            (deckStats[deck.id].unsigned > 0
+                              ? ` · ${deckStats[deck.id].unsigned} 待签`
+                              : "") +
+                            (deckStats[deck.id].pending > 0
+                              ? ` · ${deckStats[deck.id].pending} 送签中`
+                              : "") +
+                            (deckStats[deck.id].total -
+                              deckStats[deck.id].unsigned -
+                              deckStats[deck.id].pending >
+                            0
+                              ? ` · ${deckStats[deck.id].total - deckStats[deck.id].unsigned - deckStats[deck.id].pending} 已签`
+                              : "")}
                       </CardDescription>
                     </div>
                   </div>
@@ -537,7 +537,7 @@ export default function DecksPage() {
                                   title={statusLabels[status]}
                                 >
                                   {/* 卡图区域 — 仅这块半透明 */}
-                                  <div className={isSigned ? "opacity-50" : ""}>
+                                  <div className={isSigned ? "opacity-75" : ""}>
                                     {card.image_url ? (
                                       <img
                                         src={card.image_url}
