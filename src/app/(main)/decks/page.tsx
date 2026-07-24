@@ -177,7 +177,7 @@ export default function DecksPage() {
           <CardHeader>
             <CardTitle>导入 Moxfield 套牌</CardTitle>
             <CardDescription>
-              在 Moxfield 中点击 Copy for Moxfield（或 Copy Plain Text），粘贴到下方
+              在 Moxfield 套牌页面点击 <b>Copy for Moxfield</b>，粘贴到下方即可导入
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -194,22 +194,18 @@ export default function DecksPage() {
               <Label htmlFor="text">牌表内容</Label>
               <Textarea
                 id="text"
-                placeholder={`支持以下格式，直接粘贴即可：
+                placeholder={`粘贴 Copy for Moxfield 的内容，格式如下：
 1 Sol Ring (CMM) 345
 1 Arcane Signet (ELD) 314
-...（Moxfield 格式）
-
-或纯文本牌名：
-1 Sol Ring
-1 Arcane Signet
-...（Arena / MTGO / Plain Text）`}
+1 Command Tower (CMR) 350 *F*
+...`}
                 rows={8}
                 value={deckText}
                 onChange={(e) => setDeckText(e.target.value)}
                 className="font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground">
-                💡 推荐用 Moxfield 的 <b>Copy for Moxfield</b> 格式（含系列信息，识别最准）。PC 和手机都能一键复制粘贴。
+                💡 Moxfield 套牌页面点 <b>Copy for Moxfield</b> → 直接粘贴到这里。含系列代码和编号，100% 精准匹配你的实体卡版本。
               </p>
             </div>
             <div className="flex items-center gap-3">
