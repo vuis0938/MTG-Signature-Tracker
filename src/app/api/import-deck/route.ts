@@ -6,6 +6,8 @@ import {
   extractImageUrl,
 } from "@/lib/scryfall";
 
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 interface CardRow {
   count: string;
   name: string;
@@ -79,14 +81,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── 逐张查询 Scryfall ──
+    // ── 并行查询 Scryfall（每批 5 张，控制速率） ──
+    const CONCURRENCY = 5;
+    const cardResults: Array<{
+      card: CardRow;
+      scryfallCard: Awaited<ReturnType<typeof fetchCardBySetAndNumber>>;
+    }> = [];
+
+    for (let i = 0; i < rows.length; i += CONCURRENCY) {
+      const batch = rows.slice(i, i + CONCURRENCY);
+      const batchResults = await Promise.all(
+        batch.map(async (card) => ({
+          card,
+          scryfallCard: await fetchCardBySetAndNumber(card.setCode, card.collectorNumber),
+        }))
+      );
+      cardResults.push(...batchResults);
+      // 批次间 200ms 缓冲，防止触发速率限制
+      if (i + CONCURRENCY < rows.length) await delay(200);
+    }
+
+    // ── 批量写入 Supabase ──
     const results: Array<{ success: boolean; name: string; error?: string }> = [];
     let successCount = 0;
     let failCount = 0;
 
-    for (const card of rows) {
-      const scryfallCard = await fetchCardBySetAndNumber(card.setCode, card.collectorNumber);
+    const cardsToInsert: Array<Record<string, unknown>> = [];
 
+    for (const { card, scryfallCard } of cardResults) {
       if (!scryfallCard) {
         failCount++;
         results.push({
@@ -100,7 +122,7 @@ export async function POST(request: NextRequest) {
       const artists = extractArtists(scryfallCard);
       const imageUrl = extractImageUrl(scryfallCard);
 
-      const { error: insertError } = await supabase.from("cards").insert({
+      cardsToInsert.push({
         deck_id: deck.id,
         scryfall_id: scryfallCard.id,
         card_name: scryfallCard.name,
@@ -111,16 +133,19 @@ export async function POST(request: NextRequest) {
         image_url: imageUrl,
       });
 
-      if (insertError) {
-        failCount++;
-        results.push({
-          success: false,
-          name: scryfallCard.name,
-          error: `写入失败: ${insertError.message}`,
-        });
-      } else {
-        successCount++;
-        results.push({ success: true, name: scryfallCard.name });
+      successCount++;
+      results.push({ success: true, name: scryfallCard.name });
+    }
+
+    // 一次写入所有卡牌
+    if (cardsToInsert.length > 0) {
+      const { error: batchError } = await supabase.from("cards").insert(cardsToInsert);
+      if (batchError) {
+        // 降级：逐张写入
+        console.warn("[Import] 批量写入失败，降级为逐张写入:", batchError.message);
+        for (const card of cardsToInsert) {
+          await supabase.from("cards").insert(card);
+        }
       }
     }
 
