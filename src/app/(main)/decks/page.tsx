@@ -82,7 +82,8 @@ export default function DecksPage() {
       const statsMap: Record<string, DeckStats> = {};
       await Promise.all(
         data.map(async (deck) => {
-          const [{ count: total }, { count: unsigned }] = await Promise.all([
+          const [{ count: total }, { count: unsigned }, { count: pending }] =
+            await Promise.all([
             supabase
               .from("cards")
               .select("*", { count: "exact", head: true })
@@ -515,21 +516,12 @@ export default function DecksPage() {
                           <div className="flex flex-wrap gap-3">
                             {artistCards.map((card) => {
                               const status = card.status ?? (card.is_signed ? 2 : 0);
-                              const statusStyles: Record<number, string> = {
-                                0: "border-border hover:shadow-md",
-                                1: "border-blue-400 bg-blue-50/30 opacity-90",
-                                2: "opacity-50 border-green-500",
-                              };
                               const statusLabels: Record<number, string> = {
                                 0: "未签（点击切换为送签中）",
                                 1: "送签中（点击切换为已签）",
                                 2: "已签（点击切换为未签）",
                               };
-                              const statusIcons: Record<number, string | null> = {
-                                0: null,
-                                1: "📤",
-                                2: "✓",
-                              };
+                              const isSigned = status >= 1;
 
                               return (
                                 <div
@@ -537,7 +529,11 @@ export default function DecksPage() {
                                   onClick={() =>
                                     toggleStatus(card.id, status, deck.id)
                                   }
-                                  className={`relative w-24 rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 ${statusStyles[status]}`}
+                                  className={`relative w-24 rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 ${
+                                    isSigned
+                                      ? "opacity-50"
+                                      : "border-border hover:shadow-md"
+                                  }`}
                                   title={statusLabels[status]}
                                 >
                                   {card.image_url ? (
@@ -552,15 +548,20 @@ export default function DecksPage() {
                                       {card.card_name}
                                     </div>
                                   )}
-                                  {statusIcons[status] && (
-                                    <div
-                                      className={`absolute top-1 right-1 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center ${
-                                        status === 2 ? "bg-green-500" : "bg-blue-500"
-                                      }`}
-                                    >
-                                      {statusIcons[status]}
+
+                                  {/* 状态圆 — 居中显示 */}
+                                  {isSigned && (
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                      <div
+                                        className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg ${
+                                          status === 2 ? "bg-green-500" : "bg-blue-500"
+                                        }`}
+                                      >
+                                        {status === 2 ? "✓" : "…"}
+                                      </div>
                                     </div>
                                   )}
+
                                   <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-1 py-0.5 text-center truncate">
                                     {card.card_name}
                                   </div>
