@@ -22,6 +22,11 @@ interface Deck {
   created_at: string;
 }
 
+interface DeckStats {
+  total: number;
+  unsigned: number;
+}
+
 interface CardEntry {
   id: string;
   card_name: string;
@@ -34,6 +39,7 @@ interface CardEntry {
 
 export default function DecksPage() {
   const [decks, setDecks] = useState<Deck[]>([]);
+  const [deckStats, setDeckStats] = useState<Record<string, DeckStats>>({});
   const [loading, setLoading] = useState(true);
 
   // 导入表单状态
@@ -60,14 +66,39 @@ export default function DecksPage() {
   const [cards, setCards] = useState<Record<string, CardEntry[]>>({});
   const [cardsLoading, setCardsLoading] = useState(false);
 
-  // 加载套牌列表
+  // 加载套牌列表 + 每套牌的统计
   const loadDecks = useCallback(async () => {
     const { data, error } = await supabase
       .from("decks")
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (!error && data) setDecks(data);
+    if (!error && data) {
+      setDecks(data);
+
+      // 并发获取每套牌的计数
+      const statsMap: Record<string, DeckStats> = {};
+      await Promise.all(
+        data.map(async (deck) => {
+          const [{ count: total }, { count: unsigned }] = await Promise.all([
+            supabase
+              .from("cards")
+              .select("*", { count: "exact", head: true })
+              .eq("deck_id", deck.id),
+            supabase
+              .from("cards")
+              .select("*", { count: "exact", head: true })
+              .eq("deck_id", deck.id)
+              .eq("is_signed", false),
+          ]);
+          statsMap[deck.id] = {
+            total: total ?? 0,
+            unsigned: unsigned ?? 0,
+          };
+        })
+      );
+      setDeckStats(statsMap);
+    }
     setLoading(false);
   }, []);
 
@@ -376,9 +407,25 @@ export default function DecksPage() {
                       <ChevronRight className="h-4 w-4" />
                     )}
                     <div>
-                      <CardTitle className="text-base">{deck.name}</CardTitle>
+                      <CardTitle className="text-base">
+                        {deck.name}
+                        {deckStats[deck.id] && (
+                          <span className="ml-2 text-sm font-normal text-muted-foreground">
+                            ({deckStats[deck.id].unsigned}/{deckStats[deck.id].total})
+                          </span>
+                        )}
+                      </CardTitle>
                       <CardDescription>
                         {new Date(deck.created_at).toLocaleDateString("zh-CN")}
+                        {deckStats[deck.id] && (
+                          <span className="ml-2">
+                            {deckStats[deck.id].unsigned > 0
+                              ? `${deckStats[deck.id].unsigned} 张待签`
+                              : deckStats[deck.id].total > 0
+                                ? "🎉 全部已签"
+                                : ""}
+                          </span>
+                        )}
                       </CardDescription>
                     </div>
                   </div>
