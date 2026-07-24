@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 // 不需要鉴权的路由
 const PUBLIC_PATHS = ["/login", "/api/auth"];
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 公开路由直接放行
