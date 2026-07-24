@@ -20,11 +20,6 @@ interface CardRow {
 const SCRYFALL_UA = "MTG-Signature-Tracker/1.0";
 const MAX_RETRIES = 2;
 
-/** 判断是否为可重试的临时错误（非 404 的失败都可能是瞬时的） */
-function isRetryable(status: number): boolean {
-  return status === 429 || status >= 500;
-}
-
 async function quickFetchCard(
   setCode: string,
   cn: string,
@@ -36,11 +31,8 @@ async function quickFetchCard(
       headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
     });
 
-    // 404 是真找不到，不重试
-    if (res.status === 404) return null;
-
-    // 可重试的错误
-    if (isRetryable(res.status) || !res.ok) {
+    // 可重试的错误（含 404，Scryfall 偶尔瞬时返回）
+    if (!res.ok) {
       if (attempt < MAX_RETRIES) {
         const wait = res.status === 429 ? 2000 : 1000 * (attempt + 1);
         console.warn(`[Scryfall] ${setCode}/${cn} HTTP ${res.status}, ${wait}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
