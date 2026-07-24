@@ -61,7 +61,6 @@ export default function DecksPage() {
   >([]);
   const [retryingDeckId, setRetryingDeckId] = useState<string | null>(null);
   const [retryingCard, setRetryingCard] = useState<string | null>(null);
-  const [retryNotes, setRetryNotes] = useState<Record<string, string>>({});
 
   // 展开的套牌 + 卡牌数据
   const [expandedDeck, setExpandedDeck] = useState<string | null>(null);
@@ -225,13 +224,14 @@ export default function DecksPage() {
       if (data.success) {
         // 从失败列表移除
         setFailedCards((prev) => prev.filter((c) => c.name !== cardName));
-        if (data.note) {
-          setRetryNotes((prev) => ({ ...prev, [cardName]: data.note }));
-        }
-        // 刷新卡牌数据 + 统计
-        if (retryingDeckId) {
-          await loadDecks();
-          // 重新加载卡牌列表
+        const note = data.note ? `（${data.note}）` : "";
+        setToast({
+          message: `✅ 「${cardName}」通过模糊搜索成功录入${note}`,
+          type: "success",
+        });
+        // 刷新
+        await loadDecks();
+        if (retryingDeckId && expandedDeck === retryingDeckId) {
           const { data: freshCards } = await supabase
             .from("cards")
             .select("*")
@@ -242,10 +242,10 @@ export default function DecksPage() {
           }
         }
       } else {
-        setRetryNotes((prev) => ({ ...prev, [cardName]: `❌ ${data.error}` }));
+        setToast({ message: `❌ ${cardName}: ${data.error}`, type: "error" });
       }
     } catch {
-      setRetryNotes((prev) => ({ ...prev, [cardName]: "❌ 网络错误" }));
+      setToast({ message: `❌ ${cardName}: 网络错误`, type: "error" });
     } finally {
       setRetryingCard(null);
     }
@@ -426,9 +426,6 @@ export default function DecksPage() {
                     <p className="text-xs text-muted-foreground">
                       {card.setCode} / {card.collectorNumber}
                     </p>
-                    {retryNotes[card.name] && (
-                      <p className="text-xs mt-1 text-amber-700">{retryNotes[card.name]}</p>
-                    )}
                   </div>
                   <Button
                     size="sm"
