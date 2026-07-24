@@ -225,13 +225,21 @@ export default function DecksPage() {
       if (data.success) {
         // 从失败列表移除
         setFailedCards((prev) => prev.filter((c) => c.name !== cardName));
-        // 记录备注
         if (data.note) {
           setRetryNotes((prev) => ({ ...prev, [cardName]: data.note }));
         }
-        // 刷新卡牌显示
-        if (expandedDeck === retryingDeckId) {
-          toggleDeck(retryingDeckId);
+        // 刷新卡牌数据 + 统计
+        if (retryingDeckId) {
+          await loadDecks();
+          // 重新加载卡牌列表
+          const { data: freshCards } = await supabase
+            .from("cards")
+            .select("*")
+            .eq("deck_id", retryingDeckId)
+            .order("artist_names");
+          if (freshCards) {
+            setCards((prev) => ({ ...prev, [retryingDeckId]: freshCards }));
+          }
         }
       } else {
         setRetryNotes((prev) => ({ ...prev, [cardName]: `❌ ${data.error}` }));
