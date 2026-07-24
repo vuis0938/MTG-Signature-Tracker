@@ -118,15 +118,10 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < rows.length; i += CONCURRENCY) {
       const batch = rows.slice(i, i + CONCURRENCY);
       const batchResults = await Promise.all(
-        batch.map(async (card) => {
-          // 精确查询
-          let data = await quickFetchCard(card.setCode, card.collectorNumber);
-          // 失败则模糊搜索兜底
-          if (!data && card.name) {
-            data = await fuzzyFetchCard(card.name);
-          }
-          return { card, data };
-        })
+        batch.map(async (card) => ({
+          card,
+          data: await quickFetchCard(card.setCode, card.collectorNumber),
+        }))
       );
       cardResults.push(...batchResults);
       if (i + CONCURRENCY < rows.length) await delay(BATCH_DELAY);
@@ -136,6 +131,7 @@ export async function POST(request: NextRequest) {
 
     // ── 批量写入 Supabase ──
     const results: Array<{ success: boolean; name: string; error?: string }> = [];
+    const failedCards: Array<{ name: string; setCode: string; collectorNumber: string }> = [];
     let successCount = 0;
     let failCount = 0;
     const cardsToInsert: Array<Record<string, unknown>> = [];
@@ -143,7 +139,12 @@ export async function POST(request: NextRequest) {
     for (const { card, data } of cardResults) {
       if (!data) {
         failCount++;
-        results.push({ success: false, name: card.name, error: "Scryfall 未找到" });
+        failedCards.push({
+          name: card.name || `${card.setCode}/${card.collectorNumber}`,
+          setCode: card.setCode,
+          collectorNumber: card.collectorNumber,
+        });
+        results.push({ success: false, name: card.name, error: "未找到" });
         continue;
       }
       cardsToInsert.push({
@@ -180,6 +181,7 @@ export async function POST(request: NextRequest) {
       total: rows.length,
       successCount,
       failCount,
+      failedCards,
       timing: {
         total: `${tTotal}s`,
         scryfall: `${tS}s (${rows.length} cards × ${CONCURRENCY} concurrent)`,

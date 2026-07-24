@@ -47,6 +47,14 @@ export default function DecksPage() {
     null
   );
 
+  // 导入失败卡牌的手动重试
+  const [failedCards, setFailedCards] = useState<
+    Array<{ name: string; setCode: string; collectorNumber: string }>
+  >([]);
+  const [retryingDeckId, setRetryingDeckId] = useState<string | null>(null);
+  const [retryingCard, setRetryingCard] = useState<string | null>(null);
+  const [retryNotes, setRetryNotes] = useState<Record<string, string>>({});
+
   // 展开的套牌 + 卡牌数据
   const [expandedDeck, setExpandedDeck] = useState<string | null>(null);
   const [cards, setCards] = useState<Record<string, CardEntry[]>>({});
@@ -130,12 +138,23 @@ export default function DecksPage() {
 
       if (data.success) {
         const t = data.timing;
+        const hasFailures = data.failCount > 0;
         const msg =
-          `✅ 「${deckName}」导入完成！${data.successCount}/${data.total} 张` +
-          (data.failCount > 0 ? `，${data.failCount} 张失败` : "") +
+          `✅ 「${deckName}」${data.successCount}/${data.total} 张成功` +
+          (hasFailures ? `，${data.failCount} 张未找到` : "") +
           ` | ${t.total}`;
 
-        setToast({ message: msg, type: "success" });
+        setToast({ message: msg, type: hasFailures ? "error" : "success" });
+
+        // 保存失败卡牌供手动重试
+        if (hasFailures && data.failedCards) {
+          setFailedCards(data.failedCards);
+          setRetryingDeckId(data.deckId);
+        } else {
+          setFailedCards([]);
+          setRetryingDeckId(null);
+        }
+
         setDeckName("");
         setDeckText("");
         setShowImport(false);
@@ -147,6 +166,40 @@ export default function DecksPage() {
       setToast({ message: "网络错误，请重试", type: "error" });
     } finally {
       setImporting(false);
+    }
+  }
+
+  // 手动重试单张卡牌（模糊搜索）
+  async function retryCard(cardName: string, setCode: string, collectorNumber: string) {
+    if (!retryingDeckId) return;
+    setRetryingCard(cardName);
+
+    try {
+      const res = await fetch("/api/retry-card", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deckId: retryingDeckId, cardName, setCode, collectorNumber }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        // 从失败列表移除
+        setFailedCards((prev) => prev.filter((c) => c.name !== cardName));
+        // 记录备注
+        if (data.note) {
+          setRetryNotes((prev) => ({ ...prev, [cardName]: data.note }));
+        }
+        // 刷新卡牌显示
+        if (expandedDeck === retryingDeckId) {
+          toggleDeck(retryingDeckId);
+        }
+      } else {
+        setRetryNotes((prev) => ({ ...prev, [cardName]: `❌ ${data.error}` }));
+      }
+    } catch {
+      setRetryNotes((prev) => ({ ...prev, [cardName]: "❌ 网络错误" }));
+    } finally {
+      setRetryingCard(null);
     }
   }
 
@@ -251,6 +304,48 @@ export default function DecksPage() {
               <Button variant="outline" onClick={() => setShowImport(false)}>
                 取消
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 导入失败的卡牌 — 手动重试 */}
+      {failedCards.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardHeader>
+            <CardTitle className="text-base">
+              ⚠️ {failedCards.length} 张卡牌未找到
+            </CardTitle>
+            <CardDescription>
+              精确定位失败，可手动触发模糊搜索。注意：模糊搜索可能返回不同版本，请确认画家是否正确。
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {failedCards.map((card) => (
+                <div
+                  key={card.name}
+                  className="flex items-center justify-between gap-3 py-2 border-b border-amber-100 last:border-0"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{card.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {card.setCode} / {card.collectorNumber}
+                    </p>
+                    {retryNotes[card.name] && (
+                      <p className="text-xs mt-1 text-amber-700">{retryNotes[card.name]}</p>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={retryingCard === card.name}
+                    onClick={() => retryCard(card.name, card.setCode, card.collectorNumber)}
+                  >
+                    {retryingCard === card.name ? "搜索中..." : "模糊搜索"}
+                  </Button>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
