@@ -37,6 +37,25 @@ async function quickFetchCard(setCode: string, cn: string): Promise<ScryfallCard
   }
 }
 
+/** 兜底：精确定位失败时用卡名模糊搜索 */
+async function fuzzyFetchCard(cardName: string): Promise<ScryfallCard | null> {
+  const url = `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(cardName)}`;
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
+    });
+    if (res.status === 404) return null;
+    if (res.status === 429) {
+      await delay(2000);
+      return fuzzyFetchCard(cardName);
+    }
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 // ─── Moxfield 格式解析 ────────────────────────────────────
 
 function parseMoxfieldFormat(text: string): CardRow[] {
@@ -99,10 +118,15 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < rows.length; i += CONCURRENCY) {
       const batch = rows.slice(i, i + CONCURRENCY);
       const batchResults = await Promise.all(
-        batch.map(async (card) => ({
-          card,
-          data: await quickFetchCard(card.setCode, card.collectorNumber),
-        }))
+        batch.map(async (card) => {
+          // 精确查询
+          let data = await quickFetchCard(card.setCode, card.collectorNumber);
+          // 失败则模糊搜索兜底
+          if (!data && card.name) {
+            data = await fuzzyFetchCard(card.name);
+          }
+          return { card, data };
+        })
       );
       cardResults.push(...batchResults);
       if (i + CONCURRENCY < rows.length) await delay(BATCH_DELAY);
