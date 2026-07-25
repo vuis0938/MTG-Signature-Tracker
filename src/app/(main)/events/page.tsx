@@ -106,7 +106,10 @@ export default function EventsPage() {
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground text-center py-12">加载中...</p>
+        <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span>加载中...</span>
+        </div>
       ) : events.length === 0 ? (
         <p className="text-muted-foreground text-center py-12">暂无未来活动</p>
       ) : (

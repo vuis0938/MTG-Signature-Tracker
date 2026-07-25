@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/user";
-import { Upload, Trash2, ChevronDown, ChevronRight, Plus, RefreshCw } from "lucide-react";
+import { Upload, Trash2, ChevronDown, ChevronRight, Plus, RefreshCw, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogHeader,
@@ -598,7 +598,10 @@ export default function DecksPage() {
 
       {/* 套牌列表 */}
       {loading ? (
-        <p className="text-muted-foreground text-center py-12">加载中...</p>
+        <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span>加载中...</span>
+        </div>
       ) : decks.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center">
           <p className="text-muted-foreground">
@@ -675,7 +678,10 @@ export default function DecksPage() {
               {expandedDeck === deck.id && (
                 <CardContent>
                   {cardsLoading ? (
-                    <p className="text-muted-foreground text-sm">加载卡牌...</p>
+                    <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">加载卡牌...</span>
+                    </div>
                   ) : cards[deck.id]?.length === 0 ? (
                     <p className="text-muted-foreground text-sm">暂无卡牌</p>
                   ) : (
@@ -835,7 +841,10 @@ export default function DecksPage() {
         </DialogHeader>
         {printingsLoading ? (
           <DialogContent>
-            <p className="text-sm text-muted-foreground text-center py-8">加载中...</p>
+            <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span className="text-sm">加载中...</span>
+            </div>
           </DialogContent>
         ) : (
           <DialogContent>

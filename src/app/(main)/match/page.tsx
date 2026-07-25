@@ -14,7 +14,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/user";
 import Fuse from "fuse.js";
-import { Search, Download, CheckSquare, Square } from "lucide-react";
+import { Search, Download, CheckSquare, Square, Loader2 } from "lucide-react";
 
 interface Deck {
   id: string;
