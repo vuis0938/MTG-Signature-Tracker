@@ -59,7 +59,7 @@ export default function EventsPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">活动日历</h1>
         <p className="text-muted-foreground">
-          未来活动及出席画家（数据来源：MTG Artist Connection）
+          未来活动及出席画家
         </p>
       </div>
 
