@@ -273,7 +273,25 @@ export default function MatchPage() {
       card.deck_name = deckMap.get(card.deck_id) || "";
     }
 
-    // 2. 调用模糊匹配 API 获取所有印刷版本
+    // 2. 先跑精确匹配，作为基线（保证模糊 ≥ 精确）
+    const artistCards = buildArtistCards(cards);
+    const dbArtists = Array.from(artistCards.keys());
+    const exactFuse = new Fuse(dbArtists, {
+      threshold: 0.4,
+      distance: 100,
+      includeScore: true,
+    });
+
+    // 精确匹配命中的画家集合
+    const exactMatchedArtists = new Set<string>();
+    for (const artist of parsedArtists) {
+      const result = exactFuse.search(artist);
+      if (result.length > 0 && result[0].score !== undefined && result[0].score < 0.4) {
+        exactMatchedArtists.add(result[0].item);
+      }
+    }
+
+    // 3. 调用模糊匹配 API 获取所有印刷版本
     const fuzzyRes = await fetch("/api/fuzzy-match", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -281,68 +299,72 @@ export default function MatchPage() {
     });
     const fuzzyData = await fuzzyRes.json();
 
-    if (!fuzzyData.success) {
-      setMatched(new Map());
-      setFuzzyMatched(new Map());
-      setUnmatched([]);
-      return;
-    }
-
-    const cardMap: Record<string, {
-      card_name: string;
-      printings: Array<{
-        artist: string;
-        set: string;
-        set_name: string;
-        collector_number: string;
-        image_url: string | null;
-        released_at: string;
-      }>;
-      allArtists: string[];
-    }> = fuzzyData.cardMap;
-
-    // 3. 构建扩展的 画家 → 卡牌 映射（包含所有印刷版本）
-    // artist → [{ card_name, printing }]
+    // 4. 构建扩展的 画家 → 卡牌 映射（包含所有印刷版本）
     const expandedArtistCards = new Map<string, FuzzyCardEntry[]>();
 
-    for (const [cardName, info] of Object.entries(cardMap)) {
-      // 找到该卡牌名在套牌中对应的卡牌（用于关联 status）
-      const deckCard = cards.find((c) => c.card_name === cardName);
+    if (fuzzyData.success && fuzzyData.cardMap) {
+      const cardMap: Record<string, {
+        card_name: string;
+        printings: Array<{
+          artist: string;
+          set: string;
+          set_name: string;
+          collector_number: string;
+          image_url: string | null;
+          released_at: string;
+        }>;
+        allArtists: string[];
+      }> = fuzzyData.cardMap;
 
-      for (const printing of info.printings) {
-        const artist = printing.artist;
-        const existing = expandedArtistCards.get(artist) || [];
+      for (const [cardName, info] of Object.entries(cardMap)) {
+        const deckCard = cards.find((c) => c.card_name === cardName);
 
-        // 检查是否已存在同一卡牌名（去重）
-        const alreadyExists = existing.some(
-          (e) =>
-            e.card_name === cardName &&
-            e.set_code === printing.set &&
-            e.collector_number === printing.collector_number
-        );
-        if (alreadyExists) continue;
+        for (const printing of info.printings) {
+          const artist = printing.artist;
+          const existing = expandedArtistCards.get(artist) || [];
 
-        const entry: FuzzyCardEntry = {
-          card_name: cardName,
-          set_code: printing.set,
-          set_name: printing.set_name,
-          collector_number: printing.collector_number,
-          image_url: printing.image_url,
-          artist,
-          deckCard: deckCard
-            ? {
-                ...deckCard,
-                artist_names: [artist],
-              }
-            : undefined,
-        };
+          const alreadyExists = existing.some(
+            (e) =>
+              e.card_name === cardName &&
+              e.set_code === printing.set &&
+              e.collector_number === printing.collector_number
+          );
+          if (alreadyExists) continue;
 
-        existing.push(entry);
-        expandedArtistCards.set(artist, existing);
+          existing.push({
+            card_name: cardName,
+            set_code: printing.set,
+            set_name: printing.set_name,
+            collector_number: printing.collector_number,
+            image_url: printing.image_url,
+            artist,
+            deckCard: deckCard
+              ? { ...deckCard, artist_names: [artist] }
+              : undefined,
+          });
+          expandedArtistCards.set(artist, existing);
+        }
       }
     }
 
-    // 4. 用 Fuse.js 匹配活动画家
+    // 5. 把精确匹配中但模糊匹配中缺失的画家也补进来（Scryfall 失败时的兜底）
+    for (const artist of exactMatchedArtists) {
+      if (!expandedArtistCards.has(artist)) {
+        const cards = artistCards.get(artist) || [];
+        const entries: FuzzyCardEntry[] = cards.map((c) => ({
+          card_name: c.card_name,
+          set_code: c.set_code,
+          set_name: "",
+          collector_number: c.collector_number,
+          image_url: c.image_url,
+          artist,
+          deckCard: c,
+        }));
+        expandedArtistCards.set(artist, entries);
+      }
+    }
+
+    // 6. 用 Fuse.js 匹配活动画家
     const allArtists = Array.from(expandedArtistCards.keys());
     const fuse = new Fuse(allArtists, {
       threshold: 0.4,
@@ -595,6 +617,7 @@ Kev Walker - Table 5
       {hasRun && (
         <MatchResultCard
           fuzzyMode={fuzzyMode}
+          matching={matching}
           matched={matched}
           fuzzyMatched={fuzzyMatched}
           unmatched={unmatched}
@@ -611,6 +634,7 @@ Kev Walker - Table 5
 
 interface MatchResultCardProps {
   fuzzyMode: boolean;
+  matching: boolean;
   matched: Map<string, CardEntry[]>;
   fuzzyMatched: Map<string, FuzzyCardEntry[]>;
   unmatched: string[];
@@ -621,6 +645,7 @@ interface MatchResultCardProps {
 
 function MatchResultCard({
   fuzzyMode,
+  matching,
   matched,
   fuzzyMatched,
   unmatched,
@@ -658,11 +683,20 @@ function MatchResultCard({
               )}
             </CardTitle>
             <CardDescription>
-              匹配 {matchedCount}/{parsedArtists.length} 位画家
-              {matchedCount > 0 && ` · 共 ${totalCards} 个版本`}
+              {matching ? (
+                <span className="flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  正在匹配中...
+                </span>
+              ) : (
+                <>
+                  匹配 {matchedCount}/{parsedArtists.length} 位画家
+                  {matchedCount > 0 && ` · 共 ${totalCards} 个版本`}
+                </>
+              )}
             </CardDescription>
           </div>
-          {matchedCount > 0 && (
+          {!matching && matchedCount > 0 && (
             <Button variant="outline" size="sm" onClick={exportText}>
               <Download className="h-4 w-4 mr-2" />
               导出清单
@@ -671,7 +705,12 @@ function MatchResultCard({
         </div>
       </CardHeader>
       <CardContent>
-        {matchedCount === 0 ? (
+        {matching ? (
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <Loader2 className="h-8 w-8 animate-spin mb-3" />
+            <p>{fuzzyMode ? "正在查询所有印刷版本..." : "正在匹配画家..."}</p>
+          </div>
+        ) : matchedCount === 0 ? (
           <p className="text-muted-foreground text-center py-8">
             没有匹配到任何画家，请确认活动名单和套牌选择是否正确
           </p>
@@ -682,7 +721,7 @@ function MatchResultCard({
         )}
 
         {/* 未匹配的画家 */}
-        {unmatched.length > 0 && (
+        {!matching && unmatched.length > 0 && (
           <div className="pt-4 border-t mt-4">
             <h4 className="text-sm font-medium text-muted-foreground mb-2">
               以下画家出席但你没有未签卡牌：
