@@ -37,38 +37,68 @@ export async function POST(request: NextRequest) {
     if (!cards || cards.length === 0) {
       return NextResponse.json({
         success: true,
-        cardResults: [],
+        cardMap: {},
         cardCount: 0,
       });
     }
 
-    // 去重卡牌名
     const uniqueNames = [...new Set(cards.map((c) => c.card_name))];
 
-    // 并发查询 Scryfall（每批 6 个，避免限速）
-    const CONCURRENCY = 6;
-    const results: FuzzyCardResult[] = [];
+    // ── 第一步：从缓存表批量读取 ──
+    const { data: cachedRows } = await supabase
+      .from("card_printings")
+      .select("card_name, printings, all_artists")
+      .in("card_name", uniqueNames);
 
-    for (let i = 0; i < uniqueNames.length; i += CONCURRENCY) {
-      const batch = uniqueNames.slice(i, i + CONCURRENCY);
-      const batchResults = await Promise.all(
-        batch.map((name) => fetchAllPrintings(name))
-      );
-      results.push(...batchResults);
-      if (i + CONCURRENCY < uniqueNames.length) await delay(150);
+    const cachedMap = new Map<string, FuzzyCardResult>();
+    if (cachedRows) {
+      for (const row of cachedRows) {
+        cachedMap.set(row.card_name, {
+          card_name: row.card_name,
+          printings: row.printings as FuzzyPrinting[],
+          allArtists: row.all_artists as string[],
+        });
+      }
     }
 
-    // 构建 card_name → FuzzyCardResult 映射
+    const cachedNames = new Set(cachedMap.keys());
+    const missedNames = uniqueNames.filter((n) => !cachedNames.has(n));
+
+    // ── 第二步：缓存未命中的走 Scryfall 实时查询 ──
+    let scryfallResults: FuzzyCardResult[] = [];
+    if (missedNames.length > 0) {
+      const CONCURRENCY = 6;
+      for (let i = 0; i < missedNames.length; i += CONCURRENCY) {
+        const batch = missedNames.slice(i, i + CONCURRENCY);
+        const batchResults = await Promise.all(
+          batch.map((name) => fetchAllPrintings(name))
+        );
+        scryfallResults.push(...batchResults);
+        if (i + CONCURRENCY < missedNames.length) await delay(150);
+      }
+    }
+
+    // ── 第三步：合并结果（缓存优先） ──
     const cardMap: Record<string, FuzzyCardResult> = {};
-    for (const r of results) {
+    for (const r of cachedMap.values()) {
       cardMap[r.card_name] = r;
     }
+    for (const r of scryfallResults) {
+      cardMap[r.card_name] = r;
+    }
+
+    const totalPrintings = Object.values(cardMap).reduce(
+      (s, r) => s + r.printings.length,
+      0
+    );
 
     return NextResponse.json({
       success: true,
       cardMap,
       cardCount: uniqueNames.length,
-      totalPrintings: results.reduce((s, r) => s + r.printings.length, 0),
+      totalPrintings,
+      cacheHit: cachedMap.size,
+      cacheMiss: missedNames.length,
     });
   } catch (error) {
     console.error("[FuzzyMatch]", error);

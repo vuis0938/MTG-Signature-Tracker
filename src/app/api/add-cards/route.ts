@@ -158,6 +158,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ── 后台异步填充模糊匹配缓存（fire-and-forget，不阻塞响应） ──
+    const uniqueCardNames = [...new Set(cardsToInsert.map((c) => c.card_name as string))];
+    if (uniqueCardNames.length > 0) {
+      fetch(`${request.nextUrl.origin}/api/cache-printings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cardNames: uniqueCardNames }),
+      }).catch(() => {}); // 静默失败，不影响主流程
+    }
+
     return NextResponse.json({
       success: true,
       deckId,
