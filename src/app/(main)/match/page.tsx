@@ -301,7 +301,7 @@ export default function MatchPage() {
           {/* 活动选择器 */}
           <div className="flex items-center gap-2">
             <select
-              className="flex-1 px-3 py-2 rounded-lg border bg-background text-sm"
+              className="flex-1 min-w-0 px-3 py-2 rounded-lg border bg-background text-sm truncate"
               defaultValue=""
               onChange={(e) => {
                 if (e.target.value) selectEvent(e.target.value);
