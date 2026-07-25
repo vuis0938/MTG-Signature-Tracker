@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { X } from "lucide-react";
 
 interface DialogProps {
   open: boolean;
@@ -22,9 +23,16 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
       {/* 弹窗内容 */}
       <div className="fixed inset-0 flex items-center justify-center p-4">
         <div
-          className="bg-background rounded-xl border shadow-lg w-full max-w-lg max-h-[85vh] overflow-y-auto"
+          className="relative bg-background rounded-xl border shadow-lg w-full max-w-lg max-h-[85vh] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
+          {/* 关闭按钮 */}
+          <button
+            onClick={() => onOpenChange(false)}
+            className="absolute top-4 right-4 z-10 w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
           {children}
         </div>
       </div>
