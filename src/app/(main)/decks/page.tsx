@@ -95,6 +95,7 @@ export default function DecksPage() {
   }>>([]);
   const [printingsLoading, setPrintingsLoading] = useState(false);
   const [switchPrintingLoading, setSwitchPrintingLoading] = useState<string | null>(null);
+  const [deletingCard, setDeletingCard] = useState<string | null>(null);
 
   // 加载套牌列表 + 每套牌的统计
   const loadDecks = useCallback(async () => {
@@ -458,6 +459,41 @@ export default function DecksPage() {
       setToast({ message: "网络错误", type: "error" });
     } finally {
       setSwitchPrintingLoading(null);
+    }
+  }
+
+  // ─── 删除卡牌 ───
+  async function handleDeleteCard(cardId: string) {
+    setDeletingCard(cardId);
+    try {
+      const { error } = await supabase.from("cards").delete().eq("id", cardId);
+
+      if (error) {
+        setToast({ message: `删除失败: ${error.message}`, type: "error" });
+        return;
+      }
+
+      setToast({ message: "✅ 卡牌已删除", type: "success" });
+
+      // 更新本地状态
+      const deckId = switchCard?.deck_id;
+      if (deckId) {
+        setCards((prev) => {
+          const updated = { ...prev };
+          if (updated[deckId]) {
+            updated[deckId] = updated[deckId].filter((c) => c.id !== cardId);
+          }
+          return updated;
+        });
+      }
+
+      setSwitchCard(null);
+      setPrintings([]);
+      await loadDecks();
+    } catch {
+      setToast({ message: "网络错误", type: "error" });
+    } finally {
+      setDeletingCard(null);
     }
   }
 
@@ -900,6 +936,25 @@ export default function DecksPage() {
               <p className="text-sm text-muted-foreground text-center py-8">
                 未找到该卡牌的其他印刷版本
               </p>
+            )}
+            {/* 删除此卡牌 */}
+            {switchCard && (
+              <div className="border-t pt-3 mt-3">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="w-full"
+                  disabled={deletingCard === switchCard.id}
+                  onClick={() => {
+                    if (confirm(`确定要从套牌中删除「${switchCard.card_name}」吗？`)) {
+                      handleDeleteCard(switchCard.id);
+                    }
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {deletingCard === switchCard.id ? "删除中..." : "从套牌中删除此卡牌"}
+                </Button>
+              </div>
             )}
           </DialogContent>
         )}
