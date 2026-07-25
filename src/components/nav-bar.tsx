@@ -6,19 +6,25 @@ import { cn } from "@/lib/utils";
 import {
   Layers,
   GitCompare,
+  Calendar,
   Settings,
 } from "lucide-react";
 
 const navItems = [
   {
     href: "/decks",
-    label: "牌表",
+    label: "套牌",
     icon: Layers,
   },
   {
     href: "/match",
     label: "匹配",
     icon: GitCompare,
+  },
+  {
+    href: "/events",
+    label: "活动",
+    icon: Calendar,
   },
   {
     href: "/settings",

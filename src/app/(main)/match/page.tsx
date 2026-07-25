@@ -44,57 +44,52 @@ export default function MatchPage() {
   const [decks, setDecks] = useState<Deck[]>([]);
   const [selectedDecks, setSelectedDecks] = useState<Set<string>>(new Set());
 
+  // 活动列表
+  interface CalendarEvent {
+    id: string;
+    name: string;
+    city: string;
+    startDate: string;
+    artists: string[];
+  }
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(false);
+
   // 匹配
   const [matching, setMatching] = useState(false);
   const [matched, setMatched] = useState<Map<string, CardEntry[]>>(new Map());
   const [unmatched, setUnmatched] = useState<string[]>([]);
+  const [currentEvent, setCurrentEvent] = useState(""); // 当前选中的活动名
+  const [currentEventDate, setCurrentEventDate] = useState(""); // 当前选中的活动日期
 
-  // 三态切换（复用 decks 页逻辑）
-  async function toggleStatus(cardId: string) {
-    // 找到当前卡牌
-    let currentStatus = 0;
-    for (const cards of matched.values()) {
-      const found = cards.find((c) => c.id === cardId);
-      if (found) { currentStatus = found.status; break; }
-    }
-
-    const newStatus = (currentStatus + 1) % 3;
-
-    // 乐观更新匹配列表
-    setMatched((prev) => {
-      const next = new Map(prev);
-      for (const [artist, cards] of next) {
-        next.set(
-          artist,
-          cards.map((c) => (c.id === cardId ? { ...c, status: newStatus } : c))
-        );
-      }
-      return next;
-    });
-
-    // 写入数据库
-    await supabase
-      .from("cards")
-      .update({ status: newStatus, is_signed: newStatus === 2 })
-      .eq("id", cardId);
+  // 加载活动列表
+  async function loadEvents() {
+    setLoadingEvents(true);
+    try {
+      const res = await fetch("/api/events");
+      const data = await res.json();
+      if (data.success) setEvents(data.events);
+    } catch {}
+    setLoadingEvents(false);
   }
-  const [hasRun, setHasRun] = useState(false);
 
-  useEffect(() => {
-    supabase
-      .from("decks")
-      .select("id,name")
-      .eq("user_name", getCurrentUser())
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        if (data) {
-          setDecks(data);
-          setSelectedDecks(new Set(data.map((d) => d.id))); // 默认全选
-        }
-      });
-  }, []);
+  // 选择活动 → 直接填充画家列表（无需 LLM 解析）
+  function selectEvent(eventId: string) {
+    const event = events.find((e) => e.id === eventId);
+    if (!event) return;
+    setRawText(event.artists.join("\n"));
+    setParsedArtists(event.artists);
+    setParseMethod("活动日历");
+    setCurrentEvent(event.name);
+    setCurrentEventDate(
+      new Date(event.startDate).toLocaleDateString("zh-CN")
+    );
+    setMatched(new Map());
+    setUnmatched([]);
+    setHasRun(false);
+  }
 
-  // 解析名单
+  // 解析名单（粘贴文本时用 LLM/正则）
   async function handleParse() {
     if (!rawText.trim()) return;
     setParsing(true);
@@ -112,11 +107,68 @@ export default function MatchPage() {
         setUnmatched([]);
         setHasRun(false);
       }
-    } catch {
-      // ignore
-    } finally {
+    } catch {} finally {
       setParsing(false);
     }
+  }
+
+  const [hasRun, setHasRun] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from("decks")
+      .select("id,name")
+      .eq("user_name", getCurrentUser())
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        if (data) {
+          setDecks(data);
+          setSelectedDecks(new Set(data.map((d) => d.id))); // 默认全选
+        }
+      });
+  }, []);
+
+  // 三态切换（匹配页专属：0待签 → 3心动 → 1送签中 → 0待签）
+  async function toggleStatus(cardId: string) {
+    let currentStatus = 0;
+    for (const cards of matched.values()) {
+      const found = cards.find((c) => c.id === cardId);
+      if (found) { currentStatus = found.status; break; }
+    }
+
+    // 匹配页循环: 0→3, 3→1, 1→0
+    const cycle: Record<number, number> = { 0: 3, 3: 1, 1: 0 };
+    const newStatus = cycle[currentStatus] ?? 0;
+
+    setMatched((prev) => {
+      const next = new Map(prev);
+      for (const [artist, cards] of next) {
+        next.set(
+          artist,
+          cards.map((c) =>
+            c.id === cardId
+              ? {
+                  ...c,
+                  status: newStatus,
+                  event_name: newStatus === 3 ? currentEvent : null,
+                  event_date: newStatus === 3 ? currentEventDate : null,
+                }
+              : c
+          )
+        );
+      }
+      return next;
+    });
+
+    await supabase
+      .from("cards")
+      .update({
+        status: newStatus,
+        is_signed: false,
+        event_name: newStatus === 3 ? currentEvent : null,
+        event_date: newStatus === 3 ? currentEventDate : null,
+      })
+      .eq("id", cardId);
   }
 
   // 执行匹配
@@ -242,10 +294,38 @@ export default function MatchPage() {
         <CardHeader>
           <CardTitle>1. 粘贴活动画家名单</CardTitle>
           <CardDescription>
-            直接粘贴活动官方公布的画家名单，支持任意格式
+            直接粘贴，或从下方活动日历中一键选取
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* 活动选择器 */}
+          <div className="flex items-center gap-2">
+            <select
+              className="flex-1 px-3 py-2 rounded-lg border bg-background text-sm"
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) selectEvent(e.target.value);
+              }}
+              onFocus={() => { if (events.length === 0) loadEvents(); }}
+            >
+              <option value="" disabled>
+                {loadingEvents ? "加载中..." : "📅 选择活动自动填充画家名单..."}
+              </option>
+              {events.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {new Date(e.startDate).toLocaleDateString("zh-CN")} | {e.name} ({e.city}) — {e.artists.length} 位画家
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={loadEvents}
+              className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground"
+              title="刷新活动列表"
+            >
+              🔄
+            </button>
+          </div>
+
           <Textarea
             placeholder={`粘贴活动画家名单，例如：
 John Avon | Booth A12 | $20 per card
@@ -390,10 +470,10 @@ Kev Walker - Table 5
                                 onClick={() => toggleStatus(card.id)}
                                 className={`relative w-24 rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 ${
                                   card.status >= 1
-                                    ? "border-green-500"
+                                    ? card.status === 3 ? "border-pink-400" : card.status === 1 ? "border-blue-400" : "border-green-500"
                                     : "border-border hover:shadow-md"
                                 }`}
-                                title={["未签", "送签中", "已签"][card.status ?? 0]}
+                                title={{ 0: "待签", 1: "送签中", 3: "心动" }[card.status ?? 0]}
                               >
                                 <div className={card.status >= 1 ? "opacity-75" : ""}>
                                   {card.image_url ? (
@@ -413,10 +493,14 @@ Kev Walker - Table 5
                                   <div className="absolute inset-0 flex items-center justify-center">
                                     <div
                                       className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg ${
-                                        card.status === 2 ? "bg-green-500" : "bg-blue-500"
+                                        card.status === 3
+                                          ? "bg-pink-500"
+                                          : card.status === 1
+                                            ? "bg-blue-500"
+                                            : "bg-green-500"
                                       }`}
                                     >
-                                      {card.status === 2 ? "✓" : "…"}
+                                      {card.status === 3 ? "♥" : card.status === 1 ? "…" : "✓"}
                                     </div>
                                   </div>
                                 )}

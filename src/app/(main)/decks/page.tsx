@@ -37,7 +37,9 @@ interface CardEntry {
   artist_names: string[];
   image_url: string | null;
   is_signed: boolean;
-  status: number; // 0=未签, 1=送签中, 2=已签
+  status: number; // 0=未签, 1=送签中, 2=已签, 3=心动
+  event_name?: string | null;
+  event_date?: string | null;
 }
 
 export default function DecksPage() {
@@ -334,7 +336,7 @@ export default function DecksPage() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">核心牌表</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">管理套牌</h1>
           <p className="text-muted-foreground">管理你的套牌和签绘清单</p>
         </div>
         <Button
@@ -358,7 +360,7 @@ export default function DecksPage() {
           <CardHeader>
             <CardTitle>导入 Moxfield 套牌</CardTitle>
             <CardDescription>
-              在 Moxfield 套牌页面点击 <b>Copy for Moxfield</b>，粘贴到下方即可导入
+              从 Moxfield 导入套牌数据，自动匹配每张卡牌的画家信息
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -386,7 +388,11 @@ export default function DecksPage() {
                 className="font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground">
-                💡 Moxfield 套牌页面点 <b>Copy for Moxfield</b> → 直接粘贴到这里。含系列代码和编号，100% 精准匹配你的实体卡版本。
+                💡 操作步骤：<br />
+                1. 在 Moxfield 牌表页面，点击每张卡牌 → <b>Switch Printing</b> 切换为实际持有的印刷版本<br />
+                2. 点击 <b>Export</b> → <b>Copy for Moxfield</b><br />
+                3. 粘贴到上方文本框 → 点击「开始导入」<br />
+                注意：卡牌印刷版本不同，对应的画家也可能不同，请务必逐一确认版本。
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -524,8 +530,19 @@ export default function DecksPage() {
                                 0: "未签（点击切换为送签中）",
                                 1: "送签中（点击切换为已签）",
                                 2: "已签（点击切换为未签）",
+                                3: "心动",
                               };
-                              const isSigned = status >= 1;
+                              const hasOverlay = status >= 1;
+                              const overlayColor: Record<number, string> = {
+                                1: "bg-blue-500",
+                                2: "bg-green-500",
+                                3: "bg-pink-500",
+                              };
+                              const overlayIcon: Record<number, string> = {
+                                1: "…",
+                                2: "✓",
+                                3: "♥",
+                              };
 
                               return (
                                 <div
@@ -534,14 +551,22 @@ export default function DecksPage() {
                                     toggleStatus(card.id, status, deck.id)
                                   }
                                   className={`relative w-24 rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 ${
-                                    isSigned
-                                      ? "border-green-500"
+                                    hasOverlay
+                                      ? status === 3 ? "border-pink-400" : status === 1 ? "border-blue-400" : "border-green-500"
                                       : "border-border hover:shadow-md"
                                   }`}
                                   title={statusLabels[status]}
                                 >
+                                  {/* 心动活动标签 — 卡牌顶部 */}
+                                  {status === 3 && card.event_name && (
+                                    <div className="absolute top-0 left-0 right-0 z-10 bg-pink-500/90 text-white text-[9px] px-1 py-0.5 text-center leading-tight">
+                                      ♥ {card.event_name}
+                                      {card.event_date && ` · ${card.event_date}`}
+                                    </div>
+                                  )}
+
                                   {/* 卡图区域 — 仅这块半透明 */}
-                                  <div className={isSigned ? "opacity-75" : ""}>
+                                  <div className={hasOverlay ? "opacity-75" : ""}>
                                     {card.image_url ? (
                                       <img
                                         src={card.image_url}
@@ -557,14 +582,12 @@ export default function DecksPage() {
                                   </div>
 
                                   {/* 状态圆 — 保持完全不透明 */}
-                                  {isSigned && (
+                                  {hasOverlay && (
                                     <div className="absolute inset-0 flex items-center justify-center">
                                       <div
-                                        className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg ${
-                                          status === 2 ? "bg-green-500" : "bg-blue-500"
-                                        }`}
+                                        className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg ${overlayColor[status] || "bg-blue-500"}`}
                                       >
-                                        {status === 2 ? "✓" : "…"}
+                                        {overlayIcon[status] || "…"}
                                       </div>
                                     </div>
                                   )}
