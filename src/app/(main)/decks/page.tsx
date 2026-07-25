@@ -613,18 +613,18 @@ export default function DecksPage() {
                 className="cursor-pointer hover:bg-accent/50 rounded-t-lg"
                 onClick={() => toggleDeck(deck.id)}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
                     {expandedDeck === deck.id ? (
-                      <ChevronDown className="h-4 w-4" />
+                      <ChevronDown className="h-4 w-4 shrink-0" />
                     ) : (
-                      <ChevronRight className="h-4 w-4" />
+                      <ChevronRight className="h-4 w-4 shrink-0" />
                     )}
-                    <div>
-                      <CardTitle className="text-base">
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-base truncate">
                         {deck.name}
                       </CardTitle>
-                      <CardDescription>
+                      <CardDescription className="whitespace-nowrap">
                         {deckStats[deck.id] &&
                           `共 ${deckStats[deck.id].total} 张` +
                             (deckStats[deck.id].unsigned > 0
@@ -644,7 +644,7 @@ export default function DecksPage() {
                       </CardDescription>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-0.5 shrink-0">
                     <Button
                       variant="ghost"
                       size="icon"
