@@ -95,7 +95,7 @@ export default function DecksPage() {
               .from("cards")
               .select("*", { count: "exact", head: true })
               .eq("deck_id", deck.id)
-              .eq("status", 0),
+              .in("status", [0, 3]),
             supabase
               .from("cards")
               .select("*", { count: "exact", head: true })
@@ -278,6 +278,7 @@ export default function DecksPage() {
           0: { u: 1, p: 0 },
           1: { u: 0, p: 1 },
           2: { u: 0, p: 0 },
+          3: { u: 1, p: 0 },
         };
         const old = delta[currentStatus] ?? { u: 0, p: 0 };
         const now = delta[newStatus] ?? { u: 0, p: 0 };
