@@ -8,9 +8,10 @@ interface DialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
+  className?: string;
 }
 
-export function Dialog({ open, onOpenChange, children }: DialogProps) {
+export function Dialog({ open, onOpenChange, children, className }: DialogProps) {
   if (!open) return null;
 
   return (
@@ -23,7 +24,10 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
       {/* 弹窗内容 */}
       <div className="fixed inset-0 flex items-center justify-center p-4">
         <div
-          className="relative bg-background rounded-xl border shadow-lg w-full max-w-lg max-h-[85vh] overflow-y-auto"
+          className={cn(
+            "relative bg-background rounded-xl border shadow-lg w-full max-h-[85vh] overflow-y-auto",
+            className || "max-w-lg"
+          )}
           onClick={(e) => e.stopPropagation()}
         >
           {/* 关闭按钮 */}

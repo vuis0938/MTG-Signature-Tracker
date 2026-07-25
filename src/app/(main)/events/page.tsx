@@ -8,7 +8,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Calendar, MapPin, Users } from "lucide-react";
+import {
+  Dialog,
+  DialogHeader,
+  DialogTitle,
+  DialogContent,
+} from "@/components/ui/dialog";
+import { Calendar, MapPin, Users, Loader2 } from "lucide-react";
 
 interface CalendarEvent {
   id: string;
@@ -19,11 +25,25 @@ interface CalendarEvent {
   artists: string[];
 }
 
+interface ArtistCard {
+  name: string;
+  set: string;
+  set_name: string;
+  collector_number: string;
+  image_url: string | null;
+  released_at: string;
+}
+
 export default function EventsPage() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string>("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  // 画家卡牌弹窗
+  const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
+  const [artistCards, setArtistCards] = useState<ArtistCard[]>([]);
+  const [artistCardsLoading, setArtistCardsLoading] = useState(false);
 
   useEffect(() => {
     fetch("/api/events")
@@ -53,6 +73,28 @@ export default function EventsPage() {
     if (fmt(s) === fmt(e)) return fmt(s);
     return `${fmt(s)} — ${fmt(e)}`;
   };
+
+  // 点击画家名，加载其所有卡牌
+  async function handleArtistClick(artist: string) {
+    setSelectedArtist(artist);
+    setArtistCards([]);
+    setArtistCardsLoading(true);
+
+    try {
+      const res = await fetch(`/api/artist-cards?artist=${encodeURIComponent(artist)}`);
+      const data = await res.json();
+
+      if (data.success) {
+        setArtistCards(data.cards);
+      } else {
+        setArtistCards([]);
+      }
+    } catch {
+      setArtistCards([]);
+    } finally {
+      setArtistCardsLoading(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -102,12 +144,16 @@ export default function EventsPage() {
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       {event.artists.map((artist) => (
-                        <span
+                        <button
                           key={artist}
-                          className="px-2 py-1 bg-accent rounded text-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleArtistClick(artist);
+                          }}
+                          className="px-2 py-1 bg-accent hover:bg-accent/70 rounded text-sm cursor-pointer transition-colors"
                         >
                           {artist}
-                        </span>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -122,6 +168,58 @@ export default function EventsPage() {
         数据来源：mtgartistconnection.com
         {lastUpdated && ` · 上次更新：${lastUpdated}`}
       </p>
+
+      {/* ─── 画家卡牌画廊弹窗 ─── */}
+      <Dialog open={selectedArtist !== null} onOpenChange={() => { setSelectedArtist(null); setArtistCards([]); }} className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>{selectedArtist} 的卡牌</DialogTitle>
+        </DialogHeader>
+        {artistCardsLoading ? (
+          <DialogContent>
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-sm text-muted-foreground">加载中...</span>
+            </div>
+          </DialogContent>
+        ) : (
+          <DialogContent>
+            {artistCards.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                未找到该画家的卡牌
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[65vh] overflow-y-auto">
+                {artistCards.map((card) => (
+                  <div
+                    key={`${card.set}-${card.collector_number}`}
+                    className="rounded-lg border overflow-hidden bg-background"
+                    title={`${card.set_name} #${card.collector_number}`}
+                  >
+                    {card.image_url ? (
+                      <img
+                        src={card.image_url}
+                        alt={card.name}
+                        className="w-full"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
+                        {card.name}
+                      </div>
+                    )}
+                    <div className="p-1.5 text-[10px]">
+                      <p className="font-medium truncate">{card.name}</p>
+                      <p className="text-muted-foreground truncate">
+                        {card.set_name} #{card.collector_number}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 }
