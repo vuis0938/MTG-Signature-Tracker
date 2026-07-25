@@ -469,13 +469,13 @@ Kev Walker - Table 5
                                 key={card.id}
                                 onClick={() => toggleStatus(card.id)}
                                 className={`relative w-24 rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 ${
-                                  card.status === 1
-                                    ? "border-blue-400"
+                                  card.status >= 1
+                                    ? card.status === 3 ? "border-pink-400" : card.status === 1 ? "border-blue-400" : "border-green-500"
                                     : "border-border hover:shadow-md"
                                 }`}
                                 title={{ 0: "待签", 1: "送签中", 3: "心动" }[card.status ?? 0]}
                               >
-                                <div className={card.status === 1 ? "opacity-75" : ""}>
+                                <div className={card.status >= 1 ? "opacity-75" : ""}>
                                   {card.image_url ? (
                                     <img
                                       src={card.image_url}
@@ -489,10 +489,18 @@ Kev Walker - Table 5
                                     </div>
                                   )}
                                 </div>
-                                {card.status === 1 && (
+                                {card.status >= 1 && (
                                   <div className="absolute inset-0 flex items-center justify-center">
-                                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg bg-blue-500">
-                                      …
+                                    <div
+                                      className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg ${
+                                        card.status === 3
+                                          ? "bg-pink-500"
+                                          : card.status === 1
+                                            ? "bg-blue-500"
+                                            : "bg-green-500"
+                                      }`}
+                                    >
+                                      {card.status === 3 ? "♥" : card.status === 1 ? "…" : "✓"}
                                     </div>
                                   </div>
                                 )}
