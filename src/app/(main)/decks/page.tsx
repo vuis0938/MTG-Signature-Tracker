@@ -770,10 +770,10 @@ export default function DecksPage() {
                                       e.stopPropagation();
                                       loadPrintings(card);
                                     }}
-                                    className="absolute -top-1 -right-1 z-20 w-5 h-5 rounded-full bg-background border shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-accent"
+                                    className="absolute top-0.5 right-0.5 z-20 w-6 h-6 rounded-full bg-background/80 border shadow-sm flex items-center justify-center hover:bg-accent hover:scale-110 transition-all"
                                     title="切换印刷版本"
                                   >
-                                    <RefreshCw className="h-3 w-3" />
+                                    <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
                                   </button>
                                 </div>
                               );
