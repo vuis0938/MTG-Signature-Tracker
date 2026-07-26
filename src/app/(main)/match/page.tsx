@@ -58,6 +58,14 @@ interface ArtistCard {
   released_at: string;
 }
 
+interface CalendarEvent {
+  id: string;
+  name: string;
+  city: string;
+  startDate: string;
+  artists: string[];
+}
+
 export default function MatchPage() {
   // 名单解析
   const [rawText, setRawText] = useState("");
@@ -70,19 +78,13 @@ export default function MatchPage() {
   const [selectedDecks, setSelectedDecks] = useState<Set<string>>(new Set());
 
   // 活动列表
-  interface CalendarEvent {
-    id: string;
-    name: string;
-    city: string;
-    startDate: string;
-    artists: string[];
-  }
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
 
   // 匹配
   const [matching, setMatching] = useState(false);
   const [fuzzyMode, setFuzzyMode] = useState(false);
+  const [matchError, setMatchError] = useState("");
   const [matched, setMatched] = useState<Map<string, CardEntry[]>>(new Map());
   const [fuzzyMatched, setFuzzyMatched] = useState<Map<string, FuzzyCardEntry[]>>(new Map());
   const [unmatched, setUnmatched] = useState<string[]>([]);
@@ -96,13 +98,20 @@ export default function MatchPage() {
 
   // 加载活动列表
   async function loadEvents() {
+    if (eventsLoadedRef.current) return;
     setLoadingEvents(true);
     try {
       const res = await fetch("/api/events");
       const data = await res.json();
-      if (data.success) setEvents(data.events);
-    } catch {}
-    setLoadingEvents(false);
+      if (data.success) {
+        setEvents(data.events);
+        eventsLoadedRef.current = true;
+      }
+    } catch {
+      eventsLoadedRef.current = false;
+    } finally {
+      setLoadingEvents(false);
+    }
   }
 
   // 选择活动 → 直接填充画家列表（无需 LLM 解析）
@@ -139,6 +148,7 @@ export default function MatchPage() {
       }
     } catch {
       setArtistCards([]);
+      setMatchError("加载画家卡牌失败，请稍后重试");
     } finally {
       setArtistCardsLoading(false);
     }
@@ -165,6 +175,7 @@ export default function MatchPage() {
       }
     } catch {
       setParseMethod("");
+      setMatchError("解析失败，请检查名单格式后重试");
     } finally {
       setParsing(false);
     }
@@ -180,6 +191,9 @@ export default function MatchPage() {
   parsedArtistsRef.current = parsedArtists;
   const decksRef = useRef(decks);
   decksRef.current = decks;
+  const fuzzyModeRef = useRef(fuzzyMode);
+  fuzzyModeRef.current = fuzzyMode;
+  const eventsLoadedRef = useRef(false);
 
   // 🐛 调试面板
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
@@ -271,15 +285,20 @@ export default function MatchPage() {
       return next;
     });
 
-    await supabase
-      .from("cards")
-      .update({
-        status: newStatus,
-        is_signed: false,
-        event_name: newStatus === 3 ? currentEvent : null,
-        event_date: newStatus === 3 ? currentEventDate : null,
-      })
-      .eq("id", cardId);
+    try {
+      await supabase
+        .from("cards")
+        .update({
+          status: newStatus,
+          is_signed: false,
+          event_name: newStatus === 3 ? currentEvent : null,
+          event_date: newStatus === 3 ? currentEventDate : null,
+        })
+        .eq("id", cardId);
+    } catch (err: any) {
+      console.error("[toggleStatus] 数据库更新失败:", err);
+      setMatchError("状态更新失败，请刷新页面重试");
+    }
   }
 
   // 执行匹配
@@ -293,10 +312,11 @@ export default function MatchPage() {
 
     setMatching(true);
     setHasRun(true);
+    setMatchError("");
 
     try {
       const deckIds = Array.from(currentSelectedDecks);
-      if (fuzzyMode) {
+      if (fuzzyModeRef.current) {
         await handleFuzzyMatch(deckIds);
       } else {
         await handleExactMatch(deckIds);
@@ -306,6 +326,7 @@ export default function MatchPage() {
       setMatched(new Map());
       setFuzzyMatched(new Map());
       setUnmatched([...currentParsedArtists]);
+      setMatchError("匹配过程出错，请重试");
     } finally {
       setMatching(false);
       matchingRef.current = false;
@@ -381,9 +402,10 @@ export default function MatchPage() {
     const newMatched = new Map<string, CardEntry[]>();
     const newUnmatched: string[] = [];
     const dbKeys = [...artistToCards.keys()];
+    const normalizedMap = buildNormalizedMap(dbKeys);
 
     for (const parsedArtist of currentParsedArtists) {
-      const matchedKey = findMatchingArtist(parsedArtist, dbKeys);
+      const matchedKey = findMatchingArtist(parsedArtist, dbKeys, normalizedMap);
       if (matchedKey) {
         newMatched.set(parsedArtist, artistToCards.get(matchedKey) || []);
       } else {
@@ -423,10 +445,13 @@ export default function MatchPage() {
    *   2. 首尾名匹配：如 "Dan Scott" 匹配 "Dan Murayama Scott"
    *   3. 变音符号规范化匹配：如 "Milivoj Ceran" 匹配 "Milivoj Ćeran"
    *      （用 Unicode NFD 分解去掉重音符，只比较基础字母）
+   *
+   * @param normalizedMap 可选的预计算 NFD 规范化映射，避免重复构建
    */
   function findMatchingArtist(
     parsedArtist: string,
-    dbKeys: string[]
+    dbKeys: string[],
+    normalizedMap?: Map<string, string>
   ): string | null {
     const key = parsedArtist.toLowerCase().trim();
     // 规则 1：精确匹配
@@ -442,31 +467,30 @@ export default function MatchPage() {
         const dbWords = dbKey.split(/\s+/).filter(Boolean);
         if (dbWords.length >= 2) {
           if (dbWords[0] === first && dbWords[dbWords.length - 1] === last) {
-            console.log(`[首尾名匹配] "${parsedArtist}" → "${dbKey}"`);
             return dbKey;
           }
         }
       }
     }
 
-    // 规则 3：变音符号规范化（如 ć→c, é→e, ü→u, ñ→n）
-    // NFD 分解：把 "Ć" 拆成 "C" + "◌́"，然后去掉组合记号
-    // 始终比对，因为活动列表可能无重音符但数据库有（或反之）
+    // 规则 3：变音符号规范化
+    if (!normalizedMap) {
+      normalizedMap = buildNormalizedMap(dbKeys);
+    }
     const normalizedKey = key.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const normalizedMap = new Map<string, string>();
+    return normalizedMap.get(normalizedKey) || null;
+  }
+
+  /** 构建 NFD 规范化 key → 原始 key 映射，避免重复计算 */
+  function buildNormalizedMap(dbKeys: string[]): Map<string, string> {
+    const map = new Map<string, string>();
     for (const dbKey of dbKeys) {
       const normalized = dbKey.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      if (!normalizedMap.has(normalized)) {
-        normalizedMap.set(normalized, dbKey);
+      if (!map.has(normalized)) {
+        map.set(normalized, dbKey);
       }
     }
-    const matched = normalizedMap.get(normalizedKey);
-    if (matched) {
-      console.log(`[变音符号匹配] "${parsedArtist}" → "${matched}"`);
-      return matched;
-    }
-
-    return null;
+    return map;
   }
 
   // 模糊匹配：查询 Scryfall 获取所有卡牌的全部印刷版本，扩展画家列表
@@ -521,8 +545,9 @@ export default function MatchPage() {
     // 精确匹配命中的画家 key 集合（含首尾名匹配）
     const exactMatchedKeys = new Set<string>();
     const artistDbKeys = [...artistCards.keys()];
+    const artistNormalizedMap = buildNormalizedMap(artistDbKeys);
     for (const artist of currentParsedArtists) {
-      const matchedKey = findMatchingArtist(artist, artistDbKeys);
+      const matchedKey = findMatchingArtist(artist, artistDbKeys, artistNormalizedMap);
       if (matchedKey) {
         exactMatchedKeys.add(matchedKey);
       }
@@ -606,21 +631,22 @@ export default function MatchPage() {
     }
 
     // 5. 把精确匹配的结果全部并入 expandedArtistCards（兜底 + 补缺）
+    // 预构建 expandedArtistCards 的 NFD 规范化映射
+    const expandedNormalizedKeys = new Map<string, string>();
+    for (const ek of expandedArtistCards.keys()) {
+      const normalizedEk = ek.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (!expandedNormalizedKeys.has(normalizedEk)) {
+        expandedNormalizedKeys.set(normalizedEk, ek);
+      }
+    }
+
     for (const key of exactMatchedKeys) {
       const exactCards = artistCards.get(key) || [];
       if (exactCards.length === 0) continue;
       const displayArtist = normalizeArtists(exactCards[0].artist_names)[0] || key;
 
-      // 用规范化键名查找已存在的条目（避免 Ćeran vs Ceran 重复）
       const normalizedDisplay = displayArtist.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      let existingKey: string | null = null;
-      for (const ek of expandedArtistCards.keys()) {
-        const normalizedEk = ek.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        if (normalizedEk === normalizedDisplay) {
-          existingKey = ek;
-          break;
-        }
-      }
+      const existingKey = expandedNormalizedKeys.get(normalizedDisplay) || null;
 
       if (!existingKey) {
         const entries: FuzzyCardEntry[] = exactCards.map((c) => ({
@@ -674,9 +700,10 @@ export default function MatchPage() {
     const newFuzzyMatched = new Map<string, FuzzyCardEntry[]>();
     const newUnmatched: string[] = [];
     const expandedDbKeys = [...expandedKeyMap.keys()];
+    const expandedNormalizedMap = buildNormalizedMap(expandedDbKeys);
 
     for (const parsedArtist of currentParsedArtists) {
-      const matchedKey = findMatchingArtist(parsedArtist, expandedDbKeys);
+      const matchedKey = findMatchingArtist(parsedArtist, expandedDbKeys, expandedNormalizedMap);
       if (matchedKey) {
         newFuzzyMatched.set(parsedArtist, expandedKeyMap.get(matchedKey) || []);
       } else {
@@ -687,7 +714,7 @@ export default function MatchPage() {
     // 7. 兜底：确保精确匹配结果 100% 包含在模糊匹配中
     for (const parsedArtist of currentParsedArtists) {
       if (newFuzzyMatched.has(parsedArtist)) continue;
-      const key = findMatchingArtist(parsedArtist, artistDbKeys);
+      const key = findMatchingArtist(parsedArtist, artistDbKeys, artistNormalizedMap);
       if (!key) continue;
       if (!exactMatchedKeys.has(key)) continue;
 
@@ -729,7 +756,7 @@ export default function MatchPage() {
     let text = "MTG 签绘管家 — 活动准备清单\n";
     text += "=".repeat(40) + "\n\n";
 
-    if (fuzzyMode && fuzzyMatched.size > 0) {
+    if (fuzzyModeRef.current && fuzzyMatched.size > 0) {
       for (const [artist, entries] of fuzzyMatched) {
         text += `🎨 ${artist} (${entries.length} 个版本)\n`;
         // 按卡牌名分组
@@ -847,6 +874,11 @@ Kev Walker - Table 5
                 </button>
               ))}
             </div>
+          )}
+          {matchError && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-2">
+              {matchError}
+            </p>
           )}
         </CardContent>
       </Card>
@@ -983,7 +1015,7 @@ Kev Walker - Table 5
                       </thead>
                       <tbody>
                         {rows.map((row, i) => (
-                          <tr key={`${row.deckName}-${row.cardName}-${row.setCode}-${i}`} className={row.cardName.toLowerCase().includes("harbinger") ? "bg-yellow-100 font-bold" : ""}>
+                          <tr key={`${row.deckName}-${row.cardName}-${row.setCode}-${i}`}>
                             <td className="p-1.5 border border-blue-100">{row.cardName}</td>
                             <td className="p-1.5 border border-blue-100">{row.setCode}</td>
                             <td className="p-1.5 border border-blue-100">{row.artists.join(", ")}</td>
