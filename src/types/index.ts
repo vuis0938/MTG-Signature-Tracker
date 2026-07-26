@@ -74,9 +74,9 @@ export interface DeckStats {
 }
 
 /** 套牌导入格式 */
-export type ImportFormat = "moxfield" | "arena" | "mtgo" | "plain";
+export type ImportFormat = "moxfield" | "arena" | "mtgo" | "plain" | "generic";
 
-/** Moxfield 格式解析后的卡牌行 */
+/** 套牌列表解析后的卡牌行 */
 export interface CardRow {
   count: string;
   name: string;

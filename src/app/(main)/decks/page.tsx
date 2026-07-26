@@ -528,12 +528,16 @@ export default function DecksPage() {
               <Label htmlFor="text">牌表内容</Label>
               <Textarea
                 id="text"
-                placeholder={`粘贴套牌列表内容，支持以下格式：
-◆ Copy for Moxfield：1 Sol Ring (CMM) 345
-◆ Copy for Arena：  Deck\\n1 Sol Ring
-  （含 About/Commander/Deck/Sideboard 分区头）
-◆ Copy for MTGO：   1 Sol Ring
-◆ Copy Plain Text： 1 Sol Ring`}
+                placeholder={`粘贴套牌列表内容，自动识别以下格式：
+◆ 1 Sol Ring (CMM) 345   — Moxfield 完整格式
+◆ 4x Lightning Bolt    — 4x 格式
+◆ 4 [ZNR:45] Card      — 方括号格式
+◆ 4 Card (MM2)         — 括号 SET-only
+◆ 4 Card / MM2         — 斜杠格式
+◆ SB: 1 Card           — Cockatrice 备牌
+◆ Deck\\n1 Card          — Arena 分区头
+◆ 1 Card               — 简单格式
+◆ // 注释、# 注释、分类头 — 自动跳过`}
                 rows={8}
                 value={deckText}
                 onChange={(e) => setDeckText(e.target.value)}
@@ -542,9 +546,9 @@ export default function DecksPage() {
               <p className="text-xs text-muted-foreground">
                 💡 操作步骤：<br />
                 1. 在 Moxfield 牌表页面，点击每张卡牌 → <b>Switch Printing</b> 切换为实际持有的印刷版本<br />
-                2. 点击 <b>Export</b> → 选择 <b>Copy for Moxfield</b>（推荐）、<b>Copy for Arena</b>、<b>Copy for MTGO</b> 或 <b>Copy Plain Text</b><br />
+                2. 点击 <b>Export</b> → 选择 <b>Copy for Moxfield</b>（推荐）等格式<br />
                 3. 粘贴到上方文本框 → 点击「开始导入」<br />
-                注意：Arena、MTGO 和 Plain Text 格式不含系列/编号信息，导入时会自动按卡名匹配最接近的印刷版本。
+                注意：无系列/编号信息的格式，导入时会自动按卡名匹配最接近的印刷版本。
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -641,11 +645,16 @@ export default function DecksPage() {
             <Label htmlFor="addCardsText">牌表内容</Label>
             <Textarea
               id="addCardsText"
-              placeholder={`粘贴套牌列表内容，支持以下格式：
-◆ Copy for Moxfield：1 Sol Ring (CMM) 345
-◆ Copy for Arena：  Deck\\n1 Sol Ring
-◆ Copy for MTGO：   1 Sol Ring
-◆ Copy Plain Text： 1 Sol Ring`}
+              placeholder={`粘贴套牌列表内容，自动识别以下格式：
+◆ 1 Sol Ring (CMM) 345   — Moxfield 完整格式
+◆ 4x Lightning Bolt    — 4x 格式
+◆ 4 [ZNR:45] Card      — 方括号格式
+◆ 4 Card (MM2)         — 括号 SET-only
+◆ 4 Card / MM2         — 斜杠格式
+◆ SB: 1 Card           — Cockatrice 备牌
+◆ Deck\\n1 Card          — Arena 分区头
+◆ 1 Card               — 简单格式
+◆ // 注释、# 注释、分类头 — 自动跳过`}
               rows={6}
               value={addCardsText}
               onChange={(e) => setAddCardsText(e.target.value)}

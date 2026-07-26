@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
       arena: "Copy for Arena",
       mtgo: "Copy for MTGO",
       plain: "Copy Plain Text",
+      generic: "通用格式",
     };
 
     // ── 创建套牌 ──
