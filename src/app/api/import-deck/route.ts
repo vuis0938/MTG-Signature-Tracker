@@ -5,74 +5,9 @@ import {
   extractArtists,
   extractImageUrl,
 } from "@/lib/scryfall";
-
-const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-interface CardRow {
-  count: string;
-  name: string;
-  setCode: string;
-  collectorNumber: string;
-}
-
-// ─── Scryfall 查询（带自动重试） ───
-
-const SCRYFALL_UA = "MTG-Signature-Tracker/1.0";
-const MAX_RETRIES = 2;
-
-async function quickFetchCard(
-  setCode: string,
-  cn: string,
-  attempt = 0
-): Promise<ScryfallCard | null> {
-  const url = `https://api.scryfall.com/cards/${encodeURIComponent(setCode.toLowerCase())}/${encodeURIComponent(cn)}`;
-  try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
-    });
-
-    // 可重试的错误（含 404，Scryfall 偶尔瞬时返回）
-    if (!res.ok) {
-      if (attempt < MAX_RETRIES) {
-        const wait = res.status === 429 ? 2000 : 1000 * (attempt + 1);
-        console.warn(`[Scryfall] ${setCode}/${cn} HTTP ${res.status}, ${wait}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
-        await delay(wait);
-        return quickFetchCard(setCode, cn, attempt + 1);
-      }
-      console.error(`[Scryfall] ${setCode}/${cn} 重试 ${MAX_RETRIES} 次后仍失败`);
-      return null;
-    }
-
-    return await res.json();
-  } catch (err) {
-    // 网络错误也重试
-    if (attempt < MAX_RETRIES) {
-      const wait = 1000 * (attempt + 1);
-      console.warn(`[Scryfall] ${setCode}/${cn} 网络错误, ${wait}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
-      await delay(wait);
-      return quickFetchCard(setCode, cn, attempt + 1);
-    }
-    console.error(`[Scryfall] ${setCode}/${cn} 网络错误，重试耗尽:`, err);
-    return null;
-  }
-}
-
-// ─── Moxfield 格式解析 ────────────────────────────────────
-
-function parseMoxfieldFormat(text: string): CardRow[] {
-  const rows: CardRow[] = [];
-  const re = /^(\d+)\s+(.+?)\s+\((\w+)\)\s+(\S+)/i;
-
-  for (const line of text.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    const cleaned = trimmed.replace(/\s*\*[FS]\*\s*/g, "");
-    const m = cleaned.match(re);
-    if (!m) continue;
-    rows.push({ count: m[1], name: m[2].trim(), setCode: m[3], collectorNumber: m[4] });
-  }
-  return rows;
-}
+import { quickFetchCard, delay } from "@/lib/scryfall-client";
+import { parseMoxfieldFormat } from "@/lib/moxfield-parser";
+import type { CardRow } from "@/types";
 
 // ─── API Handler ──────────────────────────────────────────
 
@@ -113,7 +48,7 @@ export async function POST(request: NextRequest) {
 
     // ── 8 路并行查询 Scryfall ──
     const CONCURRENCY = 8;
-    const BATCH_DELAY = 100; // 批次间隔 ms，8 req/s 稳定不触发限速
+    const BATCH_DELAY = 100;
     const cardResults: Array<{ card: CardRow; data: ScryfallCard | null }> = [];
     const tScryfall = Date.now();
 
@@ -122,7 +57,7 @@ export async function POST(request: NextRequest) {
       const batchResults = await Promise.all(
         batch.map(async (card) => ({
           card,
-          data: await quickFetchCard(card.setCode, card.collectorNumber),
+          data: (await quickFetchCard(card.setCode, card.collectorNumber)),
         }))
       );
       cardResults.push(...batchResults);
@@ -177,7 +112,7 @@ export async function POST(request: NextRequest) {
     const tTotal = ((Date.now() - t0) / 1000).toFixed(1);
     const tS = ((tScryfallDone - tScryfall) / 1000).toFixed(1);
 
-    // ── 同步填充模糊匹配缓存（等缓存写完再返回响应） ──
+    // ── 同步填充模糊匹配缓存 ──
     const tCacheStart = Date.now();
     const uniqueCardNames = [...new Set(cardsToInsert.map((c) => c.card_name as string))];
     let cacheCount = 0;

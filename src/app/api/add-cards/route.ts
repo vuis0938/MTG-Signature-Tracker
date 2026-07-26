@@ -1,70 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractArtists, extractImageUrl, ScryfallCard } from "@/lib/scryfall";
-
-const SCRYFALL_UA = "MTG-Signature-Tracker/1.0";
-const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-interface CardRow {
-  count: string;
-  name: string;
-  setCode: string;
-  collectorNumber: string;
-}
-
-// ─── Moxfield 格式解析 ────────────────────────────────────
-
-function parseMoxfieldFormat(text: string): CardRow[] {
-  const rows: CardRow[] = [];
-  const re = /^(\d+)\s+(.+?)\s+\((\w+)\)\s+(\S+)/i;
-
-  for (const line of text.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    const cleaned = trimmed.replace(/\s*\*[FS]\*\s*/g, "");
-    const m = cleaned.match(re);
-    if (!m) continue;
-    rows.push({
-      count: m[1],
-      name: m[2].trim(),
-      setCode: m[3],
-      collectorNumber: m[4],
-    });
-  }
-  return rows;
-}
-
-// ─── Scryfall 查询（带自动重试） ───
-
-async function quickFetchCard(
-  setCode: string,
-  cn: string,
-  attempt = 0
-): Promise<ScryfallCard | null> {
-  const url = `https://api.scryfall.com/cards/${encodeURIComponent(setCode.toLowerCase())}/${encodeURIComponent(cn)}`;
-  try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
-    });
-
-    if (!res.ok) {
-      if (attempt < 2) {
-        const wait = res.status === 429 ? 2000 : 1000 * (attempt + 1);
-        await delay(wait);
-        return quickFetchCard(setCode, cn, attempt + 1);
-      }
-      return null;
-    }
-
-    return await res.json();
-  } catch {
-    if (attempt < 2) {
-      await delay(1000 * (attempt + 1));
-      return quickFetchCard(setCode, cn, attempt + 1);
-    }
-    return null;
-  }
-}
+import { quickFetchCard, delay } from "@/lib/scryfall-client";
+import { parseMoxfieldFormat } from "@/lib/moxfield-parser";
+import type { CardRow } from "@/types";
 
 // ─── API Handler ──────────────────────────────────────────
 
@@ -109,7 +48,7 @@ export async function POST(request: NextRequest) {
       const batchResults = await Promise.all(
         batch.map(async (card) => ({
           card,
-          data: await quickFetchCard(card.setCode, card.collectorNumber),
+          data: (await quickFetchCard(card.setCode, card.collectorNumber)),
         }))
       );
       cardResults.push(...batchResults);
@@ -151,14 +90,13 @@ export async function POST(request: NextRequest) {
     if (cardsToInsert.length > 0) {
       const { error: batchError } = await supabase.from("cards").insert(cardsToInsert);
       if (batchError) {
-        // 逐条降级
         for (const c of cardsToInsert) {
           await supabase.from("cards").insert(c);
         }
       }
     }
 
-    // ── 同步填充模糊匹配缓存（等缓存写完再返回响应） ──
+    // ── 同步填充模糊匹配缓存 ──
     const uniqueCardNames = [...new Set(cardsToInsert.map((c) => c.card_name as string))];
     if (uniqueCardNames.length > 0) {
       try {

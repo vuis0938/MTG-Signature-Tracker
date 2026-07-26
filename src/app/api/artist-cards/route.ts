@@ -1,16 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const SCRYFALL_UA = "MTG-Signature-Tracker/1.0";
-const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-interface ArtistCard {
-  name: string;
-  set: string;
-  set_name: string;
-  collector_number: string;
-  image_url: string | null;
-  released_at: string;
-}
+import { delay, SCRYFALL_UA } from "@/lib/scryfall-client";
+import type { ArtistCard } from "@/types";
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,7 +12,6 @@ export async function GET(request: NextRequest) {
     }
 
     const allCards: ArtistCard[] = [];
-    // 用 Scryfall artist 语法搜索，unique:prints 去重，按发行日期排序
     let pageUrl = `https://api.scryfall.com/cards/search?q=a:"${encodeURIComponent(artist.trim())}"+unique:prints&order=released`;
 
     while (pageUrl) {

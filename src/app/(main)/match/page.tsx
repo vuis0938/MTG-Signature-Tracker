@@ -22,50 +22,16 @@ import {
 
 // ─── 类型定义 ──────────────────────────────────────────────
 
-interface Deck {
-  id: string;
-  name: string;
-}
+import type { Deck, CardEntry, FuzzyCardEntry, ArtistCard, CalendarEvent, Printing } from "@/types";
 
-interface CardEntry {
-  id: string;
-  deck_id: string;
-  deck_name: string;
-  card_name: string;
-  set_code: string;
-  collector_number: string;
-  artist_names: string[];
-  image_url: string | null;
-  status: number;
-}
-
-/** 模糊匹配结果中的卡牌 — 来自 Scryfall 的印刷版本 */
-interface FuzzyCardEntry {
-  card_name: string;
-  set_code: string;
-  set_name: string;
-  collector_number: string;
-  image_url: string | null;
-  artist: string;
-  /** 如果该版本正好在用户套牌中，指向套牌中的卡牌 */
-  deckCard?: CardEntry;
-}
-
-interface ArtistCard {
-  name: string;
-  set: string;
-  set_name: string;
-  collector_number: string;
-  image_url: string | null;
-  released_at: string;
-}
-
-interface CalendarEvent {
-  id: string;
-  name: string;
-  city: string;
-  startDate: string;
-  artists: string[];
+/** 模糊匹配 API 返回结构 */
+interface FuzzyApiResponse {
+  success: boolean;
+  cardMap?: Record<string, {
+    card_name: string;
+    printings: Printing[];
+    allArtists: string[];
+  }>;
 }
 
 // ─── 纯工具函数（组件体外，不依赖状态） ──────────────────────
@@ -243,9 +209,10 @@ export default function MatchPage() {
             cards.push({ ...c, deck_name: deckName });
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         const deckName = deckMap.get(deckId) || deckId;
-        debug.push(`💥 套牌 "${deckName}" 查询异常: ${err?.message || String(err)}`);
+        const msg = err instanceof Error ? err.message : String(err);
+        debug.push(`💥 套牌 "${deckName}" 查询异常: ${msg}`);
       }
     }
 
@@ -394,7 +361,7 @@ export default function MatchPage() {
         .from("cards")
         .update({ status: newStatus, is_signed: false, event_name: newStatus === 3 ? currentEvent : null, event_date: newStatus === 3 ? currentEventDate : null })
         .eq("id", cardId);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[toggleStatus] 数据库更新失败:", err);
       setMatchError("状态更新失败，请刷新页面重试");
     }
@@ -421,7 +388,7 @@ export default function MatchPage() {
       } else {
         await handleExactMatch(deckIds);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[匹配] 异常:", err);
       setMatched(new Map());
       setFuzzyMatched(new Map());
@@ -552,7 +519,7 @@ export default function MatchPage() {
   }
 
   /** 调用模糊匹配 API */
-  async function callFuzzyApi(deckIds: string[]): Promise<any> {
+  async function callFuzzyApi(deckIds: string[]): Promise<FuzzyApiResponse> {
     try {
       const fuzzyRes = await fetch("/api/fuzzy-match", {
         method: "POST",
@@ -561,8 +528,8 @@ export default function MatchPage() {
       });
       if (fuzzyRes.ok) return await fuzzyRes.json();
       console.error(`[模糊匹配] API 返回错误状态: ${fuzzyRes.status}`);
-    } catch (err: any) {
-      console.error("[模糊匹配] API 调用异常:", err?.message || String(err));
+    } catch (err: unknown) {
+      console.error("[模糊匹配] API 调用异常:", err instanceof Error ? err.message : String(err));
     }
     return { success: false };
   }
@@ -570,7 +537,7 @@ export default function MatchPage() {
   /** 从 API 返回数据构建扩展画家→卡牌映射 */
   function buildExpandedArtistCards(
     cards: CardEntry[],
-    fuzzyData: any
+    fuzzyData: FuzzyApiResponse
   ): Map<string, FuzzyCardEntry[]> {
     const expanded = new Map<string, FuzzyCardEntry[]>();
 

@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { ScryfallCard, extractArtists, extractImageUrl } from "@/lib/scryfall";
-
-const SCRYFALL_UA = "MTG-Signature-Tracker/1.0";
-const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+import { SCRYFALL_UA } from "@/lib/scryfall-client";
 
 export async function POST(request: NextRequest) {
   try {
@@ -55,7 +53,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 返回卡牌信息供前端展示
     return NextResponse.json({
       success: true,
       card: {

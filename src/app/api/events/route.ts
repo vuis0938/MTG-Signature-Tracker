@@ -26,7 +26,14 @@ export interface EventWithArtists {
   artists: string[];
 }
 
-async function graphql(query: string): Promise<any> {
+interface GraphqlResponse {
+  data?: {
+    signingEvent?: RawEvent[];
+    artistsByEventIds?: EventArtist[];
+  };
+}
+
+async function graphql(query: string): Promise<GraphqlResponse> {
   const res = await fetch(GRAPHQL_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "User-Agent": UA },

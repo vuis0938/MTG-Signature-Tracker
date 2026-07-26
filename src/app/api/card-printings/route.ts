@@ -1,16 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const SCRYFALL_UA = "MTG-Signature-Tracker/1.0";
-const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-interface PrintingInfo {
-  set: string;
-  set_name: string;
-  collector_number: string;
-  artist: string;
-  image_url: string | null;
-  released_at: string;
-}
+import { delay, SCRYFALL_UA } from "@/lib/scryfall-client";
+import type { Printing } from "@/types";
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,10 +11,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "缺少卡牌名称" }, { status: 400 });
     }
 
-    const allPrintings: PrintingInfo[] = [];
+    const allPrintings: Printing[] = [];
     let pageUrl = `https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(cardName.trim())}"+unique:prints&order=released`;
 
-    // 分页获取所有印刷版本
     while (pageUrl) {
       await delay(100);
       const res = await fetch(pageUrl, {

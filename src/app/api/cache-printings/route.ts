@@ -1,22 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-
-const SCRYFALL_UA = "MTG-Signature-Tracker/1.0";
-const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-interface Printing {
-  artist: string;
-  set: string;
-  set_name: string;
-  collector_number: string;
-  image_url: string | null;
-  released_at: string;
-}
+import { fetchAllPrintings, delay } from "@/lib/scryfall-client";
 
 /**
  * POST /api/cache-printings
  * 接收一组去重卡牌名，从 Scryfall 拉取所有印刷版本并写入 card_printings 表
- * 由导入/添加卡牌流程同步调用，需等待缓存完成才返回
  */
 export async function POST(request: NextRequest) {
   try {
@@ -37,7 +25,6 @@ export async function POST(request: NextRequest) {
       const batch = uniqueNames.slice(i, i + CONCURRENCY);
       const results = await Promise.all(
         batch.map(async (name) => {
-          // 先检查是否已有缓存
           const { data: existing } = await supabase
             .from("card_printings")
             .select("card_name")
@@ -48,7 +35,6 @@ export async function POST(request: NextRequest) {
             return { name, cached: true };
           }
 
-          // 从 Scryfall 拉取
           const printings = await fetchAllPrintings(name);
           if (printings.length === 0) {
             return { name, cached: false, failed: true };
@@ -89,51 +75,4 @@ export async function POST(request: NextRequest) {
     console.error("[CachePrintings]", error);
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
-}
-
-async function fetchAllPrintings(cardName: string): Promise<Printing[]> {
-  const printings: Printing[] = [];
-  let pageUrl = `https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(cardName)}"+unique:prints&order=released`;
-
-  while (pageUrl) {
-    await delay(100);
-    try {
-      const res = await fetch(pageUrl, {
-        headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
-      });
-
-      if (res.status === 404) break;
-      if (!res.ok) {
-        console.warn(`[CachePrintings] ${cardName} HTTP ${res.status}`);
-        break;
-      }
-
-      const data = await res.json();
-      for (const card of data.data || []) {
-        const artist =
-          card.artist ||
-          card.card_faces?.[0]?.artist ||
-          "Unknown";
-        const imageUrl =
-          card.image_uris?.small ||
-          card.card_faces?.[0]?.image_uris?.small ||
-          null;
-
-        printings.push({
-          artist,
-          set: card.set,
-          set_name: card.set_name,
-          collector_number: card.collector_number,
-          image_url: imageUrl,
-          released_at: card.released_at,
-        });
-      }
-
-      pageUrl = data.has_more ? data.next_page : null;
-    } catch {
-      break;
-    }
-  }
-
-  return printings;
 }

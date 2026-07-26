@@ -15,6 +15,7 @@ import {
   DialogContent,
 } from "@/components/ui/dialog";
 import { Calendar, MapPin, Users, Loader2 } from "lucide-react";
+import type { ArtistCard } from "@/types";
 
 interface CalendarEvent {
   id: string;
@@ -23,15 +24,6 @@ interface CalendarEvent {
   startDate: string;
   endDate: string;
   artists: string[];
-}
-
-interface ArtistCard {
-  name: string;
-  set: string;
-  set_name: string;
-  collector_number: string;
-  image_url: string | null;
-  released_at: string;
 }
 
 export default function EventsPage() {

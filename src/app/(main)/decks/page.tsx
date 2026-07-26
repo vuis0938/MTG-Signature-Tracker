@@ -22,33 +22,24 @@ import {
   DialogDescription,
   DialogContent,
 } from "@/components/ui/dialog";
+import type { Deck, CardEntry, DeckStats, Printing } from "@/types";
 
-interface Deck {
-  id: string;
-  name: string;
-  source: string;
-  created_at: string;
+// ─── 纯工具函数 ──────────────────────────────────────────
+
+/** 按画家分组 */
+function groupCardsByArtist(cardList: CardEntry[]): Map<string, CardEntry[]> {
+  const map = new Map<string, CardEntry[]>();
+  for (const card of cardList) {
+    for (const artist of card.artist_names) {
+      const existing = map.get(artist) || [];
+      existing.push(card);
+      map.set(artist, existing);
+    }
+  }
+  return map;
 }
 
-interface DeckStats {
-  total: number;
-  unsigned: number;
-  pending: number;
-}
-
-interface CardEntry {
-  id: string;
-  deck_id: string;
-  card_name: string;
-  set_code: string;
-  collector_number: string;
-  artist_names: string[];
-  image_url: string | null;
-  is_signed: boolean;
-  status: number; // 0=未签, 1=送签中, 2=已签, 3=心动
-  event_name?: string | null;
-  event_date?: string | null;
-}
+// ─── 页面组件 ──────────────────────────────────────────────
 
 export default function DecksPage() {
   const [decks, setDecks] = useState<Deck[]>([]);
@@ -62,9 +53,7 @@ export default function DecksPage() {
   const [importing, setImporting] = useState(false);
 
   // Toast 通知
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(
-    null
-  );
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   // 导入失败卡牌的手动重试
   const [failedCards, setFailedCards] = useState<
@@ -79,25 +68,19 @@ export default function DecksPage() {
   const [cardsLoading, setCardsLoading] = useState(false);
 
   // 添加卡牌弹窗
-  const [addCardsOpen, setAddCardsOpen] = useState<string | null>(null); // deckId
+  const [addCardsOpen, setAddCardsOpen] = useState<string | null>(null);
   const [addCardsText, setAddCardsText] = useState("");
   const [addCardsLoading, setAddCardsLoading] = useState(false);
 
   // 切换印刷版本弹窗
   const [switchCard, setSwitchCard] = useState<CardEntry | null>(null);
-  const [printings, setPrintings] = useState<Array<{
-    set: string;
-    set_name: string;
-    collector_number: string;
-    artist: string;
-    image_url: string | null;
-    released_at: string;
-  }>>([]);
+  const [printings, setPrintings] = useState<Printing[]>([]);
   const [printingsLoading, setPrintingsLoading] = useState(false);
   const [switchPrintingLoading, setSwitchPrintingLoading] = useState<string | null>(null);
   const [deletingCard, setDeletingCard] = useState<string | null>(null);
 
-  // 加载套牌列表 + 每套牌的统计
+  // ─── 加载套牌列表 ──────────────────────────────────────
+
   const loadDecks = useCallback(async () => {
     const { data, error } = await supabase
       .from("decks")
@@ -108,27 +91,26 @@ export default function DecksPage() {
     if (!error && data) {
       setDecks(data);
 
-      // 并发获取每套牌的计数
       const statsMap: Record<string, DeckStats> = {};
       await Promise.all(
         data.map(async (deck) => {
           const [{ count: total }, { count: unsigned }, { count: pending }] =
             await Promise.all([
-            supabase
-              .from("cards")
-              .select("*", { count: "exact", head: true })
-              .eq("deck_id", deck.id),
-            supabase
-              .from("cards")
-              .select("*", { count: "exact", head: true })
-              .eq("deck_id", deck.id)
-              .in("status", [0, 3]),
-            supabase
-              .from("cards")
-              .select("*", { count: "exact", head: true })
-              .eq("deck_id", deck.id)
-              .eq("status", 1),
-          ]);
+              supabase
+                .from("cards")
+                .select("*", { count: "exact", head: true })
+                .eq("deck_id", deck.id),
+              supabase
+                .from("cards")
+                .select("*", { count: "exact", head: true })
+                .eq("deck_id", deck.id)
+                .in("status", [0, 3]),
+              supabase
+                .from("cards")
+                .select("*", { count: "exact", head: true })
+                .eq("deck_id", deck.id)
+                .eq("status", 1),
+            ]);
           statsMap[deck.id] = {
             total: total ?? 0,
             unsigned: unsigned ?? 0,
@@ -145,7 +127,8 @@ export default function DecksPage() {
     loadDecks();
   }, [loadDecks]);
 
-  // 展开/收起套牌详情
+  // ─── 展开/收起套牌 ──────────────────────────────────────
+
   async function toggleDeck(deckId: string) {
     if (expandedDeck === deckId) {
       setExpandedDeck(null);
@@ -154,7 +137,6 @@ export default function DecksPage() {
 
     setExpandedDeck(deckId);
 
-    // 如果还没加载过这个套牌的卡牌，加载之
     if (!cards[deckId]) {
       setCardsLoading(true);
       const { data } = await supabase
@@ -170,8 +152,9 @@ export default function DecksPage() {
     }
   }
 
-  // 删除套牌
-  async function deleteDeck(deckId: string) {
+  // ─── 删除套牌 ──────────────────────────────────────────
+
+  const deleteDeck = useCallback(async (deckId: string) => {
     if (!confirm("确定要删除这套牌吗？所有卡牌数据将被永久删除。")) return;
 
     await supabase.from("decks").delete().eq("id", deckId);
@@ -182,10 +165,11 @@ export default function DecksPage() {
       return next;
     });
     if (expandedDeck === deckId) setExpandedDeck(null);
-  }
+  }, [expandedDeck]);
 
-  // 导入套牌
-  async function handleImport() {
+  // ─── 导入套牌 ──────────────────────────────────────────
+
+  const handleImport = useCallback(async () => {
     if (!deckName.trim()) {
       setToast({ message: "请输入套牌名称", type: "error" });
       return;
@@ -216,7 +200,6 @@ export default function DecksPage() {
 
         setToast({ message: msg, type: hasFailures ? "error" : "success" });
 
-        // 保存失败卡牌供手动重试
         if (hasFailures && data.failedCards) {
           setFailedCards(data.failedCards);
           setRetryingDeckId(data.deckId);
@@ -237,10 +220,11 @@ export default function DecksPage() {
     } finally {
       setImporting(false);
     }
-  }
+  }, [deckName, deckText, loadDecks]);
 
-  // 手动重试单张卡牌（模糊搜索）
-  async function retryCard(cardName: string, setCode: string, collectorNumber: string) {
+  // ─── 手动重试单张卡牌 ──────────────────────────────────
+
+  const retryCard = useCallback(async (cardName: string, setCode: string, collectorNumber: string) => {
     if (!retryingDeckId) return;
     setRetryingCard(cardName);
 
@@ -253,16 +237,13 @@ export default function DecksPage() {
       const data = await res.json();
 
       if (data.success) {
-        // 从失败列表移除
         setFailedCards((prev) => prev.filter((c) => c.name !== cardName));
-        const note = data.note ? `（${data.note}）` : "";
         setToast({
-          message: `✅ 「${cardName}」通过模糊搜索成功录入${note}`,
+          message: `✅ 「${cardName}」通过模糊搜索成功录入`,
           type: "success",
         });
-        // 刷新
         await loadDecks();
-        if (retryingDeckId && expandedDeck === retryingDeckId) {
+        if (expandedDeck === retryingDeckId) {
           const { data: freshCards } = await supabase
             .from("cards")
             .select("*")
@@ -280,13 +261,13 @@ export default function DecksPage() {
     } finally {
       setRetryingCard(null);
     }
-  }
+  }, [retryingDeckId, expandedDeck, loadDecks]);
 
-  // 三态切换：0=未签 → 1=送签中 → 2=已签 → 0=未签
+  // ─── 三态切换 ──────────────────────────────────────────
+
   async function toggleStatus(cardId: string, currentStatus: number, deckId: string) {
     const newStatus = (currentStatus + 1) % 3;
 
-    // 乐观更新本地状态
     setCards((prev) => {
       const updated = { ...prev };
       if (updated[deckId]) {
@@ -297,7 +278,6 @@ export default function DecksPage() {
       return updated;
     });
 
-    // 更新统计
     setDeckStats((prev) => {
       const stats = { ...prev };
       if (stats[deckId]) {
@@ -318,29 +298,15 @@ export default function DecksPage() {
       return stats;
     });
 
-    // 写入数据库
     await supabase
       .from("cards")
       .update({ status: newStatus, is_signed: newStatus === 2 })
       .eq("id", cardId);
   }
 
-  // 按画家分组
-  function groupCardsByArtist(cardList: CardEntry[]): Map<string, CardEntry[]> {
-    const map = new Map<string, CardEntry[]>();
-    for (const card of cardList) {
-      const artists = card.artist_names;
-      for (const artist of artists) {
-        const existing = map.get(artist) || [];
-        existing.push(card);
-        map.set(artist, existing);
-      }
-    }
-    return map;
-  }
+  // ─── 添加卡牌到套牌 ──────────────────────────────────
 
-  // ─── 添加卡牌到套牌 ───
-  async function handleAddCards() {
+  const handleAddCards = useCallback(async () => {
     if (!addCardsOpen || !addCardsText.trim()) {
       setToast({ message: "请粘贴 Moxfield 牌表内容", type: "error" });
       return;
@@ -358,15 +324,14 @@ export default function DecksPage() {
 
       if (data.success) {
         const hasFailures = data.failCount > 0;
-        const msg =
-          `✅ 添加 ${data.successCount}/${data.total} 张成功` +
-          (hasFailures ? `，${data.failCount} 张未找到` : "");
-
-        setToast({ message: msg, type: hasFailures ? "error" : "success" });
+        setToast({
+          message: `✅ 添加 ${data.successCount}/${data.total} 张成功` +
+            (hasFailures ? `，${data.failCount} 张未找到` : ""),
+          type: hasFailures ? "error" : "success",
+        });
         setAddCardsOpen(null);
         setAddCardsText("");
         await loadDecks();
-        // 刷新展开的卡牌
         if (expandedDeck === addCardsOpen) {
           const { data: freshCards } = await supabase
             .from("cards")
@@ -385,9 +350,10 @@ export default function DecksPage() {
     } finally {
       setAddCardsLoading(false);
     }
-  }
+  }, [addCardsOpen, addCardsText, expandedDeck, loadDecks]);
 
-  // ─── 加载卡牌所有印刷版本 ───
+  // ─── 加载卡牌所有印刷版本 ──────────────────────────────
+
   async function loadPrintings(card: CardEntry) {
     setSwitchCard(card);
     setPrintings([]);
@@ -411,7 +377,8 @@ export default function DecksPage() {
     }
   }
 
-  // ─── 切换印刷版本 ───
+  // ─── 切换印刷版本 ──────────────────────────────────────
+
   async function handleSwitchPrinting(cardId: string, setCode: string, collectorNumber: string) {
     setSwitchPrintingLoading(cardId);
     try {
@@ -429,7 +396,6 @@ export default function DecksPage() {
           type: "success",
         });
 
-        // 更新本地状态
         const deckId = switchCard?.deck_id;
         if (deckId) {
           setCards((prev) => {
@@ -462,7 +428,8 @@ export default function DecksPage() {
     }
   }
 
-  // ─── 删除卡牌 ───
+  // ─── 删除卡牌 ──────────────────────────────────────────
+
   async function handleDeleteCard(cardId: string) {
     setDeletingCard(cardId);
     try {
@@ -475,7 +442,6 @@ export default function DecksPage() {
 
       setToast({ message: "✅ 卡牌已删除", type: "success" });
 
-      // 更新本地状态
       const deckId = switchCard?.deck_id;
       if (deckId) {
         setCards((prev) => {
@@ -496,6 +462,8 @@ export default function DecksPage() {
       setDeletingCard(null);
     }
   }
+
+  // ─── 渲染 ──────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
@@ -528,10 +496,7 @@ export default function DecksPage() {
         <Button
           onClick={() => {
             setShowImport(!showImport);
-            if (!showImport) {
-              setDeckName("");
-              setDeckText("");
-            }
+            if (!showImport) { setDeckName(""); setDeckText(""); }
           }}
           disabled={importing}
         >
@@ -640,194 +605,24 @@ export default function DecksPage() {
         </div>
       ) : decks.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center">
-          <p className="text-muted-foreground">
-            暂无套牌数据，点击"导入套牌"开始
-          </p>
+          <p className="text-muted-foreground">暂无套牌数据，点击"导入套牌"开始</p>
         </div>
       ) : (
         <div className="space-y-3">
           {decks.map((deck) => (
-            <Card key={deck.id}>
-              <CardHeader
-                className="cursor-pointer hover:bg-accent/50 rounded-t-lg"
-                onClick={() => toggleDeck(deck.id)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {expandedDeck === deck.id ? (
-                      <ChevronDown className="h-4 w-4" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4" />
-                    )}
-                    <div>
-                      <CardTitle className="text-base">
-                        {deck.name}
-                      </CardTitle>
-                      <CardDescription>
-                        {deckStats[deck.id] &&
-                          `共 ${deckStats[deck.id].total} 张` +
-                            (deckStats[deck.id].unsigned > 0
-                              ? ` · ${deckStats[deck.id].unsigned} 待签`
-                              : "") +
-                            (deckStats[deck.id].pending > 0
-                              ? ` · ${deckStats[deck.id].pending} 送签中`
-                              : "") +
-                            (deckStats[deck.id].total -
-                              deckStats[deck.id].unsigned -
-                              deckStats[deck.id].pending >
-                            0
-                              ? ` · ${deckStats[deck.id].total - deckStats[deck.id].unsigned - deckStats[deck.id].pending} 已签`
-                              : "")}
-                        <br />
-                        上次更新时间：{new Date(deck.created_at).toLocaleDateString("zh-CN")}
-                      </CardDescription>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-center shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="添加卡牌"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setAddCardsOpen(deck.id);
-                        setAddCardsText("");
-                      }}
-                    >
-                      <Plus className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteDeck(deck.id);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-
-              {/* 展开的卡牌列表（按画家分组） */}
-              {expandedDeck === deck.id && (
-                <CardContent>
-                  {cardsLoading ? (
-                    <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm">加载卡牌...</span>
-                    </div>
-                  ) : cards[deck.id]?.length === 0 ? (
-                    <p className="text-muted-foreground text-sm">暂无卡牌</p>
-                  ) : (
-                    <div className="space-y-4">
-                      {Array.from(
-                        groupCardsByArtist(cards[deck.id] || [])
-                      ).map(([artist, artistCards]) => (
-                        <div key={artist}>
-                          <h4 className="text-sm font-medium mb-2">
-                            🎨 {artist} ({artistCards.length})
-                          </h4>
-                          <div className="flex flex-wrap gap-3">
-                            {artistCards.map((card) => {
-                              const status = card.status ?? (card.is_signed ? 2 : 0);
-                              const statusLabels: Record<number, string> = {
-                                0: "未签（点击切换为送签中）",
-                                1: "送签中（点击切换为已签）",
-                                2: "已签（点击切换为未签）",
-                                3: "心动",
-                              };
-                              const hasOverlay = status >= 1;
-                              const overlayColor: Record<number, string> = {
-                                1: "bg-blue-500",
-                                2: "bg-green-500",
-                                3: "bg-pink-500",
-                              };
-                              const overlayIcon: Record<number, string> = {
-                                1: "…",
-                                2: "✓",
-                                3: "♥",
-                              };
-
-                              return (
-                                <div
-                                  key={card.id}
-                                  className="group relative w-24"
-                                >
-                                  <div
-                                    onClick={() =>
-                                      toggleStatus(card.id, status, deck.id)
-                                    }
-                                    className={`relative rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 ${
-                                      hasOverlay
-                                        ? status === 3 ? "border-pink-400" : status === 1 ? "border-blue-400" : "border-green-500"
-                                        : "border-border hover:shadow-md"
-                                    }`}
-                                    title={statusLabels[status]}
-                                  >
-                                    {/* 心动活动标签 — 卡牌顶部 */}
-                                    {status === 3 && card.event_name && (
-                                      <div className="absolute top-0 left-0 right-0 z-10 bg-pink-500/90 text-white text-[9px] px-1 py-0.5 text-center leading-tight">
-                                        ♥ {card.event_name}
-                                        {card.event_date && ` · ${card.event_date}`}
-                                      </div>
-                                    )}
-
-                                    {/* 卡图区域 — 仅这块半透明 */}
-                                    <div className={hasOverlay ? "opacity-75" : ""}>
-                                      {card.image_url ? (
-                                        <img
-                                          src={card.image_url}
-                                          alt={card.card_name}
-                                          className="w-full"
-                                          loading="lazy"
-                                        />
-                                      ) : (
-                                        <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
-                                          {card.card_name}
-                                        </div>
-                                      )}
-                                    </div>
-
-                                    {/* 状态圆 — 保持完全不透明 */}
-                                    {hasOverlay && (
-                                      <div className="absolute inset-0 flex items-center justify-center">
-                                        <div
-                                          className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg ${overlayColor[status] || "bg-blue-500"}`}
-                                        >
-                                          {overlayIcon[status] || "…"}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-1 py-0.5 text-center truncate">
-                                      {card.card_name}
-                                    </div>
-                                  </div>
-
-                                  {/* 切换版本按钮 */}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      loadPrintings(card);
-                                    }}
-                                    className="absolute top-0.5 right-0.5 z-20 w-6 h-6 rounded-full bg-background/80 border shadow-sm flex items-center justify-center hover:bg-accent hover:scale-110 transition-all"
-                                    title="切换印刷版本"
-                                  >
-                                    <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
-                                  </button>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              )}
-            </Card>
+            <DeckListItem
+              key={deck.id}
+              deck={deck}
+              stats={deckStats[deck.id]}
+              isExpanded={expandedDeck === deck.id}
+              cards={cards[deck.id]}
+              cardsLoading={cardsLoading}
+              onToggle={toggleDeck}
+              onAddCards={(deckId) => { setAddCardsOpen(deckId); setAddCardsText(""); }}
+              onDelete={deleteDeck}
+              onToggleStatus={toggleStatus}
+              onLoadPrintings={loadPrintings}
+            />
           ))}
         </div>
       )}
@@ -867,98 +662,308 @@ export default function DecksPage() {
       </Dialog>
 
       {/* ─── 切换印刷版本弹窗 ─── */}
-      <Dialog open={switchCard !== null} onOpenChange={() => { setSwitchCard(null); setPrintings([]); }}>
-        <DialogHeader>
-          <DialogTitle>切换印刷版本 — {switchCard?.card_name}</DialogTitle>
-          <DialogDescription>
-            当前版本：{switchCard?.set_code?.toUpperCase()} #{switchCard?.collector_number}
-            {switchCard?.artist_names && ` · 画家：${switchCard.artist_names.join(", ")}`}
-          </DialogDescription>
-        </DialogHeader>
-        {printingsLoading ? (
-          <DialogContent>
-            <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-sm">加载中...</span>
-            </div>
-          </DialogContent>
-        ) : (
-          <DialogContent>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto pr-2">
-              {printings.map((printing) => {
-                const isCurrent =
-                  printing.set === switchCard?.set_code &&
-                  printing.collector_number === switchCard?.collector_number;
-                const isSwitching = switchPrintingLoading === switchCard?.id;
+      <VersionSwitchDialog
+        switchCard={switchCard}
+        printings={printings}
+        printingsLoading={printingsLoading}
+        switchPrintingLoading={switchPrintingLoading}
+        deletingCard={deletingCard}
+        onClose={() => { setSwitchCard(null); setPrintings([]); }}
+        onSwitchPrinting={handleSwitchPrinting}
+        onDeleteCard={handleDeleteCard}
+      />
+    </div>
+  );
+}
 
-                return (
-                  <button
-                    key={`${printing.set}-${printing.collector_number}`}
-                    onClick={() => {
-                      if (switchCard && !isCurrent && !isSwitching) {
-                        handleSwitchPrinting(switchCard.id, printing.set, printing.collector_number);
-                      }
-                    }}
-                    disabled={isCurrent || isSwitching}
-                    className={`text-left rounded-lg border overflow-hidden transition-all ${
-                      isCurrent
-                        ? "border-primary ring-2 ring-primary/30 cursor-default"
-                        : "border-border hover:border-primary/50 hover:shadow cursor-pointer"
-                    } ${isSwitching ? "opacity-50" : ""}`}
-                    title={printing.artist}
-                  >
-                    {printing.image_url ? (
-                      <img
-                        src={printing.image_url}
-                        alt={`${printing.set_name} #${printing.collector_number}`}
-                        className="w-full"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center text-xs text-muted-foreground">
-                        {printing.set_name}
-                      </div>
-                    )}
-                    <div className="p-1.5 text-[10px]">
-                      <p className="font-medium truncate">{printing.set_name}</p>
-                      <p className="text-muted-foreground truncate">
-                        #{printing.collector_number} · {printing.artist}
-                      </p>
-                      {isCurrent && (
-                        <p className="text-primary font-medium mt-0.5">当前版本</p>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            {printings.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                未找到该卡牌的其他印刷版本
-              </p>
+// ─── 子组件 ──────────────────────────────────────────────
+
+interface DeckListItemProps {
+  deck: Deck;
+  stats: DeckStats | undefined;
+  isExpanded: boolean;
+  cards: CardEntry[] | undefined;
+  cardsLoading: boolean;
+  onToggle: (deckId: string) => void;
+  onAddCards: (deckId: string) => void;
+  onDelete: (deckId: string) => void;
+  onToggleStatus: (cardId: string, currentStatus: number, deckId: string) => void;
+  onLoadPrintings: (card: CardEntry) => void;
+}
+
+function DeckListItem({
+  deck, stats, isExpanded, cards, cardsLoading,
+  onToggle, onAddCards, onDelete, onToggleStatus, onLoadPrintings,
+}: DeckListItemProps) {
+  return (
+    <Card>
+      <CardHeader
+        className="cursor-pointer hover:bg-accent/50 rounded-t-lg"
+        onClick={() => onToggle(deck.id)}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {isExpanded ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
             )}
-            {/* 删除此卡牌 */}
-            {switchCard && (
-              <div className="border-t pt-3 mt-3">
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="w-full"
-                  disabled={deletingCard === switchCard.id}
+            <div>
+              <CardTitle className="text-base">{deck.name}</CardTitle>
+              <CardDescription>
+                {stats && (
+                  <>
+                    共 {stats.total} 张
+                    {stats.unsigned > 0 && ` · ${stats.unsigned} 待签`}
+                    {stats.pending > 0 && ` · ${stats.pending} 送签中`}
+                    {stats.total - stats.unsigned - stats.pending > 0 &&
+                      ` · ${stats.total - stats.unsigned - stats.pending} 已签`}
+                    <br />
+                    上次更新时间：{new Date(deck.created_at!).toLocaleDateString("zh-CN")}
+                  </>
+                )}
+              </CardDescription>
+            </div>
+          </div>
+          <div className="flex flex-col items-center shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              title="添加卡牌"
+              onClick={(e) => { e.stopPropagation(); onAddCards(deck.id); }}
+            >
+              <Plus className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => { e.stopPropagation(); onDelete(deck.id); }}
+            >
+              <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+
+      {isExpanded && (
+        <CardContent>
+          {cardsLoading ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-sm">加载卡牌...</span>
+            </div>
+          ) : cards?.length === 0 ? (
+            <p className="text-muted-foreground text-sm">暂无卡牌</p>
+          ) : (
+            <div className="space-y-4">
+              {Array.from(groupCardsByArtist(cards || [])).map(([artist, artistCards]) => (
+                <div key={artist}>
+                  <h4 className="text-sm font-medium mb-2">
+                    🎨 {artist} ({artistCards.length})
+                  </h4>
+                  <div className="flex flex-wrap gap-3">
+                    {artistCards.map((card) => (
+                      <CardThumbnail
+                        key={card.id}
+                        card={card}
+                        deckId={deck.id}
+                        onToggleStatus={onToggleStatus}
+                        onLoadPrintings={onLoadPrintings}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+// ─── 卡牌缩略图 ──────────────────────────────────────────
+
+interface CardThumbnailProps {
+  card: CardEntry;
+  deckId: string;
+  onToggleStatus: (cardId: string, currentStatus: number, deckId: string) => void;
+  onLoadPrintings: (card: CardEntry) => void;
+}
+
+function CardThumbnail({ card, deckId, onToggleStatus, onLoadPrintings }: CardThumbnailProps) {
+  const status = card.status ?? (card.is_signed ? 2 : 0);
+  const statusLabels: Record<number, string> = {
+    0: "未签（点击切换为送签中）",
+    1: "送签中（点击切换为已签）",
+    2: "已签（点击切换为未签）",
+    3: "心动",
+  };
+  const hasOverlay = status >= 1;
+  const overlayColor: Record<number, string> = { 1: "bg-blue-500", 2: "bg-green-500", 3: "bg-pink-500" };
+  const overlayIcon: Record<number, string> = { 1: "…", 2: "✓", 3: "♥" };
+
+  return (
+    <div className="group relative w-24">
+      <div
+        onClick={() => onToggleStatus(card.id, status, deckId)}
+        className={`relative rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 ${
+          hasOverlay
+            ? status === 3 ? "border-pink-400" : status === 1 ? "border-blue-400" : "border-green-500"
+            : "border-border hover:shadow-md"
+        }`}
+        title={statusLabels[status]}
+      >
+        {/* 心动活动标签 */}
+        {status === 3 && card.event_name && (
+          <div className="absolute top-0 left-0 right-0 z-10 bg-pink-500/90 text-white text-[9px] px-1 py-0.5 text-center leading-tight">
+            ♥ {card.event_name}
+            {card.event_date && ` · ${card.event_date}`}
+          </div>
+        )}
+
+        <div className={hasOverlay ? "opacity-75" : ""}>
+          {card.image_url ? (
+            <img src={card.image_url} alt={card.card_name} className="w-full" loading="lazy" />
+          ) : (
+            <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
+              {card.card_name}
+            </div>
+          )}
+        </div>
+
+        {hasOverlay && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg ${overlayColor[status] || "bg-blue-500"}`}>
+              {overlayIcon[status] || "…"}
+            </div>
+          </div>
+        )}
+
+        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-1 py-0.5 text-center truncate">
+          {card.card_name}
+        </div>
+      </div>
+
+      {/* 切换版本按钮 */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onLoadPrintings(card); }}
+        className="absolute top-0.5 right-0.5 z-20 w-6 h-6 rounded-full bg-background/80 border shadow-sm flex items-center justify-center hover:bg-accent hover:scale-110 transition-all"
+        title="切换印刷版本"
+      >
+        <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+      </button>
+    </div>
+  );
+}
+
+// ─── 切换印刷版本弹窗 ────────────────────────────────────
+
+interface VersionSwitchDialogProps {
+  switchCard: CardEntry | null;
+  printings: Printing[];
+  printingsLoading: boolean;
+  switchPrintingLoading: string | null;
+  deletingCard: string | null;
+  onClose: () => void;
+  onSwitchPrinting: (cardId: string, setCode: string, collectorNumber: string) => void;
+  onDeleteCard: (cardId: string) => void;
+}
+
+function VersionSwitchDialog({
+  switchCard, printings, printingsLoading, switchPrintingLoading, deletingCard,
+  onClose, onSwitchPrinting, onDeleteCard,
+}: VersionSwitchDialogProps) {
+  return (
+    <Dialog open={switchCard !== null} onOpenChange={onClose}>
+      <DialogHeader>
+        <DialogTitle>切换印刷版本 — {switchCard?.card_name}</DialogTitle>
+        <DialogDescription>
+          当前版本：{switchCard?.set_code?.toUpperCase()} #{switchCard?.collector_number}
+          {switchCard?.artist_names && ` · 画家：${switchCard.artist_names.join(", ")}`}
+        </DialogDescription>
+      </DialogHeader>
+      {printingsLoading ? (
+        <DialogContent>
+          <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="text-sm">加载中...</span>
+          </div>
+        </DialogContent>
+      ) : (
+        <DialogContent>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto pr-2">
+            {printings.map((printing) => {
+              const isCurrent =
+                printing.set === switchCard?.set_code &&
+                printing.collector_number === switchCard?.collector_number;
+              const isSwitching = switchPrintingLoading === switchCard?.id;
+
+              return (
+                <button
+                  key={`${printing.set}-${printing.collector_number}`}
                   onClick={() => {
-                    if (confirm(`确定要从套牌中删除「${switchCard.card_name}」吗？`)) {
-                      handleDeleteCard(switchCard.id);
+                    if (switchCard && !isCurrent && !isSwitching) {
+                      onSwitchPrinting(switchCard.id, printing.set, printing.collector_number);
                     }
                   }}
+                  disabled={isCurrent || isSwitching}
+                  className={`text-left rounded-lg border overflow-hidden transition-all ${
+                    isCurrent
+                      ? "border-primary ring-2 ring-primary/30 cursor-default"
+                      : "border-border hover:border-primary/50 hover:shadow cursor-pointer"
+                  } ${isSwitching ? "opacity-50" : ""}`}
+                  title={printing.artist}
                 >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  {deletingCard === switchCard.id ? "删除中..." : "从套牌中删除此卡牌"}
-                </Button>
-              </div>
-            )}
-          </DialogContent>
-        )}
-      </Dialog>
-    </div>
+                  {printing.image_url ? (
+                    <img
+                      src={printing.image_url}
+                      alt={`${printing.set_name} #${printing.collector_number}`}
+                      className="w-full"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center text-xs text-muted-foreground">
+                      {printing.set_name}
+                    </div>
+                  )}
+                  <div className="p-1.5 text-[10px]">
+                    <p className="font-medium truncate">{printing.set_name}</p>
+                    <p className="text-muted-foreground truncate">
+                      #{printing.collector_number} · {printing.artist}
+                    </p>
+                    {isCurrent && <p className="text-primary font-medium mt-0.5">当前版本</p>}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          {printings.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              未找到该卡牌的其他印刷版本
+            </p>
+          )}
+          {/* 删除此卡牌 */}
+          {switchCard && (
+            <div className="border-t pt-3 mt-3">
+              <Button
+                variant="destructive"
+                size="sm"
+                className="w-full"
+                disabled={deletingCard === switchCard.id}
+                onClick={() => {
+                  if (confirm(`确定要从套牌中删除「${switchCard.card_name}」吗？`)) {
+                    onDeleteCard(switchCard.id);
+                  }
+                }}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                {deletingCard === switchCard.id ? "删除中..." : "从套牌中删除此卡牌"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      )}
+    </Dialog>
   );
 }
