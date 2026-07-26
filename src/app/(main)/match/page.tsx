@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -19,6 +19,8 @@ import {
   DialogTitle,
   DialogContent,
 } from "@/components/ui/dialog";
+
+// ─── 类型定义 ──────────────────────────────────────────────
 
 interface Deck {
   id: string;
@@ -66,6 +68,80 @@ interface CalendarEvent {
   artists: string[];
 }
 
+// ─── 纯工具函数（组件体外，不依赖状态） ──────────────────────
+
+/** 安全解析 artist_names：兼容 string[] 和 Supabase 可能返回的 string */
+function normalizeArtists(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+    return [raw];
+  }
+  return [];
+}
+
+/** 构建 NFD 规范化 key → 原始 key 映射 */
+function buildNormalizedMap(dbKeys: string[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const dbKey of dbKeys) {
+    const normalized = dbKey.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (!map.has(normalized)) {
+      map.set(normalized, dbKey);
+    }
+  }
+  return map;
+}
+
+/**
+ * 在候选画家中查找匹配。
+ * 规则（按优先级）：
+ *   1. 精确匹配（大小写不敏感）
+ *   2. 首尾名匹配：如 "Dan Scott" 匹配 "Dan Murayama Scott"
+ *   3. 变音符号规范化匹配：如 "Milivoj Ceran" 匹配 "Milivoj Ćeran"
+ */
+function findMatchingArtist(
+  parsedArtist: string,
+  dbKeys: string[],
+  normalizedMap?: Map<string, string>
+): string | null {
+  const key = parsedArtist.toLowerCase().trim();
+  if (dbKeys.includes(key)) return key;
+
+  const words = key.split(/\s+/).filter(Boolean);
+
+  // 规则 2：首尾名匹配
+  if (words.length >= 2) {
+    const first = words[0];
+    const last = words[words.length - 1];
+    for (const dbKey of dbKeys) {
+      const dbWords = dbKey.split(/\s+/).filter(Boolean);
+      if (dbWords.length >= 2) {
+        if (dbWords[0] === first && dbWords[dbWords.length - 1] === last) {
+          return dbKey;
+        }
+      }
+    }
+  }
+
+  // 规则 3：变音符号规范化
+  const map = normalizedMap ?? buildNormalizedMap(dbKeys);
+  const normalizedKey = key.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return map.get(normalizedKey) || null;
+}
+
+/** 判断两张卡牌是否是同一印刷版本（同名+同系列+同编号） */
+function isSamePrinting(
+  a: { card_name: string; set_code: string; collector_number: string },
+  b: { card_name: string; set_code: string; collector_number: string }
+): boolean {
+  return a.card_name === b.card_name && a.set_code === b.set_code && a.collector_number === b.collector_number;
+}
+
+// ─── 页面组件 ──────────────────────────────────────────────
+
 export default function MatchPage() {
   // 名单解析
   const [rawText, setRawText] = useState("");
@@ -88,15 +164,97 @@ export default function MatchPage() {
   const [matched, setMatched] = useState<Map<string, CardEntry[]>>(new Map());
   const [fuzzyMatched, setFuzzyMatched] = useState<Map<string, FuzzyCardEntry[]>>(new Map());
   const [unmatched, setUnmatched] = useState<string[]>([]);
-  const [currentEvent, setCurrentEvent] = useState(""); // 当前选中的活动名
-  const [currentEventDate, setCurrentEventDate] = useState(""); // 当前选中的活动日期
+  const [currentEvent, setCurrentEvent] = useState("");
+  const [currentEventDate, setCurrentEventDate] = useState("");
 
   // 画家卡牌弹窗
   const [artistDialog, setArtistDialog] = useState<string | null>(null);
   const [artistCards, setArtistCards] = useState<ArtistCard[]>([]);
   const [artistCardsLoading, setArtistCardsLoading] = useState(false);
 
-  // 加载活动列表
+  // 调试面板
+  const [debugInfo, setDebugInfo] = useState<string[]>([]);
+  const [rawDataPanel, setRawDataPanel] = useState<Array<{
+    deckName: string; cardName: string; setCode: string; artists: string[]; status: number; deckId: string;
+  }>>([]);
+
+  const [hasRun, setHasRun] = useState(false);
+
+  // Ref 锁定最新状态，避免闭包陷阱
+  const selectedDecksRef = useRef(selectedDecks);
+  selectedDecksRef.current = selectedDecks;
+  const parsedArtistsRef = useRef(parsedArtists);
+  parsedArtistsRef.current = parsedArtists;
+  const decksRef = useRef(decks);
+  decksRef.current = decks;
+  const fuzzyModeRef = useRef(fuzzyMode);
+  fuzzyModeRef.current = fuzzyMode;
+  const matchingRef = useRef(false);
+  const eventsLoadedRef = useRef(false);
+  const matchedRef = useRef(matched);
+  matchedRef.current = matched;
+  const fuzzyMatchedRef = useRef(fuzzyMatched);
+  fuzzyMatchedRef.current = fuzzyMatched;
+
+  // ─── 辅助函数 ──────────────────────────────────────────
+
+  /** 重置匹配结果 */
+  function resetMatchState() {
+    setMatched(new Map());
+    setFuzzyMatched(new Map());
+    setUnmatched([]);
+    setHasRun(false);
+  }
+
+  /** 查询多个套牌的所有卡牌 */
+  async function fetchCardsByDeckIds(deckIds: string[]): Promise<{
+    cards: CardEntry[];
+    rawRows: Array<{ deckName: string; cardName: string; setCode: string; artists: string[]; status: number; deckId: string }>;
+    debug: string[];
+  }> {
+    const currentDecks = decksRef.current;
+    const deckMap = new Map(currentDecks.map((d) => [d.id, d.name]));
+    const cards: CardEntry[] = [];
+    const rawRows: Array<{ deckName: string; cardName: string; setCode: string; artists: string[]; status: number; deckId: string }> = [];
+    const debug: string[] = [];
+
+    debug.push(`[查询] 开始查询 ${deckIds.length} 个套牌`);
+
+    for (const deckId of deckIds) {
+      try {
+        const { data, error } = await supabase
+          .from("cards")
+          .select("*")
+          .eq("deck_id", deckId);
+
+        const deckName = deckMap.get(deckId) || deckId;
+        if (error) {
+          debug.push(`❌ 套牌 "${deckName}" 查询失败: ${error.message || JSON.stringify(error)}`);
+          continue;
+        }
+        const count = data?.length || 0;
+        debug.push(`✅ 套牌 "${deckName}" (${deckId}): ${count} 张卡`);
+
+        if (data && data.length > 0) {
+          for (const card of data) {
+            const c = card as CardEntry;
+            const artists = normalizeArtists(c.artist_names);
+            rawRows.push({ deckName, cardName: c.card_name, setCode: c.set_code, artists, status: c.status, deckId });
+            cards.push({ ...c, deck_name: deckName });
+          }
+        }
+      } catch (err: any) {
+        const deckName = deckMap.get(deckId) || deckId;
+        debug.push(`💥 套牌 "${deckName}" 查询异常: ${err?.message || String(err)}`);
+      }
+    }
+
+    debug.push(`[查询] 总计获取 ${cards.length} 张卡牌`);
+    return { cards, rawRows, debug };
+  }
+
+  // ─── 事件处理 ──────────────────────────────────────────
+
   async function loadEvents() {
     if (eventsLoadedRef.current) return;
     setLoadingEvents(true);
@@ -114,7 +272,6 @@ export default function MatchPage() {
     }
   }
 
-  // 选择活动 → 直接填充画家列表（无需 LLM 解析）
   function selectEvent(eventId: string) {
     const event = events.find((e) => e.id === eventId);
     if (!event) return;
@@ -122,17 +279,11 @@ export default function MatchPage() {
     setParsedArtists(event.artists);
     setParseMethod("活动日历");
     setCurrentEvent(event.name);
-    setCurrentEventDate(
-      new Date(event.startDate).toLocaleDateString("zh-CN")
-    );
-    setMatched(new Map());
-    setFuzzyMatched(new Map());
-    setUnmatched([]);
-    setHasRun(false);
+    setCurrentEventDate(new Date(event.startDate).toLocaleDateString("zh-CN"));
+    resetMatchState();
   }
 
-  // 点击画家名 → 加载其所有卡牌版本
-  async function handleArtistClick(artist: string) {
+  const handleArtistClick = useCallback(async (artist: string) => {
     setArtistDialog(artist);
     setArtistCards([]);
     setArtistCardsLoading(true);
@@ -140,7 +291,6 @@ export default function MatchPage() {
     try {
       const res = await fetch(`/api/artist-cards?artist=${encodeURIComponent(artist)}`);
       const data = await res.json();
-
       if (data.success) {
         setArtistCards(data.cards);
       } else {
@@ -152,9 +302,8 @@ export default function MatchPage() {
     } finally {
       setArtistCardsLoading(false);
     }
-  }
+  }, []);
 
-  // 解析名单（粘贴文本时用 LLM/正则）
   async function handleParse() {
     if (!rawText.trim()) return;
     setParsing(true);
@@ -168,10 +317,7 @@ export default function MatchPage() {
       if (data.success) {
         setParsedArtists(data.artists);
         setParseMethod(data.method);
-        setMatched(new Map());
-        setFuzzyMatched(new Map());
-        setUnmatched([]);
-        setHasRun(false);
+        resetMatchState();
       }
     } catch {
       setParseMethod("");
@@ -180,32 +326,6 @@ export default function MatchPage() {
       setParsing(false);
     }
   }
-
-  const [hasRun, setHasRun] = useState(false);
-  const matchingRef = useRef(false); // 防止并发匹配
-
-  // 🔒 用 ref 锁定最新状态，避免闭包陷阱
-  const selectedDecksRef = useRef(selectedDecks);
-  selectedDecksRef.current = selectedDecks;
-  const parsedArtistsRef = useRef(parsedArtists);
-  parsedArtistsRef.current = parsedArtists;
-  const decksRef = useRef(decks);
-  decksRef.current = decks;
-  const fuzzyModeRef = useRef(fuzzyMode);
-  fuzzyModeRef.current = fuzzyMode;
-  const eventsLoadedRef = useRef(false);
-
-  // 🐛 调试面板
-  const [debugInfo, setDebugInfo] = useState<string[]>([]);
-  // 📊 原始数据面板 — 存储每张卡的关键信息用于对比
-  const [rawDataPanel, setRawDataPanel] = useState<Array<{
-    deckName: string;
-    cardName: string;
-    setCode: string;
-    artists: string[];
-    status: number;
-    deckId: string;
-  }>>([]);
 
   useEffect(() => {
     supabase
@@ -216,31 +336,29 @@ export default function MatchPage() {
       .then(({ data }) => {
         if (data) {
           setDecks(data);
-          setSelectedDecks(new Set(data.map((d) => d.id))); // 默认全选
+          setSelectedDecks(new Set(data.map((d) => d.id)));
         }
       });
   }, []);
 
-  // 三态切换（匹配页专属：0待签 → 3心动 → 1送签中 → 0待签）
+  // ─── 状态切换 ──────────────────────────────────────────
+
   async function toggleStatus(cardId: string) {
-    // 查找当前状态（精确匹配 / 模糊匹配都要查）
     let currentStatus = 0;
-    for (const cards of matched.values()) {
+    for (const cards of matchedRef.current.values()) {
       const found = cards.find((c) => c.id === cardId);
       if (found) { currentStatus = found.status; break; }
     }
     if (currentStatus === 0) {
-      for (const entries of fuzzyMatched.values()) {
+      for (const entries of fuzzyMatchedRef.current.values()) {
         const found = entries.find((e) => e.deckCard?.id === cardId);
         if (found?.deckCard) { currentStatus = found.deckCard.status; break; }
       }
     }
 
-    // 匹配页循环: 0→3, 3→1, 1→0
     const cycle: Record<number, number> = { 0: 3, 3: 1, 1: 0 };
     const newStatus = cycle[currentStatus] ?? 0;
 
-    // 同步更新精确匹配结果
     setMatched((prev) => {
       const next = new Map(prev);
       for (const [artist, cards] of next) {
@@ -248,12 +366,7 @@ export default function MatchPage() {
           artist,
           cards.map((c) =>
             c.id === cardId
-              ? {
-                  ...c,
-                  status: newStatus,
-                  event_name: newStatus === 3 ? currentEvent : null,
-                  event_date: newStatus === 3 ? currentEventDate : null,
-                }
+              ? { ...c, status: newStatus, event_name: newStatus === 3 ? currentEvent : null, event_date: newStatus === 3 ? currentEventDate : null }
               : c
           )
         );
@@ -261,7 +374,6 @@ export default function MatchPage() {
       return next;
     });
 
-    // 同步更新模糊匹配结果
     setFuzzyMatched((prev) => {
       const next = new Map(prev);
       for (const [artist, entries] of next) {
@@ -269,15 +381,7 @@ export default function MatchPage() {
           artist,
           entries.map((e) =>
             e.deckCard?.id === cardId
-              ? {
-                  ...e,
-                  deckCard: {
-                    ...e.deckCard,
-                    status: newStatus,
-                    event_name: newStatus === 3 ? currentEvent : null,
-                    event_date: newStatus === 3 ? currentEventDate : null,
-                  },
-                }
+              ? { ...e, deckCard: { ...e.deckCard, status: newStatus, event_name: newStatus === 3 ? currentEvent : null, event_date: newStatus === 3 ? currentEventDate : null } }
               : e
           )
         );
@@ -288,12 +392,7 @@ export default function MatchPage() {
     try {
       await supabase
         .from("cards")
-        .update({
-          status: newStatus,
-          is_signed: false,
-          event_name: newStatus === 3 ? currentEvent : null,
-          event_date: newStatus === 3 ? currentEventDate : null,
-        })
+        .update({ status: newStatus, is_signed: false, event_name: newStatus === 3 ? currentEvent : null, event_date: newStatus === 3 ? currentEventDate : null })
         .eq("id", cardId);
     } catch (err: any) {
       console.error("[toggleStatus] 数据库更新失败:", err);
@@ -301,13 +400,14 @@ export default function MatchPage() {
     }
   }
 
-  // 执行匹配
+  // ─── 匹配入口 ──────────────────────────────────────────
+
   async function handleMatch() {
     const currentSelectedDecks = selectedDecksRef.current;
     const currentParsedArtists = parsedArtistsRef.current;
 
     if (currentParsedArtists.length === 0 || currentSelectedDecks.size === 0) return;
-    if (matchingRef.current) return; // 防止并发
+    if (matchingRef.current) return;
     matchingRef.current = true;
 
     setMatching(true);
@@ -333,68 +433,28 @@ export default function MatchPage() {
     }
   }
 
-  // 精确匹配（核心逻辑 — 顺序查询 + 错误处理 + 调试）
+  // ─── 精确匹配 ──────────────────────────────────────────
+
   async function handleExactMatch(deckIds: string[]) {
-    const currentDecks = decksRef.current;
     const currentParsedArtists = parsedArtistsRef.current;
-    const deckMap = new Map(currentDecks.map((d) => [d.id, d.name]));
-
-    const debug: string[] = [];
-    const rawRows: Array<{ deckName: string; cardName: string; setCode: string; artists: string[]; status: number; deckId: string }> = [];
-
-    debug.push(`[精确匹配] 开始查询 ${deckIds.length} 个套牌`);
-
-    const allCards: CardEntry[] = [];
-    for (const deckId of deckIds) {
-      try {
-        const { data, error } = await supabase
-          .from("cards")
-          .select("*")
-          .eq("deck_id", deckId);
-
-        const deckName = deckMap.get(deckId) || deckId;
-        if (error) {
-          debug.push(`❌ 套牌 "${deckName}" 查询失败: ${error.message || JSON.stringify(error)}`);
-          continue;
-        }
-        const count = data?.length || 0;
-        debug.push(`✅ 套牌 "${deckName}" (${deckId}): ${count} 张卡`);
-
-        if (data && data.length > 0) {
-          for (const card of data) {
-            const c = card as CardEntry;
-            const artists = normalizeArtists(c.artist_names);
-            rawRows.push({ deckName, cardName: c.card_name, setCode: c.set_code, artists, status: c.status, deckId });
-          }
-          allCards.push(...(data as CardEntry[]));
-        }
-      } catch (err: any) {
-        const deckName = deckMap.get(deckId) || deckId;
-        debug.push(`💥 套牌 "${deckName}" 查询异常: ${err?.message || String(err)}`);
-      }
-    }
-
-    debug.push(`[精确匹配] 总计获取 ${allCards.length} 张卡牌`);
+    const { cards, rawRows, debug } = await fetchCardsByDeckIds(deckIds);
     setRawDataPanel(rawRows);
-    setDebugInfo([...debug]);
 
-    if (allCards.length === 0) {
+    if (cards.length === 0) {
+      setDebugInfo([...debug]);
       setMatched(new Map());
       setFuzzyMatched(new Map());
       setUnmatched([...currentParsedArtists]);
       return;
     }
 
-    // 构建 key→cards 映射（key = 小写 trim 后的画家名）
     const artistToCards = new Map<string, CardEntry[]>();
-
-    for (const card of allCards) {
-      const cardWithDeck = { ...card, deck_name: deckMap.get(card.deck_id) || "" };
-      const artists = normalizeArtists(cardWithDeck.artist_names);
+    for (const card of cards) {
+      const artists = normalizeArtists(card.artist_names);
       for (const artist of artists) {
         const key = artist.toLowerCase().trim();
         const list = artistToCards.get(key) || [];
-        list.push(cardWithDeck);
+        list.push(card);
         artistToCards.set(key, list);
       }
     }
@@ -413,10 +473,8 @@ export default function MatchPage() {
       }
     }
 
-    // 计算总卡牌数
     let totalCards = 0;
     for (const cards of newMatched.values()) totalCards += cards.length;
-
     debug.push(`[精确匹配] 结果: ${newMatched.size} 位画家匹配, ${totalCards} 张卡, ${newUnmatched.length} 位未匹配`);
     setDebugInfo([...debug]);
 
@@ -425,103 +483,13 @@ export default function MatchPage() {
     setUnmatched(newUnmatched);
   }
 
-  /** 安全解析 artist_names：兼容 string[] 和 Supabase 可能返回的 string */
-  function normalizeArtists(raw: unknown): string[] {
-    if (Array.isArray(raw)) return raw;
-    if (typeof raw === "string") {
-      try {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed;
-      } catch {}
-      return [raw];
-    }
-    return [];
-  }
+  // ─── 模糊匹配 ──────────────────────────────────────────
 
-  /**
-   * 在候选画家中查找匹配。
-   * 规则（按优先级）：
-   *   1. 精确匹配（大小写不敏感）
-   *   2. 首尾名匹配：如 "Dan Scott" 匹配 "Dan Murayama Scott"
-   *   3. 变音符号规范化匹配：如 "Milivoj Ceran" 匹配 "Milivoj Ćeran"
-   *      （用 Unicode NFD 分解去掉重音符，只比较基础字母）
-   *
-   * @param normalizedMap 可选的预计算 NFD 规范化映射，避免重复构建
-   */
-  function findMatchingArtist(
-    parsedArtist: string,
-    dbKeys: string[],
-    normalizedMap?: Map<string, string>
-  ): string | null {
-    const key = parsedArtist.toLowerCase().trim();
-    // 规则 1：精确匹配
-    if (dbKeys.includes(key)) return key;
-
-    const words = key.split(/\s+/).filter(Boolean);
-
-    // 规则 2：首尾名匹配
-    if (words.length >= 2) {
-      const first = words[0];
-      const last = words[words.length - 1];
-      for (const dbKey of dbKeys) {
-        const dbWords = dbKey.split(/\s+/).filter(Boolean);
-        if (dbWords.length >= 2) {
-          if (dbWords[0] === first && dbWords[dbWords.length - 1] === last) {
-            return dbKey;
-          }
-        }
-      }
-    }
-
-    // 规则 3：变音符号规范化
-    if (!normalizedMap) {
-      normalizedMap = buildNormalizedMap(dbKeys);
-    }
-    const normalizedKey = key.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    return normalizedMap.get(normalizedKey) || null;
-  }
-
-  /** 构建 NFD 规范化 key → 原始 key 映射，避免重复计算 */
-  function buildNormalizedMap(dbKeys: string[]): Map<string, string> {
-    const map = new Map<string, string>();
-    for (const dbKey of dbKeys) {
-      const normalized = dbKey.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      if (!map.has(normalized)) {
-        map.set(normalized, dbKey);
-      }
-    }
-    return map;
-  }
-
-  // 模糊匹配：查询 Scryfall 获取所有卡牌的全部印刷版本，扩展画家列表
   async function handleFuzzyMatch(deckIds: string[]) {
-    const currentDecks = decksRef.current;
     const currentParsedArtists = parsedArtistsRef.current;
-    const deckMap = new Map(currentDecks.map((d) => [d.id, d.name]));
 
-    // 1. 顺序查询每个套牌，获取所有卡牌
-    const cards: CardEntry[] = [];
-    for (const deckId of deckIds) {
-      try {
-        const { data, error } = await supabase
-          .from("cards")
-          .select("*")
-          .eq("deck_id", deckId);
-        if (error) {
-          console.error(`[模糊匹配] 套牌 ${deckId} 查询失败:`, error);
-          continue;
-        }
-        if (data) {
-          for (const card of data) {
-            const c = card as CardEntry;
-            // 不修改原始对象，创建新对象
-            cards.push({ ...c, deck_name: deckMap.get(c.deck_id) || "" });
-          }
-        }
-      } catch (err) {
-        console.error(`[模糊匹配] 套牌 ${deckId} 查询异常:`, err);
-      }
-    }
+    // 1. 查询套牌卡牌
+    const { cards } = await fetchCardsByDeckIds(deckIds);
 
     if (cards.length === 0) {
       setMatched(new Map());
@@ -530,7 +498,37 @@ export default function MatchPage() {
       return;
     }
 
-    // 2. 先跑精确匹配，作为基线（保证模糊 ≥ 精确）— 纯精确，不用 Fuse
+    // 2. 构建精确匹配基线（保证模糊 ≥ 精确）
+    const { artistCards, exactMatchedKeys, artistDbKeys, artistNormalizedMap } = buildExactBaseline(cards, currentParsedArtists);
+
+    // 3. 调用模糊匹配 API
+    const fuzzyData = await callFuzzyApi(deckIds);
+
+    // 4. 构建扩展画家→卡牌映射
+    const expandedArtistCards = buildExpandedArtistCards(cards, fuzzyData);
+
+    // 5. 合并精确匹配结果
+    mergeExactIntoExpanded(artistCards, exactMatchedKeys, expandedArtistCards);
+
+    // 6. 匹配活动画家
+    const { newFuzzyMatched, newUnmatched } = matchAgainstArtists(
+      currentParsedArtists,
+      expandedArtistCards,
+      exactMatchedKeys,
+      artistDbKeys,
+      artistNormalizedMap,
+      artistCards
+    );
+
+    setMatched(new Map());
+    setFuzzyMatched(newFuzzyMatched);
+    setUnmatched(newUnmatched);
+  }
+
+  // ─── 模糊匹配子步骤 ────────────────────────────────────
+
+  /** 构建精确匹配基线 Map */
+  function buildExactBaseline(cards: CardEntry[], parsedArtists: string[]) {
     const artistCards = new Map<string, CardEntry[]>();
     for (const card of cards) {
       const artists = normalizeArtists(card.artist_names);
@@ -542,40 +540,40 @@ export default function MatchPage() {
       }
     }
 
-    // 精确匹配命中的画家 key 集合（含首尾名匹配）
     const exactMatchedKeys = new Set<string>();
     const artistDbKeys = [...artistCards.keys()];
     const artistNormalizedMap = buildNormalizedMap(artistDbKeys);
-    for (const artist of currentParsedArtists) {
+    for (const artist of parsedArtists) {
       const matchedKey = findMatchingArtist(artist, artistDbKeys, artistNormalizedMap);
-      if (matchedKey) {
-        exactMatchedKeys.add(matchedKey);
-      }
+      if (matchedKey) exactMatchedKeys.add(matchedKey);
     }
 
-    // 3. 调用模糊匹配 API 获取所有印刷版本
-    let fuzzyData: any = { success: false };
+    return { artistCards, exactMatchedKeys, artistDbKeys, artistNormalizedMap };
+  }
 
+  /** 调用模糊匹配 API */
+  async function callFuzzyApi(deckIds: string[]): Promise<any> {
     try {
       const fuzzyRes = await fetch("/api/fuzzy-match", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ deckIds }),
       });
-      if (!fuzzyRes.ok) {
-        console.error(`[模糊匹配] API 返回错误状态: ${fuzzyRes.status}`);
-      } else {
-        fuzzyData = await fuzzyRes.json();
-      }
+      if (fuzzyRes.ok) return await fuzzyRes.json();
+      console.error(`[模糊匹配] API 返回错误状态: ${fuzzyRes.status}`);
     } catch (err: any) {
       console.error("[模糊匹配] API 调用异常:", err?.message || String(err));
-      // 降级：fuzzyData.success 保持 false，下面只使用精确匹配结果
     }
+    return { success: false };
+  }
 
-    // 4. 构建扩展的 画家 → 卡牌 映射（包含所有印刷版本）
-    const expandedArtistCards = new Map<string, FuzzyCardEntry[]>();
+  /** 从 API 返回数据构建扩展画家→卡牌映射 */
+  function buildExpandedArtistCards(
+    cards: CardEntry[],
+    fuzzyData: any
+  ): Map<string, FuzzyCardEntry[]> {
+    const expanded = new Map<string, FuzzyCardEntry[]>();
 
-    // 构建卡牌名→套牌卡牌映射（支持同名多张卡）
     const cardsByName = new Map<string, CardEntry[]>();
     for (const card of cards) {
       const arr = cardsByName.get(card.card_name) || [];
@@ -583,61 +581,53 @@ export default function MatchPage() {
       cardsByName.set(card.card_name, arr);
     }
 
-    if (fuzzyData.success && fuzzyData.cardMap) {
-      const cardMap: Record<string, {
-        card_name: string;
-        printings: Array<{
-          artist: string;
-          set: string;
-          set_name: string;
-          collector_number: string;
-          image_url: string | null;
-          released_at: string;
-        }>;
-        allArtists: string[];
-      }> = fuzzyData.cardMap;
+    if (!fuzzyData.success || !fuzzyData.cardMap) return expanded;
 
-      for (const [cardName, info] of Object.entries(cardMap)) {
-        // 优先匹配同系列的套牌卡牌，否则用同名第一张
-        const deckCards = cardsByName.get(cardName) || [];
-        const deckCard = deckCards.length > 0 ? deckCards[0] : undefined;
+    const cardMap = fuzzyData.cardMap as Record<string, {
+      card_name: string;
+      printings: Array<{ artist: string; set: string; set_name: string; collector_number: string; image_url: string | null; released_at: string }>;
+      allArtists: string[];
+    }>;
 
-        for (const printing of info.printings) {
-          const artist = printing.artist;
-          const existing = expandedArtistCards.get(artist) || [];
+    for (const [cardName, info] of Object.entries(cardMap)) {
+      const deckCards = cardsByName.get(cardName) || [];
+      const deckCard = deckCards.length > 0 ? deckCards[0] : undefined;
 
-          const alreadyExists = existing.some(
-            (e) =>
-              e.card_name === cardName &&
-              e.set_code === printing.set &&
-              e.collector_number === printing.collector_number
-          );
-          if (alreadyExists) continue;
+      for (const printing of info.printings) {
+        const artist = printing.artist;
+        const existing = expanded.get(artist) || [];
 
-          existing.push({
-            card_name: cardName,
-            set_code: printing.set,
-            set_name: printing.set_name,
-            collector_number: printing.collector_number,
-            image_url: printing.image_url,
-            artist,
-            deckCard: deckCard
-              ? { ...deckCard, artist_names: [artist] }
-              : undefined,
-          });
-          expandedArtistCards.set(artist, existing);
+        const entry: FuzzyCardEntry = {
+          card_name: cardName,
+          set_code: printing.set,
+          set_name: printing.set_name,
+          collector_number: printing.collector_number,
+          image_url: printing.image_url,
+          artist,
+          deckCard: deckCard ? { ...deckCard, artist_names: [artist] } : undefined,
+        };
+
+        if (!existing.some((e) => isSamePrinting(e, entry))) {
+          existing.push(entry);
         }
+        expanded.set(artist, existing);
       }
     }
 
-    // 5. 把精确匹配的结果全部并入 expandedArtistCards（兜底 + 补缺）
-    // 预构建 expandedArtistCards 的 NFD 规范化映射
-    const expandedNormalizedKeys = new Map<string, string>();
+    return expanded;
+  }
+
+  /** 将精确匹配结果并入扩展映射 */
+  function mergeExactIntoExpanded(
+    artistCards: Map<string, CardEntry[]>,
+    exactMatchedKeys: Set<string>,
+    expandedArtistCards: Map<string, FuzzyCardEntry[]>
+  ) {
+    // 预构建规范化键名映射
+    const expandedNormKeys = new Map<string, string>();
     for (const ek of expandedArtistCards.keys()) {
-      const normalizedEk = ek.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      if (!expandedNormalizedKeys.has(normalizedEk)) {
-        expandedNormalizedKeys.set(normalizedEk, ek);
-      }
+      const nk = ek.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (!expandedNormKeys.has(nk)) expandedNormKeys.set(nk, ek);
     }
 
     for (const key of exactMatchedKeys) {
@@ -646,51 +636,45 @@ export default function MatchPage() {
       const displayArtist = normalizeArtists(exactCards[0].artist_names)[0] || key;
 
       const normalizedDisplay = displayArtist.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      const existingKey = expandedNormalizedKeys.get(normalizedDisplay) || null;
+      const existingKey = expandedNormKeys.get(normalizedDisplay) || null;
 
       if (!existingKey) {
-        const entries: FuzzyCardEntry[] = exactCards.map((c) => ({
-          card_name: c.card_name,
-          set_code: c.set_code,
-          set_name: "",
-          collector_number: c.collector_number,
-          image_url: c.image_url,
-          artist: displayArtist,
-          deckCard: c,
-        }));
-        expandedArtistCards.set(displayArtist, entries);
+        expandedArtistCards.set(displayArtist, exactCards.map((c) => ({
+          card_name: c.card_name, set_code: c.set_code, set_name: "",
+          collector_number: c.collector_number, image_url: c.image_url,
+          artist: displayArtist, deckCard: c,
+        })));
       } else {
         const existing = expandedArtistCards.get(existingKey)!;
         for (const c of exactCards) {
-          const alreadyExists = existing.some(
-            (e) =>
-              e.card_name === c.card_name &&
-              e.set_code === c.set_code &&
-              e.collector_number === c.collector_number
-          );
-          if (!alreadyExists) {
+          if (!existing.some((e) => isSamePrinting(e, c))) {
             existing.push({
-              card_name: c.card_name,
-              set_code: c.set_code,
-              set_name: "",
-              collector_number: c.collector_number,
-              image_url: c.image_url,
-              artist: displayArtist,
-              deckCard: c,
+              card_name: c.card_name, set_code: c.set_code, set_name: "",
+              collector_number: c.collector_number, image_url: c.image_url,
+              artist: displayArtist, deckCard: c,
             });
           }
         }
       }
     }
+  }
 
-    // 6. 匹配活动画家（纯精确匹配，不用 Fuse 近似）
-    // 构建 expandedArtistCards 的 key→entries 映射
+  /** 匹配活动画家 */
+  function matchAgainstArtists(
+    parsedArtists: string[],
+    expandedArtistCards: Map<string, FuzzyCardEntry[]>,
+    exactMatchedKeys: Set<string>,
+    artistDbKeys: string[],
+    artistNormalizedMap: Map<string, string>,
+    artistCards: Map<string, CardEntry[]>
+  ) {
+    // 构建小写 key → entries 映射
     const expandedKeyMap = new Map<string, FuzzyCardEntry[]>();
     for (const [artist, entries] of expandedArtistCards) {
       const key = artist.toLowerCase().trim();
       const existing = expandedKeyMap.get(key) || [];
       for (const e of entries) {
-        if (!existing.some((x) => x.card_name === e.card_name && x.set_code === e.set_code && x.collector_number === e.collector_number)) {
+        if (!existing.some((x) => isSamePrinting(x, e))) {
           existing.push(e);
         }
       }
@@ -702,7 +686,7 @@ export default function MatchPage() {
     const expandedDbKeys = [...expandedKeyMap.keys()];
     const expandedNormalizedMap = buildNormalizedMap(expandedDbKeys);
 
-    for (const parsedArtist of currentParsedArtists) {
+    for (const parsedArtist of parsedArtists) {
       const matchedKey = findMatchingArtist(parsedArtist, expandedDbKeys, expandedNormalizedMap);
       if (matchedKey) {
         newFuzzyMatched.set(parsedArtist, expandedKeyMap.get(matchedKey) || []);
@@ -711,37 +695,30 @@ export default function MatchPage() {
       }
     }
 
-    // 7. 兜底：确保精确匹配结果 100% 包含在模糊匹配中
-    for (const parsedArtist of currentParsedArtists) {
+    // 兜底：确保精确匹配结果 100% 包含
+    for (const parsedArtist of parsedArtists) {
       if (newFuzzyMatched.has(parsedArtist)) continue;
       const key = findMatchingArtist(parsedArtist, artistDbKeys, artistNormalizedMap);
-      if (!key) continue;
-      if (!exactMatchedKeys.has(key)) continue;
+      if (!key || !exactMatchedKeys.has(key)) continue;
 
       const exactCards = artistCards.get(key) || [];
       if (exactCards.length === 0) continue;
 
       const displayArtist = normalizeArtists(exactCards[0].artist_names)[0] || key;
-      const entries: FuzzyCardEntry[] = exactCards.map((c) => ({
-        card_name: c.card_name,
-        set_code: c.set_code,
-        set_name: "",
-        collector_number: c.collector_number,
-        image_url: c.image_url,
-        artist: displayArtist,
-        deckCard: c,
-      }));
-      newFuzzyMatched.set(parsedArtist, entries);
+      newFuzzyMatched.set(parsedArtist, exactCards.map((c) => ({
+        card_name: c.card_name, set_code: c.set_code, set_name: "",
+        collector_number: c.collector_number, image_url: c.image_url,
+        artist: displayArtist, deckCard: c,
+      })));
       const idx = newUnmatched.indexOf(parsedArtist);
       if (idx !== -1) newUnmatched.splice(idx, 1);
     }
 
-    setMatched(new Map());
-    setFuzzyMatched(newFuzzyMatched);
-    setUnmatched(newUnmatched);
+    return { newFuzzyMatched, newUnmatched };
   }
 
-  // 切换套牌选择
+  // ─── 其他操作 ──────────────────────────────────────────
+
   function toggleDeck(id: string) {
     setSelectedDecks((prev) => {
       const next = new Set(prev);
@@ -751,15 +728,18 @@ export default function MatchPage() {
     });
   }
 
-  // 导出文本清单
-  function exportText() {
+  const exportText = useCallback(() => {
+    const currentFuzzyMode = fuzzyModeRef.current;
+    const currentFuzzyMatched = fuzzyMatchedRef.current;
+    const currentMatched = matchedRef.current;
+    const currentUnmatched = unmatched;
+
     let text = "MTG 签绘管家 — 活动准备清单\n";
     text += "=".repeat(40) + "\n\n";
 
-    if (fuzzyModeRef.current && fuzzyMatched.size > 0) {
-      for (const [artist, entries] of fuzzyMatched) {
+    if (currentFuzzyMode && currentFuzzyMatched.size > 0) {
+      for (const [artist, entries] of currentFuzzyMatched) {
         text += `🎨 ${artist} (${entries.length} 个版本)\n`;
-        // 按卡牌名分组
         const byName = new Map<string, FuzzyCardEntry[]>();
         for (const e of entries) {
           const arr = byName.get(e.card_name) || [];
@@ -775,7 +755,7 @@ export default function MatchPage() {
         text += "\n";
       }
     } else {
-      for (const [artist, cards] of matched) {
+      for (const [artist, cards] of currentMatched) {
         text += `🎨 ${artist} (${cards.length} 张)\n`;
         for (const card of cards) {
           text += `  - ${card.card_name} [${card.set_code.toUpperCase()}] ${card.deck_name}\n`;
@@ -784,10 +764,10 @@ export default function MatchPage() {
       }
     }
 
-    if (unmatched.length > 0) {
+    if (currentUnmatched.length > 0) {
       text += "─".repeat(40) + "\n";
       text += "以下画家出席但你没有未签卡牌：\n";
-      unmatched.forEach((a) => (text += `  - ${a}\n`));
+      currentUnmatched.forEach((a) => (text += `  - ${a}\n`));
     }
 
     const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
@@ -797,16 +777,18 @@ export default function MatchPage() {
     a.download = "mtg-signing-list.txt";
     a.click();
     URL.revokeObjectURL(url);
-  }
+  }, [unmatched]);
+
+  const isDev = typeof process !== "undefined" && process.env.NODE_ENV === "development";
+
+  // ─── 渲染 ──────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">活动匹配</h1>
-          <p className="text-muted-foreground">
-            粘贴活动画家名单，匹配你需要签绘的卡牌
-          </p>
+          <p className="text-muted-foreground">粘贴活动画家名单，匹配你需要签绘的卡牌</p>
         </div>
       </div>
 
@@ -814,37 +796,27 @@ export default function MatchPage() {
       <Card>
         <CardHeader>
           <CardTitle>1. 粘贴活动画家名单</CardTitle>
-          <CardDescription>
-            直接粘贴，或从下方活动日历中一键选取
-          </CardDescription>
+          <CardDescription>直接粘贴，或从下方活动日历中一键选取</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* 活动选择器 */}
-            <select
-              className="w-full px-3 py-2 rounded-lg border bg-background text-sm appearance-none whitespace-normal overflow-hidden bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23666%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-[length:12px] bg-[right_8px_center] bg-no-repeat pr-8"
-              defaultValue=""
-              onChange={(e) => {
-                if (e.target.value) selectEvent(e.target.value);
-              }}
-              onFocus={() => { if (events.length === 0) loadEvents(); }}
-            >
-              <option value="" disabled>
-                {loadingEvents ? "加载中..." : "📅 选择活动自动填充画家名单..."}
+          <select
+            className="w-full px-3 py-2 rounded-lg border bg-background text-sm appearance-none whitespace-normal overflow-hidden bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23666%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-[length:12px] bg-[right_8px_center] bg-no-repeat pr-8"
+            defaultValue=""
+            onChange={(e) => { if (e.target.value) selectEvent(e.target.value); }}
+            onFocus={() => { if (events.length === 0) loadEvents(); }}
+          >
+            <option value="" disabled>
+              {loadingEvents ? "加载中..." : "📅 选择活动自动填充画家名单..."}
+            </option>
+            {events.map((e) => (
+              <option key={e.id} value={e.id}>
+                {new Date(e.startDate).toLocaleDateString("zh-CN")} | {e.name} ({e.city}) — {e.artists.length} 位画家
               </option>
-              {events.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {new Date(e.startDate).toLocaleDateString("zh-CN")} | {e.name} ({e.city}) — {e.artists.length} 位画家
-                </option>
-              ))}
-            </select>
+            ))}
+          </select>
 
           <Textarea
-            placeholder={`粘贴活动画家名单，例如：
-John Avon | Booth A12 | $20 per card
-Kev Walker - Table 5
-1. Mark Tedin
-2. Terese Nielsen
-...`}
+            placeholder={`粘贴活动画家名单，例如：\nJohn Avon | Booth A12 | $20 per card\nKev Walker - Table 5\n1. Mark Tedin\n2. Terese Nielsen\n...`}
             rows={6}
             value={rawText}
             onChange={(e) => setRawText(e.target.value)}
@@ -861,7 +833,6 @@ Kev Walker - Table 5
             )}
           </div>
 
-          {/* 解析结果预览 */}
           {parsedArtists.length > 0 && (
             <div className="flex flex-wrap gap-2 p-3 bg-accent/50 rounded-lg">
               {parsedArtists.map((a) => (
@@ -890,7 +861,6 @@ Kev Walker - Table 5
           <CardDescription>勾选要比对的套牌，然后点击开始匹配</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* 套牌多选 */}
           <div className="flex flex-wrap gap-2">
             {decks.map((deck) => (
               <button
@@ -902,28 +872,15 @@ Kev Walker - Table 5
                     : "bg-background border-border hover:bg-accent"
                 }`}
               >
-                {selectedDecks.has(deck.id) ? (
-                  <CheckSquare className="h-4 w-4" />
-                ) : (
-                  <Square className="h-4 w-4" />
-                )}
+                {selectedDecks.has(deck.id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
                 {deck.name}
               </button>
             ))}
-            {decks.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                暂无套牌，请先导入套牌
-              </p>
-            )}
+            {decks.length === 0 && <p className="text-sm text-muted-foreground">暂无套牌，请先导入套牌</p>}
           </div>
 
           <div className="flex items-center gap-3">
-            <Button
-              onClick={handleMatch}
-              disabled={
-                matching || parsedArtists.length === 0 || selectedDecks.size === 0
-              }
-            >
+            <Button onClick={handleMatch} disabled={matching || parsedArtists.length === 0 || selectedDecks.size === 0}>
               {matching ? "匹配中..." : "开始匹配"}
             </Button>
             <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -963,8 +920,8 @@ Kev Walker - Table 5
         />
       )}
 
-      {/* 🐛 调试面板 — 仅在匹配后有数据时显示 */}
-      {hasRun && debugInfo.length > 0 && (
+      {/* 调试面板 — 仅开发环境 */}
+      {isDev && hasRun && debugInfo.length > 0 && (
         <Card className="border-dashed border-amber-300 bg-amber-50/50">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -979,15 +936,13 @@ Kev Walker - Table 5
         </Card>
       )}
 
-      {/* 📊 原始数据对比面板 */}
-      {hasRun && rawDataPanel.length > 0 && (
+      {/* 原始数据面板 — 仅开发环境 */}
+      {isDev && hasRun && rawDataPanel.length > 0 && (
         <Card className="border-dashed border-blue-300 bg-blue-50/50">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <span className="text-blue-600">📊</span> 数据库原始返回 (共 {rawDataPanel.length} 张卡)
-              <span className="text-xs font-normal text-blue-500 ml-2">
-                — 按套牌分组
-              </span>
+              <span className="text-xs font-normal text-blue-500 ml-2">— 按套牌分组</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -1000,9 +955,7 @@ Kev Walker - Table 5
               }
               return Array.from(byDeck).map(([deckName, rows]) => (
                 <div key={deckName} className="mb-4 last:mb-0">
-                  <p className="text-sm font-semibold text-blue-800 mb-2">
-                    📦 {deckName} ({rows.length} 张)
-                  </p>
+                  <p className="text-sm font-semibold text-blue-800 mb-2">📦 {deckName} ({rows.length} 张)</p>
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs border-collapse">
                       <thead>
@@ -1032,7 +985,7 @@ Kev Walker - Table 5
         </Card>
       )}
 
-      {/* ─── 画家卡牌画廊弹窗 ─── */}
+      {/* 画家卡牌画廊弹窗 */}
       <Dialog
         open={artistDialog !== null}
         onOpenChange={() => { setArtistDialog(null); setArtistCards([]); }}
@@ -1051,9 +1004,7 @@ Kev Walker - Table 5
         ) : (
           <DialogContent>
             {artistCards.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                未找到该画家的卡牌
-              </p>
+              <p className="text-sm text-muted-foreground text-center py-8">未找到该画家的卡牌</p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[65vh] overflow-y-auto pr-2">
                 {artistCards.map((card) => (
@@ -1063,12 +1014,7 @@ Kev Walker - Table 5
                     title={`${card.set_name} #${card.collector_number}`}
                   >
                     {card.image_url ? (
-                      <img
-                        src={card.image_url}
-                        alt={card.name}
-                        className="w-full"
-                        loading="lazy"
-                      />
+                      <img src={card.image_url} alt={card.name} className="w-full" loading="lazy" />
                     ) : (
                       <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
                         {card.name}
@@ -1076,9 +1022,7 @@ Kev Walker - Table 5
                     )}
                     <div className="p-1.5 text-[10px]">
                       <p className="font-medium truncate">{card.name}</p>
-                      <p className="text-muted-foreground truncate">
-                        {card.set_name} #{card.collector_number}
-                      </p>
+                      <p className="text-muted-foreground truncate">{card.set_name} #{card.collector_number}</p>
                     </div>
                   </div>
                 ))}
@@ -1091,7 +1035,7 @@ Kev Walker - Table 5
   );
 }
 
-// ─── 匹配结果卡片（精确 / 模糊共用） ──────────────────────────
+// ─── 子组件 ──────────────────────────────────────────────
 
 interface MatchResultCardProps {
   fuzzyMode: boolean;
@@ -1105,28 +1049,16 @@ interface MatchResultCardProps {
 }
 
 function MatchResultCard({
-  fuzzyMode,
-  matching,
-  matched,
-  fuzzyMatched,
-  unmatched,
-  parsedArtists,
-  toggleStatus,
-  exportText,
+  fuzzyMode, matching, matched, fuzzyMatched, unmatched, parsedArtists, toggleStatus, exportText,
 }: MatchResultCardProps) {
   const activeMatched = fuzzyMode ? fuzzyMatched : matched;
   const matchedCount = activeMatched.size;
 
-  // 计算卡牌总数
   let totalCards = 0;
   if (fuzzyMode) {
-    for (const entries of fuzzyMatched.values()) {
-      totalCards += entries.length;
-    }
+    for (const entries of fuzzyMatched.values()) totalCards += entries.length;
   } else {
-    for (const cards of matched.values()) {
-      totalCards += cards.length;
-    }
+    for (const cards of matched.values()) totalCards += cards.length;
   }
 
   return (
@@ -1138,29 +1070,23 @@ function MatchResultCard({
               匹配结果
               {fuzzyMode && (
                 <span className="ml-2 text-sm font-normal text-amber-500">
-                  <Sparkles className="h-4 w-4 inline mr-1" />
-                  模糊
+                  <Sparkles className="h-4 w-4 inline mr-1" />模糊
                 </span>
               )}
             </CardTitle>
             <CardDescription>
               {matching ? (
                 <span className="flex items-center gap-1">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  正在匹配中...
+                  <Loader2 className="h-3 w-3 animate-spin" />正在匹配中...
                 </span>
               ) : (
-                <>
-                  匹配 {matchedCount}/{parsedArtists.length} 位画家
-                  {matchedCount > 0 && ` · 共 ${totalCards} 个版本`}
-                </>
+                <>匹配 {matchedCount}/{parsedArtists.length} 位画家{matchedCount > 0 && ` · 共 ${totalCards} 个版本`}</>
               )}
             </CardDescription>
           </div>
           {!matching && matchedCount > 0 && (
             <Button variant="outline" size="sm" onClick={exportText}>
-              <Download className="h-4 w-4 mr-2" />
-              导出清单
+              <Download className="h-4 w-4 mr-2" />导出清单
             </Button>
           )}
         </div>
@@ -1172,29 +1098,19 @@ function MatchResultCard({
             <p>{fuzzyMode ? "正在查询所有印刷版本..." : "正在匹配画家..."}</p>
           </div>
         ) : matchedCount === 0 ? (
-          <p className="text-muted-foreground text-center py-8">
-            没有匹配到任何画家，请确认活动名单和套牌选择是否正确
-          </p>
+          <p className="text-muted-foreground text-center py-8">没有匹配到任何画家，请确认活动名单和套牌选择是否正确</p>
         ) : fuzzyMode ? (
           <FuzzyMatchResults fuzzyMatched={fuzzyMatched} toggleStatus={toggleStatus} />
         ) : (
           <ExactMatchResults matched={matched} toggleStatus={toggleStatus} />
         )}
 
-        {/* 未匹配的画家 */}
         {!matching && unmatched.length > 0 && (
           <div className="pt-4 border-t mt-4">
-            <h4 className="text-sm font-medium text-muted-foreground mb-2">
-              以下画家出席但你没有未签卡牌：
-            </h4>
+            <h4 className="text-sm font-medium text-muted-foreground mb-2">以下画家出席但你没有未签卡牌：</h4>
             <div className="flex flex-wrap gap-2">
               {unmatched.map((a) => (
-                <span
-                  key={a}
-                  className="px-2 py-1 bg-accent text-muted-foreground rounded text-sm line-through"
-                >
-                  {a}
-                </span>
+                <span key={a} className="px-2 py-1 bg-accent text-muted-foreground rounded text-sm line-through">{a}</span>
               ))}
             </div>
           </div>
@@ -1206,24 +1122,14 @@ function MatchResultCard({
 
 // ─── 精确匹配结果 ──────────────────────────────────────────
 
-function ExactMatchResults({
-  matched,
-  toggleStatus,
-}: {
-  matched: Map<string, CardEntry[]>;
-  toggleStatus: (cardId: string) => void;
-}) {
+function ExactMatchResults({ matched, toggleStatus }: { matched: Map<string, CardEntry[]>; toggleStatus: (cardId: string) => void }) {
   return (
     <div className="space-y-6">
       {Array.from(matched).map(([artist, cards]) => (
         <div key={artist}>
           <h3 className="text-base font-semibold mb-3">
-            🎨 {artist} ← 出席！
-            <span className="ml-2 text-sm font-normal text-muted-foreground">
-              ({cards.length} 张)
-            </span>
+            🎨 {artist} ← 出席！<span className="ml-2 text-sm font-normal text-muted-foreground">({cards.length} 张)</span>
           </h3>
-          {/* 按套牌分组 */}
           {(() => {
             const byDeck = new Map<string, CardEntry[]>();
             for (const c of cards) {
@@ -1234,9 +1140,7 @@ function ExactMatchResults({
             }
             return Array.from(byDeck).map(([deckName, deckCards]) => (
               <div key={deckName} className="mb-3">
-                <p className="text-xs text-muted-foreground mb-2">
-                  📦 {deckName}
-                </p>
+                <p className="text-xs text-muted-foreground mb-2">📦 {deckName}</p>
                 <div className="flex flex-wrap gap-3">
                   {deckCards.map((card) => (
                     <CardThumbnail
@@ -1260,25 +1164,16 @@ function ExactMatchResults({
 
 // ─── 模糊匹配结果 ──────────────────────────────────────────
 
-function FuzzyMatchResults({
-  fuzzyMatched,
-  toggleStatus,
-}: {
-  fuzzyMatched: Map<string, FuzzyCardEntry[]>;
-  toggleStatus: (cardId: string) => void;
-}) {
+function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<string, FuzzyCardEntry[]>; toggleStatus: (cardId: string) => void }) {
   return (
     <div className="space-y-6">
       {Array.from(fuzzyMatched).map(([artist, entries]) => {
-        // 按卡牌名分组
         const byCardName = new Map<string, FuzzyCardEntry[]>();
         for (const e of entries) {
           const arr = byCardName.get(e.card_name) || [];
           arr.push(e);
           byCardName.set(e.card_name, arr);
         }
-
-        // 统计套牌中的版本数
         const deckCount = entries.filter((e) => e.deckCard).length;
 
         return (
@@ -1292,9 +1187,7 @@ function FuzzyMatchResults({
 
             {Array.from(byCardName).map(([cardName, versions]) => (
               <div key={cardName} className="mb-3">
-                <p className="text-xs text-muted-foreground mb-2">
-                  📦 {cardName}
-                </p>
+                <p className="text-xs text-muted-foreground mb-2">📦 {cardName}</p>
                 <div className="flex flex-wrap gap-3">
                   {versions.map((v, idx) => {
                     const isInDeck = !!v.deckCard;
@@ -1304,69 +1197,25 @@ function FuzzyMatchResults({
                     return (
                       <div
                         key={`${v.set_code}-${v.collector_number}-${idx}`}
-                        onClick={() => {
-                          if (cardId) toggleStatus(cardId);
-                        }}
+                        onClick={() => { if (cardId) toggleStatus(cardId); }}
                         className={`relative w-24 rounded-lg overflow-hidden border transition-all hover:scale-105 ${
-                          isInDeck
-                            ? "cursor-pointer hover:shadow-md"
-                            : "cursor-default opacity-60"
-                        } ${
-                          isInDeck && status >= 1
-                            ? status === 3
-                              ? "border-pink-400 ring-1 ring-pink-400"
-                              : status === 1
-                                ? "border-blue-400 ring-1 ring-blue-400"
-                                : "border-green-500 ring-1 ring-green-500"
-                            : isInDeck
-                              ? "border-border"
-                              : "border-border border-dashed"
-                        }`}
-                        title={
-                          isInDeck
-                            ? { 0: "待签", 1: "送签中", 3: "心动" }[status]
-                            : "非套牌版本"
-                        }
+                          isInDeck ? "cursor-pointer hover:shadow-md" : "cursor-default opacity-60"
+                        } ${statusBorderClass(isInDeck, status)}`}
+                        title={isInDeck ? { 0: "待签", 1: "送签中", 3: "心动" }[status] : "非套牌版本"}
                       >
                         <div className={isInDeck && status >= 1 ? "opacity-75" : ""}>
                           {v.image_url ? (
-                            <img
-                              src={v.image_url}
-                              alt={v.card_name}
-                              className="w-full"
-                              loading="lazy"
-                            />
+                            <img src={v.image_url} alt={v.card_name} className="w-full" loading="lazy" />
                           ) : (
                             <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
                               {v.card_name}
                             </div>
                           )}
                         </div>
-
-                        {/* 状态标记 — 仅套牌中的卡牌 */}
-                        {isInDeck && status >= 1 && (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div
-                              className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg ${
-                                status === 3
-                                  ? "bg-pink-500"
-                                  : status === 1
-                                    ? "bg-blue-500"
-                                    : "bg-green-500"
-                              }`}
-                            >
-                              {status === 3 ? "♥" : status === 1 ? "…" : "✓"}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 非套牌版本标记 */}
+                        <StatusBadge status={status} isInDeck={isInDeck} />
                         {!isInDeck && (
-                          <div className="absolute top-0 right-0 bg-amber-500 text-white text-[9px] px-1 rounded-bl">
-                            其他
-                          </div>
+                          <div className="absolute top-0 right-0 bg-amber-500 text-white text-[9px] px-1 rounded-bl">其他</div>
                         )}
-
                         <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-1 py-0.5 text-center truncate">
                           {v.set_code.toUpperCase()} #{v.collector_number}
                         </div>
@@ -1383,14 +1232,35 @@ function FuzzyMatchResults({
   );
 }
 
+// ─── 共享组件 ──────────────────────────────────────────────
+
+/** 状态圆点标记，CardThumbnail 和 FuzzyMatchResults 共用 */
+function StatusBadge({ status, isInDeck }: { status: number; isInDeck: boolean }) {
+  if (!isInDeck || status < 1) return null;
+  return (
+    <div className="absolute inset-0 flex items-center justify-center">
+      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg ${
+        status === 3 ? "bg-pink-500" : status === 1 ? "bg-blue-500" : "bg-green-500"
+      }`}>
+        {status === 3 ? "♥" : status === 1 ? "…" : "✓"}
+      </div>
+    </div>
+  );
+}
+
+/** 状态对应的边框样式 */
+function statusBorderClass(isInDeck: boolean, status: number): string {
+  if (!isInDeck) return "border-border border-dashed";
+  if (status === 3) return "border-pink-400 ring-1 ring-pink-400";
+  if (status === 1) return "border-blue-400 ring-1 ring-blue-400";
+  if (status === 2) return "border-green-500 ring-1 ring-green-500";
+  return "border-border";
+}
+
 // ─── 卡牌缩略图（精确匹配用） ──────────────────────────────
 
 function CardThumbnail({
-  cardId,
-  imageUrl,
-  cardName,
-  status,
-  toggleStatus,
+  cardId, imageUrl, cardName, status, toggleStatus,
 }: {
   cardId: string;
   imageUrl: string | null;
@@ -1403,11 +1273,7 @@ function CardThumbnail({
       onClick={() => toggleStatus(cardId)}
       className={`relative w-24 rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 ${
         status >= 1
-          ? status === 3
-            ? "border-pink-400"
-            : status === 1
-              ? "border-blue-400"
-              : "border-green-500"
+          ? status === 3 ? "border-pink-400" : status === 1 ? "border-blue-400" : "border-green-500"
           : "border-border hover:shadow-md"
       }`}
       title={{ 0: "待签", 1: "送签中", 3: "心动" }[status ?? 0]}
@@ -1421,17 +1287,7 @@ function CardThumbnail({
           </div>
         )}
       </div>
-      {status >= 1 && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div
-            className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg ${
-              status === 3 ? "bg-pink-500" : status === 1 ? "bg-blue-500" : "bg-green-500"
-            }`}
-          >
-            {status === 3 ? "♥" : status === 1 ? "…" : "✓"}
-          </div>
-        </div>
-      )}
+      <StatusBadge status={status} isInDeck={true} />
       <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-1 py-0.5 text-center truncate">
         {cardName}
       </div>
