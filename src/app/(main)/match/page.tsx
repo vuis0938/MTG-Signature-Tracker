@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -171,6 +171,7 @@ export default function MatchPage() {
   }
 
   const [hasRun, setHasRun] = useState(false);
+  const matchingRef = useRef(false); // 防止并发匹配
 
   useEffect(() => {
     supabase
@@ -232,11 +233,15 @@ export default function MatchPage() {
   // 执行匹配
   async function handleMatch() {
     if (parsedArtists.length === 0 || selectedDecks.size === 0) return;
+    if (matchingRef.current) return; // 防止并发
+    matchingRef.current = true;
 
     setMatching(true);
     setHasRun(true);
 
     const deckIds = Array.from(selectedDecks);
+    console.log("[handleMatch] deckIds:", JSON.stringify(deckIds), "count:", deckIds.length);
+    console.log("[handleMatch] parsedArtists count:", parsedArtists.length);
 
     if (fuzzyMode) {
       // ── 模糊匹配模式 ──────────────────────────────────
@@ -247,17 +252,29 @@ export default function MatchPage() {
     }
 
     setMatching(false);
+    matchingRef.current = false;
   }
 
   // 精确匹配（原有逻辑）
   async function handleExactMatch(deckIds: string[]) {
-    const { data: cards } = await supabase
-      .from("cards")
-      .select("*")
-      .in("deck_id", deckIds)
-      .order("artist_names");
+    console.log("[handleExactMatch] deckIds:", JSON.stringify(deckIds));
 
-    if (!cards || cards.length === 0) {
+    // 分别查询每个套牌（避免 .in() 过滤器的潜在问题），并行执行
+    const results = await Promise.all(
+      deckIds.map((deckId) =>
+        supabase.from("cards").select("*").eq("deck_id", deckId)
+      )
+    );
+
+    const cards: CardEntry[] = [];
+    for (let i = 0; i < results.length; i++) {
+      const deckCards = results[i].data || [];
+      console.log(`[handleExactMatch] deck ${deckIds[i]}: ${deckCards.length} cards`);
+      cards.push(...(deckCards as CardEntry[]));
+    }
+    console.log("[handleExactMatch] total cards:", cards.length);
+
+    if (cards.length === 0) {
       setMatched(new Map());
       setFuzzyMatched(new Map());
       setUnmatched([...parsedArtists]);
@@ -272,6 +289,7 @@ export default function MatchPage() {
     for (const card of cards) {
       card.deck_name = deckMap.get(card.deck_id) || "";
       const artists = normalizeArtists(card.artist_names);
+      console.log(`[handleExactMatch] card: ${card.card_name}, deck: ${card.deck_name}, artist_names raw:`, JSON.stringify(card.artist_names), "parsed:", JSON.stringify(artists));
       for (const artist of artists) {
         allDbNames.push(artist);
         const key = artist.toLowerCase().trim();
@@ -280,6 +298,8 @@ export default function MatchPage() {
         artistToCards.set(key, list);
       }
     }
+
+    console.log("[handleExactMatch] artistToCards keys:", JSON.stringify([...artistToCards.keys()]));
 
     // Fuse 索引用去重后的原名
     const uniqueDbNames = [...new Set(allDbNames)];
@@ -294,10 +314,10 @@ export default function MatchPage() {
 
     for (const parsedArtist of parsedArtists) {
       const key = parsedArtist.toLowerCase().trim();
-      const cards = artistToCards.get(key);
+      const matchedCards = artistToCards.get(key);
 
-      if (cards && cards.length > 0) {
-        newMatched.set(parsedArtist, cards);
+      if (matchedCards && matchedCards.length > 0) {
+        newMatched.set(parsedArtist, matchedCards);
         continue;
       }
 
@@ -311,6 +331,9 @@ export default function MatchPage() {
         newUnmatched.push(parsedArtist);
       }
     }
+
+    console.log("[handleExactMatch] matched artists:", [...newMatched.keys()].length, "names:", JSON.stringify([...newMatched.keys()]));
+    console.log("[handleExactMatch] unmatched:", newUnmatched.length, "names:", JSON.stringify(newUnmatched));
 
     setMatched(newMatched);
     setFuzzyMatched(new Map());
@@ -332,14 +355,19 @@ export default function MatchPage() {
 
   // 模糊匹配：查询 Scryfall 获取所有卡牌的全部印刷版本，扩展画家列表
   async function handleFuzzyMatch(deckIds: string[]) {
-    // 1. 获取套牌中的卡牌
-    const { data: cards } = await supabase
-      .from("cards")
-      .select("*")
-      .in("deck_id", deckIds)
-      .order("artist_names");
+    // 1. 分别查询每个套牌（并行），获取所有卡牌
+    const results = await Promise.all(
+      deckIds.map((deckId) =>
+        supabase.from("cards").select("*").eq("deck_id", deckId)
+      )
+    );
 
-    if (!cards || cards.length === 0) {
+    const cards: CardEntry[] = [];
+    for (const r of results) {
+      if (r.data) cards.push(...(r.data as CardEntry[]));
+    }
+
+    if (cards.length === 0) {
       setMatched(new Map());
       setFuzzyMatched(new Map());
       setUnmatched([]);
