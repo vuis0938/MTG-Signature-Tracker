@@ -96,3 +96,17 @@ export function isSamePrinting(
 ): boolean {
   return a.card_name === b.card_name && a.set_code === b.set_code && a.collector_number === b.collector_number;
 }
+
+// ─── 状态切换 ────────────────────────────────────────────
+
+/**
+ * 匹配页面状态切换循环。
+ * 0(待签) → 3(心动) → 1(送签中) → 0(待签)
+ * 2(已签) → 3(心动)  — 已签卡重新参加活动时从心动开始
+ */
+const STATUS_CYCLE: Record<number, number> = { 0: 3, 3: 1, 1: 0, 2: 3 };
+
+/** 获取下一个状态值 */
+export function getNextStatus(current: number): number {
+  return STATUS_CYCLE[current] ?? 0;
+}

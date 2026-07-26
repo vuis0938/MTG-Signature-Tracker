@@ -23,7 +23,7 @@ import {
 // ─── 类型定义 ──────────────────────────────────────────────
 
 import type { Deck, CardEntry, FuzzyCardEntry, ArtistCard, CalendarEvent } from "@/types";
-import { normalizeArtists, buildNormalizedMap, findMatchingArtist, isSamePrinting } from "@/lib/match-utils";
+import { normalizeArtists, buildNormalizedMap, findMatchingArtist, isSamePrinting, getNextStatus } from "@/lib/match-utils";
 import type { FuzzyApiResponse } from "@/lib/match-utils";
 
 // ─── 页面组件 ──────────────────────────────────────────────
@@ -243,8 +243,7 @@ export default function MatchPage() {
       }
     }
 
-    const cycle: Record<number, number> = { 0: 3, 3: 1, 1: 0 };
-    const newStatus = cycle[currentStatus] ?? 0;
+    const newStatus = getNextStatus(currentStatus);
 
     setMatched((prev) => {
       const next = new Map(prev);
@@ -1088,7 +1087,7 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
                         className={`relative w-24 rounded-lg overflow-hidden border transition-all hover:scale-105 ${
                           isInDeck ? "cursor-pointer hover:shadow-md" : "cursor-default opacity-60"
                         } ${statusBorderClass(isInDeck, status)}`}
-                        title={isInDeck ? { 0: "待签", 1: "送签中", 3: "心动" }[status] : "非套牌版本"}
+                        title={isInDeck ? { 0: "待签", 1: "送签中", 2: "已签", 3: "心动" }[status] : "非套牌版本"}
                       >
                         <div className={isInDeck && status >= 1 ? "opacity-75" : ""}>
                           {v.image_url ? (
@@ -1127,9 +1126,9 @@ function StatusBadge({ status, isInDeck }: { status: number; isInDeck: boolean }
   return (
     <div className="absolute inset-0 flex items-center justify-center">
       <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg ${
-        status === 3 ? "bg-pink-500" : status === 1 ? "bg-blue-500" : "bg-green-500"
+        status === 3 ? "bg-pink-500" : status === 1 ? "bg-blue-500" : status === 2 ? "bg-green-600" : "bg-green-500"
       }`}>
-        {status === 3 ? "♥" : status === 1 ? "…" : "✓"}
+        {status === 3 ? "♥" : status === 1 ? "…" : status === 2 ? "✓" : "✓"}
       </div>
     </div>
   );
@@ -1163,7 +1162,7 @@ function CardThumbnail({
           ? status === 3 ? "border-pink-400" : status === 1 ? "border-blue-400" : "border-green-500"
           : "border-border hover:shadow-md"
       }`}
-      title={{ 0: "待签", 1: "送签中", 3: "心动" }[status ?? 0]}
+      title={{ 0: "待签", 1: "送签中", 2: "已签", 3: "心动" }[status ?? 0]}
     >
       <div className={status >= 1 ? "opacity-75" : ""}>
         {imageUrl ? (

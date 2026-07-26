@@ -4,6 +4,7 @@ import {
   buildNormalizedMap,
   findMatchingArtist,
   isSamePrinting,
+  getNextStatus,
 } from "../match-utils";
 
 // ═════════════════════════════════════════════════════════════
@@ -212,5 +213,31 @@ describe("isSamePrinting", () => {
         { card_name: "Sol Ring", set_code: "CMM", collector_number: "346" }
       )
     ).toBe(false);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// getNextStatus
+// ═════════════════════════════════════════════════════════════
+
+describe("getNextStatus", () => {
+  it("待签(0) → 心动(3)", () => {
+    expect(getNextStatus(0)).toBe(3);
+  });
+
+  it("心动(3) → 送签中(1)", () => {
+    expect(getNextStatus(3)).toBe(1);
+  });
+
+  it("送签中(1) → 待签(0)", () => {
+    expect(getNextStatus(1)).toBe(0);
+  });
+
+  it("已签(2) → 心动(3)", () => {
+    expect(getNextStatus(2)).toBe(3);
+  });
+
+  it("未知状态回退到 0", () => {
+    expect(getNextStatus(99)).toBe(0);
   });
 });
