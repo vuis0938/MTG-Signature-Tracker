@@ -359,13 +359,12 @@ export default function MatchPage() {
 
     const newMatched = new Map<string, CardEntry[]>();
     const newUnmatched: string[] = [];
+    const dbKeys = [...artistToCards.keys()];
 
     for (const parsedArtist of currentParsedArtists) {
-      const key = parsedArtist.toLowerCase().trim();
-      const matchedCards = artistToCards.get(key);
-
-      if (matchedCards && matchedCards.length > 0) {
-        newMatched.set(parsedArtist, matchedCards);
+      const matchedKey = findMatchingArtist(parsedArtist, dbKeys);
+      if (matchedKey) {
+        newMatched.set(parsedArtist, artistToCards.get(matchedKey) || []);
       } else {
         newUnmatched.push(parsedArtist);
       }
@@ -423,6 +422,39 @@ export default function MatchPage() {
     return [];
   }
 
+  /**
+   * 在候选画家中查找匹配。
+   * 规则：
+   *   1. 精确匹配（大小写不敏感）
+   *   2. 首尾名匹配：如 "Dan Scott" 匹配 "Dan Murayama Scott"
+   *      （双方名字都至少2个词，且首词和尾词相同）
+   */
+  function findMatchingArtist(
+    parsedArtist: string,
+    dbKeys: string[]
+  ): string | null {
+    const key = parsedArtist.toLowerCase().trim();
+    // 精确匹配
+    if (dbKeys.includes(key)) return key;
+
+    // 首尾名匹配
+    const words = key.split(/\s+/).filter(Boolean);
+    if (words.length >= 2) {
+      const first = words[0];
+      const last = words[words.length - 1];
+      for (const dbKey of dbKeys) {
+        const dbWords = dbKey.split(/\s+/).filter(Boolean);
+        if (dbWords.length >= 2) {
+          if (dbWords[0] === first && dbWords[dbWords.length - 1] === last) {
+            console.log(`[首尾名匹配] "${parsedArtist}" → "${dbKey}"`);
+            return dbKey;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   // 模糊匹配：查询 Scryfall 获取所有卡牌的全部印刷版本，扩展画家列表
   async function handleFuzzyMatch(deckIds: string[]) {
     const currentDecks = decksRef.current;
@@ -471,12 +503,13 @@ export default function MatchPage() {
       }
     }
 
-    // 精确匹配命中的画家 key 集合（纯 case-insensitive 精确匹配）
+    // 精确匹配命中的画家 key 集合（含首尾名匹配）
     const exactMatchedKeys = new Set<string>();
+    const artistDbKeys = [...artistCards.keys()];
     for (const artist of currentParsedArtists) {
-      const key = artist.toLowerCase().trim();
-      if (artistCards.has(key)) {
-        exactMatchedKeys.add(key);
+      const matchedKey = findMatchingArtist(artist, artistDbKeys);
+      if (matchedKey) {
+        exactMatchedKeys.add(matchedKey);
       }
     }
 
@@ -594,42 +627,40 @@ export default function MatchPage() {
 
     const newFuzzyMatched = new Map<string, FuzzyCardEntry[]>();
     const newUnmatched: string[] = [];
+    const expandedDbKeys = [...expandedKeyMap.keys()];
 
     for (const parsedArtist of currentParsedArtists) {
-      const key = parsedArtist.toLowerCase().trim();
-      const entries = expandedKeyMap.get(key);
-
-      if (entries && entries.length > 0) {
-        newFuzzyMatched.set(parsedArtist, entries);
+      const matchedKey = findMatchingArtist(parsedArtist, expandedDbKeys);
+      if (matchedKey) {
+        newFuzzyMatched.set(parsedArtist, expandedKeyMap.get(matchedKey) || []);
       } else {
         newUnmatched.push(parsedArtist);
       }
     }
 
     // 7. 兜底：确保精确匹配结果 100% 包含在模糊匹配中
-    for (const key of exactMatchedKeys) {
+    for (const parsedArtist of currentParsedArtists) {
+      if (newFuzzyMatched.has(parsedArtist)) continue;
+      const key = findMatchingArtist(parsedArtist, artistDbKeys);
+      if (!key) continue;
+      if (!exactMatchedKeys.has(key)) continue;
+
       const exactCards = artistCards.get(key) || [];
       if (exactCards.length === 0) continue;
 
-      // 找到所有映射到这个 key 的 parsedArtist
-      for (const parsedArtist of currentParsedArtists) {
-        if (parsedArtist.toLowerCase().trim() !== key) continue;
-        if (newFuzzyMatched.has(parsedArtist)) continue;
-
-        const displayArtist = normalizeArtists(exactCards[0].artist_names)[0] || key;
-        const entries: FuzzyCardEntry[] = exactCards.map((c) => ({
-          card_name: c.card_name,
-          set_code: c.set_code,
-          set_name: "",
-          collector_number: c.collector_number,
-          image_url: c.image_url,
-          artist: displayArtist,
-          deckCard: c,
-        }));
-        newFuzzyMatched.set(parsedArtist, entries);
-        const idx = newUnmatched.indexOf(parsedArtist);
-        if (idx !== -1) newUnmatched.splice(idx, 1);
-      }
+      const displayArtist = normalizeArtists(exactCards[0].artist_names)[0] || key;
+      const entries: FuzzyCardEntry[] = exactCards.map((c) => ({
+        card_name: c.card_name,
+        set_code: c.set_code,
+        set_name: "",
+        collector_number: c.collector_number,
+        image_url: c.image_url,
+        artist: displayArtist,
+        deckCard: c,
+      }));
+      newFuzzyMatched.set(parsedArtist, entries);
+      const idx = newUnmatched.indexOf(parsedArtist);
+      if (idx !== -1) newUnmatched.splice(idx, 1);
     }
 
     setMatched(new Map());
