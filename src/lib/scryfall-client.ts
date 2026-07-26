@@ -13,8 +13,13 @@ import type { ScryfallCard } from "@/lib/scryfall";
 export const SCRYFALL_UA = "MTG-Signature-Tracker/1.0";
 const BASE_URL = "https://api.scryfall.com";
 const MIN_DELAY_MS = 100;
-const MAX_RETRIES = 2;
+const MAX_RETRIES = 3;
 const FETCH_TIMEOUT_MS = 15_000; // 单次请求超时 15 秒
+
+/** 随机抖动，避免惊群效应（多个请求同时重试） */
+function jitter(baseMs: number): number {
+  return baseMs + Math.random() * baseMs * 0.5;
+}
 
 // ─── 工具函数 ──────────────────────────────────────────────
 
@@ -57,8 +62,8 @@ export async function searchCardByName(
 
     if (!res.ok) {
       if (attempt < MAX_RETRIES) {
-        const wait = res.status === 429 ? 2000 : 1000 * (attempt + 1);
-        console.warn(`[Scryfall] 搜索 "${cardName}" HTTP ${res.status}, ${wait}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
+        const wait = jitter(res.status === 429 ? 2000 : 800 * (attempt + 1));
+        console.warn(`[Scryfall] 搜索 "${cardName}" HTTP ${res.status}, ${Math.round(wait)}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
         await delay(wait);
         return searchCardByName(cardName, attempt + 1);
       }
@@ -69,8 +74,8 @@ export async function searchCardByName(
     return await res.json();
   } catch (err) {
     if (attempt < MAX_RETRIES) {
-      const wait = 1000 * (attempt + 1);
-      console.warn(`[Scryfall] 搜索 "${cardName}" 网络错误, ${wait}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
+      const wait = jitter(1000 * (attempt + 1));
+      console.warn(`[Scryfall] 搜索 "${cardName}" 网络错误, ${Math.round(wait)}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
       await delay(wait);
       return searchCardByName(cardName, attempt + 1);
     }
@@ -96,8 +101,8 @@ export async function quickFetchCard(
 
     if (!res.ok) {
       if (attempt < MAX_RETRIES) {
-        const wait = res.status === 429 ? 2000 : 1000 * (attempt + 1);
-        console.warn(`[Scryfall] ${setCode}/${collectorNumber} HTTP ${res.status}, ${wait}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
+        const wait = jitter(res.status === 429 ? 2000 : 800 * (attempt + 1));
+        console.warn(`[Scryfall] ${setCode}/${collectorNumber} HTTP ${res.status}, ${Math.round(wait)}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
         await delay(wait);
         return quickFetchCard(setCode, collectorNumber, attempt + 1);
       }
@@ -108,8 +113,8 @@ export async function quickFetchCard(
     return await res.json();
   } catch (err) {
     if (attempt < MAX_RETRIES) {
-      const wait = 1000 * (attempt + 1);
-      console.warn(`[Scryfall] ${setCode}/${collectorNumber} 网络错误, ${wait}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
+      const wait = jitter(1000 * (attempt + 1));
+      console.warn(`[Scryfall] ${setCode}/${collectorNumber} 网络错误, ${Math.round(wait)}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
       await delay(wait);
       return quickFetchCard(setCode, collectorNumber, attempt + 1);
     }

@@ -11,6 +11,8 @@ import type { CardRow } from "@/types";
 
 // ─── API Handler ──────────────────────────────────────────
 
+export const maxDuration = 30; // 延长 Vercel 超时至 30 秒（Pro 计划）
+
 export async function POST(request: NextRequest) {
   const t0 = Date.now();
 
@@ -55,13 +57,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `创建套牌失败: ${deckError?.message}` }, { status: 500 });
     }
 
-    // ── 8 路并行查询 Scryfall ──
-    const CONCURRENCY = 8;
-    const BATCH_DELAY = 100;
+    // ── 5 路并行查询 Scryfall（含时间保护，避免限速和超时）──
+    const CONCURRENCY = 5;
+    const BATCH_DELAY = 500;
+    const TIME_LIMIT_MS = 8_500; // 8.5 秒硬上限，留 1.5 秒给数据库写入
     const cardResults: Array<{ card: CardRow; data: ScryfallCard | null }> = [];
     const tScryfall = Date.now();
+    let timedOut = false;
 
     for (let i = 0; i < rows.length; i += CONCURRENCY) {
+      // 时间保护：如果快超时了，停止查询，剩余卡牌标记为失败
+      if (Date.now() - tScryfall > TIME_LIMIT_MS) {
+        timedOut = true;
+        for (let j = i; j < rows.length; j++) {
+          cardResults.push({ card: rows[j], data: null });
+        }
+        console.warn(`[Import] 时间保护触发：已处理 ${i}/${rows.length}，剩余 ${rows.length - i} 张跳过`);
+        break;
+      }
+
       const batch = rows.slice(i, i + CONCURRENCY);
       const batchResults = await Promise.all(
         batch.map(async (card) => ({
@@ -149,6 +163,7 @@ export async function POST(request: NextRequest) {
       successCount,
       failCount,
       failedCards,
+      timedOut,
       timing: {
         total: `${tTotal}s`,
         scryfall: `${tS}s (${rows.length} cards × ${CONCURRENCY} concurrent)`,

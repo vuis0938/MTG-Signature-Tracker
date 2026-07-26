@@ -193,9 +193,10 @@ export default function DecksPage() {
       if (data.success) {
         const t = data.timing;
         const hasFailures = data.failCount > 0;
+        const timeoutHint = data.timedOut ? "（超时保护，剩余卡牌可点击下方重试）" : "";
         const msg =
           `✅ 「${deckName}」${data.successCount}/${data.total} 张成功` +
-          (hasFailures ? `，${data.failCount} 张未找到` : "") +
+          (hasFailures ? `，${data.failCount} 张未找到${timeoutHint}` : "") +
           ` | ${t.total}`;
 
         setToast({ message: msg, type: hasFailures ? "error" : "success" });
@@ -324,9 +325,10 @@ export default function DecksPage() {
 
       if (data.success) {
         const hasFailures = data.failCount > 0;
+        const timeoutHint = data.timedOut ? "（超时保护，剩余卡牌可重新添加）" : "";
         setToast({
           message: `✅ 添加 ${data.successCount}/${data.total} 张成功` +
-            (hasFailures ? `，${data.failCount} 张未找到` : ""),
+            (hasFailures ? `，${data.failCount} 张未找到${timeoutHint}` : ""),
           type: hasFailures ? "error" : "success",
         });
         setAddCardsOpen(null);

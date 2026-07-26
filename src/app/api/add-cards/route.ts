@@ -7,6 +7,8 @@ import type { CardRow } from "@/types";
 
 // ─── API Handler ──────────────────────────────────────────
 
+export const maxDuration = 30; // 延长 Vercel 超时至 30 秒（Pro 计划）
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -39,11 +41,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 并行查询 Scryfall
-    const CONCURRENCY = 8;
+    // 并行查询 Scryfall（含时间保护）
+    const CONCURRENCY = 5;
+    const BATCH_DELAY = 500;
+    const TIME_LIMIT_MS = 8_500;
     const cardResults: Array<{ card: CardRow; data: ScryfallCard | null }> = [];
+    const tScryfall = Date.now();
+    let timedOut = false;
 
     for (let i = 0; i < rows.length; i += CONCURRENCY) {
+      if (Date.now() - tScryfall > TIME_LIMIT_MS) {
+        timedOut = true;
+        for (let j = i; j < rows.length; j++) {
+          cardResults.push({ card: rows[j], data: null });
+        }
+        console.warn(`[AddCards] 时间保护触发：已处理 ${i}/${rows.length}，剩余 ${rows.length - i} 张跳过`);
+        break;
+      }
+
       const batch = rows.slice(i, i + CONCURRENCY);
       const batchResults = await Promise.all(
         batch.map(async (card) => ({
@@ -54,7 +69,7 @@ export async function POST(request: NextRequest) {
         }))
       );
       cardResults.push(...batchResults);
-      if (i + CONCURRENCY < rows.length) await delay(100);
+      if (i + CONCURRENCY < rows.length) await delay(BATCH_DELAY);
     }
 
     // 批量写入
@@ -120,6 +135,7 @@ export async function POST(request: NextRequest) {
       successCount,
       failCount,
       failedCards,
+      timedOut,
     });
   } catch (error) {
     console.error("[AddCards]", error);
