@@ -5,8 +5,8 @@ import {
   extractArtists,
   extractImageUrl,
 } from "@/lib/scryfall";
-import { quickFetchCard, delay } from "@/lib/scryfall-client";
-import { parseMoxfieldFormat } from "@/lib/moxfield-parser";
+import { quickFetchCard, searchCardByName, delay } from "@/lib/scryfall-client";
+import { parseMoxfieldFormat, detectFormat } from "@/lib/moxfield-parser";
 import type { CardRow } from "@/types";
 
 // ─── API Handler ──────────────────────────────────────────
@@ -22,23 +22,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "请输入套牌名称" }, { status: 400 });
     }
     if (!text?.trim()) {
-      return NextResponse.json({ error: "请粘贴 Copy for Moxfield 的内容" }, { status: 400 });
+      return NextResponse.json({ error: "请粘贴套牌列表内容" }, { status: 400 });
     }
 
     // ── 解析 ──
+    const detectedFormat = detectFormat(text);
     const rows = parseMoxfieldFormat(text);
     if (rows.length === 0) {
       return NextResponse.json(
-        { error: "未识别到有效卡牌。请使用 Moxfield 的「Copy for Moxfield」格式" },
+        { error: "未识别到有效卡牌。支持 Moxfield 的 Copy for Moxfield / Arena / MTGO / Plain Text 格式" },
         { status: 400 }
       );
     }
+
+    const formatLabels: Record<string, string> = {
+      moxfield: "Copy for Moxfield",
+      arena: "Copy for Arena",
+      mtgo: "Copy for MTGO",
+      plain: "Copy Plain Text",
+    };
 
     // ── 创建套牌 ──
     const userName = request.cookies.get("user_name")?.value || "默认用户";
     const { data: deck, error: deckError } = await supabase
       .from("decks")
-      .insert({ name: name.trim(), source: "Copy for Moxfield", user_name: userName })
+      .insert({ name: name.trim(), source: formatLabels[detectedFormat] || "Copy for Moxfield", user_name: userName })
       .select("id")
       .single();
 
@@ -57,7 +65,9 @@ export async function POST(request: NextRequest) {
       const batchResults = await Promise.all(
         batch.map(async (card) => ({
           card,
-          data: (await quickFetchCard(card.setCode, card.collectorNumber)),
+          data: card.setCode
+            ? await quickFetchCard(card.setCode, card.collectorNumber!)
+            : await searchCardByName(card.name),
         }))
       );
       cardResults.push(...batchResults);
@@ -68,7 +78,7 @@ export async function POST(request: NextRequest) {
 
     // ── 批量写入 Supabase ──
     const results: Array<{ success: boolean; name: string; error?: string }> = [];
-    const failedCards: Array<{ name: string; setCode: string; collectorNumber: string }> = [];
+    const failedCards: Array<{ name: string; setCode?: string; collectorNumber?: string }> = [];
     let successCount = 0;
     let failCount = 0;
     const cardsToInsert: Array<Record<string, unknown>> = [];
@@ -77,7 +87,7 @@ export async function POST(request: NextRequest) {
       if (!data) {
         failCount += parseInt(card.count, 10) || 1;
         failedCards.push({
-          name: card.name || `${card.setCode}/${card.collectorNumber}`,
+          name: card.name,
           setCode: card.setCode,
           collectorNumber: card.collectorNumber,
         });
@@ -91,8 +101,8 @@ export async function POST(request: NextRequest) {
           scryfall_id: data.id,
           card_name: data.name,
           set_name: data.set_name,
-          set_code: card.setCode,
-          collector_number: card.collectorNumber,
+          set_code: data.set,
+          collector_number: data.collector_number,
           artist_names: extractArtists(data),
           image_url: extractImageUrl(data),
         });

@@ -175,7 +175,7 @@ export default function DecksPage() {
       return;
     }
     if (!deckText.trim()) {
-      setToast({ message: "请粘贴 Moxfield 牌表内容", type: "error" });
+      setToast({ message: "请粘贴套牌列表内容", type: "error" });
       return;
     }
 
@@ -308,7 +308,7 @@ export default function DecksPage() {
 
   const handleAddCards = useCallback(async () => {
     if (!addCardsOpen || !addCardsText.trim()) {
-      setToast({ message: "请粘贴 Moxfield 牌表内容", type: "error" });
+      setToast({ message: "请粘贴套牌列表内容", type: "error" });
       return;
     }
 
@@ -509,9 +509,9 @@ export default function DecksPage() {
       {showImport && (
         <Card>
           <CardHeader>
-            <CardTitle>导入 Moxfield 套牌</CardTitle>
+            <CardTitle>导入套牌</CardTitle>
             <CardDescription>
-              从 Moxfield 导入套牌数据，自动匹配每张卡牌的画家信息
+              从 Moxfield 导入套牌数据，自动匹配每张卡牌的画家信息。支持 Copy for Moxfield / Arena / MTGO / Plain Text 四种格式
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -528,11 +528,12 @@ export default function DecksPage() {
               <Label htmlFor="text">牌表内容</Label>
               <Textarea
                 id="text"
-                placeholder={`粘贴 Copy for Moxfield 的内容，格式如下：
-1 Sol Ring (CMM) 345
-1 Arcane Signet (ELD) 314
-1 Command Tower (CMR) 350 *F*
-...`}
+                placeholder={`粘贴套牌列表内容，支持以下格式：
+◆ Copy for Moxfield：1 Sol Ring (CMM) 345
+◆ Copy for Arena：  1 Sol Ring (CMM) 345
+  （含 Deck/Sideboard 头）
+◆ Copy for MTGO：   1 Sol Ring
+◆ Copy Plain Text： 1 Sol Ring`}
                 rows={8}
                 value={deckText}
                 onChange={(e) => setDeckText(e.target.value)}
@@ -541,9 +542,9 @@ export default function DecksPage() {
               <p className="text-xs text-muted-foreground">
                 💡 操作步骤：<br />
                 1. 在 Moxfield 牌表页面，点击每张卡牌 → <b>Switch Printing</b> 切换为实际持有的印刷版本<br />
-                2. 点击 <b>Export</b> → <b>Copy for Moxfield</b><br />
+                2. 点击 <b>Export</b> → 选择 <b>Copy for Moxfield</b>（推荐）、<b>Copy for Arena</b>、<b>Copy for MTGO</b> 或 <b>Copy Plain Text</b><br />
                 3. 粘贴到上方文本框 → 点击「开始导入」<br />
-                注意：卡牌印刷版本不同，对应的画家也可能不同，请务必逐一确认版本。
+                注意：MTGO 和 Plain Text 格式不含系列/编号信息，导入时会自动匹配最接近的印刷版本。
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -632,7 +633,7 @@ export default function DecksPage() {
         <DialogHeader>
           <DialogTitle>添加卡牌到套牌</DialogTitle>
           <DialogDescription>
-            粘贴 Copy for Moxfield 格式的牌表，将卡牌添加到当前套牌
+            粘贴套牌列表内容，支持 Moxfield / Arena / MTGO / Plain Text 四种格式，将卡牌添加到当前套牌
           </DialogDescription>
         </DialogHeader>
         <DialogContent className="space-y-4">
@@ -640,10 +641,11 @@ export default function DecksPage() {
             <Label htmlFor="addCardsText">牌表内容</Label>
             <Textarea
               id="addCardsText"
-              placeholder={`粘贴 Copy for Moxfield 的内容，格式如下：
-1 Sol Ring (CMM) 345
-1 Arcane Signet (ELD) 314
-...`}
+              placeholder={`粘贴套牌列表内容，支持以下格式：
+◆ Copy for Moxfield：1 Sol Ring (CMM) 345
+◆ Copy for Arena：  1 Sol Ring (CMM) 345
+◆ Copy for MTGO：   1 Sol Ring
+◆ Copy Plain Text： 1 Sol Ring`}
               rows={6}
               value={addCardsText}
               onChange={(e) => setAddCardsText(e.target.value)}

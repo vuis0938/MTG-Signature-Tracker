@@ -73,10 +73,13 @@ export interface DeckStats {
   pending: number;
 }
 
+/** 套牌导入格式 */
+export type ImportFormat = "moxfield" | "arena" | "mtgo" | "plain";
+
 /** Moxfield 格式解析后的卡牌行 */
 export interface CardRow {
   count: string;
   name: string;
-  setCode: string;
-  collectorNumber: string;
+  setCode?: string;
+  collectorNumber?: string;
 }

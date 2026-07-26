@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractArtists, extractImageUrl, ScryfallCard } from "@/lib/scryfall";
-import { quickFetchCard, delay } from "@/lib/scryfall-client";
+import { quickFetchCard, searchCardByName, delay } from "@/lib/scryfall-client";
 import { parseMoxfieldFormat } from "@/lib/moxfield-parser";
 import type { CardRow } from "@/types";
 
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "缺少套牌 ID" }, { status: 400 });
     }
     if (!text?.trim()) {
-      return NextResponse.json({ error: "请粘贴 Copy for Moxfield 的内容" }, { status: 400 });
+      return NextResponse.json({ error: "请粘贴套牌列表内容" }, { status: 400 });
     }
 
     // 验证套牌存在
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     const rows = parseMoxfieldFormat(text);
     if (rows.length === 0) {
       return NextResponse.json(
-        { error: "未识别到有效卡牌。请使用 Moxfield 的「Copy for Moxfield」格式" },
+        { error: "未识别到有效卡牌。支持 Moxfield 的 Copy for Moxfield / Arena / MTGO / Plain Text 格式" },
         { status: 400 }
       );
     }
@@ -48,7 +48,9 @@ export async function POST(request: NextRequest) {
       const batchResults = await Promise.all(
         batch.map(async (card) => ({
           card,
-          data: (await quickFetchCard(card.setCode, card.collectorNumber)),
+          data: card.setCode
+            ? await quickFetchCard(card.setCode, card.collectorNumber!)
+            : await searchCardByName(card.name),
         }))
       );
       cardResults.push(...batchResults);
@@ -58,7 +60,7 @@ export async function POST(request: NextRequest) {
     // 批量写入
     let successCount = 0;
     let failCount = 0;
-    const failedCards: Array<{ name: string; setCode: string; collectorNumber: string }> = [];
+    const failedCards: Array<{ name: string; setCode?: string; collectorNumber?: string }> = [];
     const cardsToInsert: Array<Record<string, unknown>> = [];
 
     for (const { card, data } of cardResults) {
@@ -79,8 +81,8 @@ export async function POST(request: NextRequest) {
           scryfall_id: data.id,
           card_name: data.name,
           set_name: data.set_name,
-          set_code: card.setCode,
-          collector_number: card.collectorNumber,
+          set_code: data.set,
+          collector_number: data.collector_number,
           artist_names: extractArtists(data),
           image_url: extractImageUrl(data),
           status: 0,

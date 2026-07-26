@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { parseMoxfieldFormat } from "../moxfield-parser";
+import { parseMoxfieldFormat, detectFormat } from "../moxfield-parser";
 
-describe("parseMoxfieldFormat", () => {
+// ═════════════════════════════════════════════════════════════
+// parseMoxfieldFormat — Moxfield 格式（已有）
+// ═════════════════════════════════════════════════════════════
+
+describe("parseMoxfieldFormat — Moxfield", () => {
   it("解析标准格式", () => {
     const result = parseMoxfieldFormat("1 Sol Ring (CMM) 345");
     expect(result).toEqual([
@@ -104,5 +108,129 @@ invalid line
     expect(result).toHaveLength(2);
     expect(result[0].name).toBe("Sol Ring");
     expect(result[1].name).toBe("Arcane Signet");
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// parseMoxfieldFormat — Arena 格式
+// ═════════════════════════════════════════════════════════════
+
+describe("parseMoxfieldFormat — Arena", () => {
+  it("跳过 Deck 头", () => {
+    const text = `Deck
+1 Sol Ring (CMM) 345
+1 Arcane Signet (SLD) 123`;
+    const result = parseMoxfieldFormat(text);
+    expect(result).toHaveLength(2);
+    expect(result[0].name).toBe("Sol Ring");
+  });
+
+  it("跳过 Deck 和 Sideboard 头", () => {
+    const text = `Deck
+1 Sol Ring (CMM) 345
+
+Sideboard
+1 Pithing Needle (MID) 256`;
+    const result = parseMoxfieldFormat(text);
+    expect(result).toHaveLength(2);
+    expect(result[0].name).toBe("Sol Ring");
+    expect(result[1].name).toBe("Pithing Needle");
+  });
+
+  it("跳过 Companion 头", () => {
+    const text = `Companion
+1 Lurrus of the Dream-Den (IKO) 226
+
+Deck
+1 Sol Ring (CMM) 345`;
+    const result = parseMoxfieldFormat(text);
+    expect(result).toHaveLength(2);
+  });
+
+  it("去除 #tag 注释", () => {
+    const result = parseMoxfieldFormat("1 Sol Ring (CMM) 345 #Card Advantage #Draw");
+    expect(result).toEqual([
+      { count: "1", name: "Sol Ring", setCode: "CMM", collectorNumber: "345" },
+    ]);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// parseMoxfieldFormat — MTGO / Plain Text 格式
+// ═════════════════════════════════════════════════════════════
+
+describe("parseMoxfieldFormat — MTGO / Plain Text", () => {
+  it("解析无系列/编号的格式", () => {
+    const result = parseMoxfieldFormat("1 Sol Ring");
+    expect(result).toEqual([
+      { count: "1", name: "Sol Ring" },
+    ]);
+  });
+
+  it("多张卡牌无系列/编号", () => {
+    const text = `3 Birds of Paradise
+2 Sol Ring
+1 Arcane Signet`;
+    const result = parseMoxfieldFormat(text);
+    expect(result).toHaveLength(3);
+    expect(result[0]).toEqual({ count: "3", name: "Birds of Paradise" });
+    expect(result[1]).toEqual({ count: "2", name: "Sol Ring" });
+    expect(result[2]).toEqual({ count: "1", name: "Arcane Signet" });
+  });
+
+  it("卡名含逗号", () => {
+    const result = parseMoxfieldFormat("1 Atraxa, Praetors' Voice");
+    expect(result).toEqual([
+      { count: "1", name: "Atraxa, Praetors' Voice" },
+    ]);
+  });
+
+  it("混合完整格式和简单格式", () => {
+    const text = `1 Sol Ring (CMM) 345
+3 Birds of Paradise
+1 Arcane Signet (SLD) 123`;
+    const result = parseMoxfieldFormat(text);
+    expect(result).toHaveLength(3);
+    expect(result[0].setCode).toBe("CMM");
+    expect(result[1].setCode).toBeUndefined();
+    expect(result[2].setCode).toBe("SLD");
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// detectFormat
+// ═════════════════════════════════════════════════════════════
+
+describe("detectFormat", () => {
+  it("检测 Moxfield 格式", () => {
+    expect(detectFormat("1 Sol Ring (CMM) 345")).toBe("moxfield");
+  });
+
+  it("检测 Arena 格式（有 Deck 头）", () => {
+    const text = `Deck
+1 Sol Ring (CMM) 345`;
+    expect(detectFormat(text)).toBe("arena");
+  });
+
+  it("检测 Arena 格式（有 Sideboard 头）", () => {
+    const text = `1 Sol Ring (CMM) 345
+
+Sideboard
+1 Pithing Needle (MID) 256`;
+    expect(detectFormat(text)).toBe("arena");
+  });
+
+  it("检测 MTGO 格式（无系列/编号）", () => {
+    expect(detectFormat("1 Sol Ring")).toBe("mtgo");
+  });
+
+  it("检测 Plain Text 格式", () => {
+    const text = `3 Birds of Paradise
+2 Sol Ring`;
+    expect(detectFormat(text)).toBe("mtgo");
+  });
+
+  it("空输入默认返回 moxfield", () => {
+    expect(detectFormat("")).toBe("moxfield");
   });
 });

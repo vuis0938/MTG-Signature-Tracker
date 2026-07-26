@@ -42,6 +42,44 @@ async function fetchWithTimeout(
 // ─── 卡牌查询 ──────────────────────────────────────────────
 
 /**
+ * 按卡名模糊搜索（带自动重试）
+ * 用于 MTGO/Plain Text 格式导入 — 无 set/code 时按名字查找
+ */
+export async function searchCardByName(
+  cardName: string,
+  attempt = 0
+): Promise<ScryfallCard | null> {
+  const url = `${BASE_URL}/cards/named?fuzzy=${encodeURIComponent(cardName)}`;
+  try {
+    const res = await fetchWithTimeout(url, {
+      headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
+    });
+
+    if (!res.ok) {
+      if (attempt < MAX_RETRIES) {
+        const wait = res.status === 429 ? 2000 : 1000 * (attempt + 1);
+        console.warn(`[Scryfall] 搜索 "${cardName}" HTTP ${res.status}, ${wait}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
+        await delay(wait);
+        return searchCardByName(cardName, attempt + 1);
+      }
+      console.error(`[Scryfall] 搜索 "${cardName}" 重试 ${MAX_RETRIES} 次后仍失败`);
+      return null;
+    }
+
+    return await res.json();
+  } catch (err) {
+    if (attempt < MAX_RETRIES) {
+      const wait = 1000 * (attempt + 1);
+      console.warn(`[Scryfall] 搜索 "${cardName}" 网络错误, ${wait}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
+      await delay(wait);
+      return searchCardByName(cardName, attempt + 1);
+    }
+    console.error(`[Scryfall] 搜索 "${cardName}" 网络错误，重试耗尽:`, err);
+    return null;
+  }
+}
+
+/**
  * 按 Set Code + Collector Number 查询单张卡牌（带自动重试）
  * 用于导入/添加卡牌流程
  */
