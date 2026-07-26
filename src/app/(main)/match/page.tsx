@@ -343,13 +343,11 @@ export default function MatchPage() {
 
     // 构建 key→cards 映射（key = 小写 trim 后的画家名）
     const artistToCards = new Map<string, CardEntry[]>();
-    const allDbNames: string[] = [];
 
     for (const card of allCards) {
       card.deck_name = deckMap.get(card.deck_id) || "";
       const artists = normalizeArtists(card.artist_names);
       for (const artist of artists) {
-        allDbNames.push(artist);
         const key = artist.toLowerCase().trim();
         const list = artistToCards.get(key) || [];
         list.push(card);
@@ -360,14 +358,6 @@ export default function MatchPage() {
     debug.push(`[精确匹配] artistToCards 共 ${artistToCards.size} 个画家key`);
     debug.push(`[精确匹配] 画家keys: ${JSON.stringify([...artistToCards.keys()])}`);
 
-    // Fuse 索引用去重后的原名
-    const uniqueDbNames = [...new Set(allDbNames)];
-    const fuse = new Fuse(uniqueDbNames, {
-      threshold: 0.4,
-      distance: 100,
-      includeScore: true,
-    });
-
     const newMatched = new Map<string, CardEntry[]>();
     const newUnmatched: string[] = [];
 
@@ -377,16 +367,6 @@ export default function MatchPage() {
 
       if (matchedCards && matchedCards.length > 0) {
         newMatched.set(parsedArtist, matchedCards);
-        continue;
-      }
-
-      // Fuse 兜底
-      const result = fuse.search(parsedArtist);
-      if (result.length > 0 && result[0].score !== undefined && result[0].score < 0.4) {
-        const matchedName = result[0].item;
-        const matchedKey = matchedName.toLowerCase().trim();
-        const cards = artistToCards.get(matchedKey) || [];
-        newMatched.set(parsedArtist, cards);
       } else {
         newUnmatched.push(parsedArtist);
       }
@@ -480,40 +460,24 @@ export default function MatchPage() {
       return;
     }
 
-    // 2. 先跑精确匹配，作为基线（保证模糊 ≥ 精确）
-    // 使用与 handleExactMatch 相同的简化逻辑
+    // 2. 先跑精确匹配，作为基线（保证模糊 ≥ 精确）— 纯精确，不用 Fuse
     const artistCards = new Map<string, CardEntry[]>();
-    const allDbNames: string[] = [];
     for (const card of cards) {
       const artists = normalizeArtists(card.artist_names);
       for (const artist of artists) {
-        allDbNames.push(artist);
         const key = artist.toLowerCase().trim();
         const list = artistCards.get(key) || [];
         list.push(card);
         artistCards.set(key, list);
       }
     }
-    const uniqueDbNames = [...new Set(allDbNames)];
-    const exactFuse = new Fuse(uniqueDbNames, {
-      threshold: 0.4,
-      distance: 100,
-      includeScore: true,
-    });
 
-    // 精确匹配命中的画家 key 集合
+    // 精确匹配命中的画家 key 集合（纯 case-insensitive 精确匹配）
     const exactMatchedKeys = new Set<string>();
     for (const artist of currentParsedArtists) {
       const key = artist.toLowerCase().trim();
       if (artistCards.has(key)) {
         exactMatchedKeys.add(key);
-        continue;
-      }
-      // Fuse 兜底
-      const result = exactFuse.search(artist);
-      if (result.length > 0 && result[0].score !== undefined && result[0].score < 0.4) {
-        const matchedKey = result[0].item.toLowerCase().trim();
-        exactMatchedKeys.add(matchedKey);
       }
     }
 
