@@ -78,7 +78,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── 第三步：合并结果（缓存优先） ──
+    // ── 第三步：将从 Scryfall 查到的结果写入缓存（下次瞬间命中） ──
+    if (scryfallResults.length > 0) {
+      const rows = scryfallResults.map((r) => ({
+        card_name: r.card_name,
+        printings: r.printings,
+        all_artists: r.allArtists,
+      }));
+      // 用 upsert 避免重复插入报错
+      supabase.from("card_printings").upsert(rows, { onConflict: "card_name" }).then(
+        ({ error }) => {
+          if (error) console.warn("[FuzzyMatch] 写缓存失败:", error.message);
+        }
+      );
+    }
+
+    // ── 第四步：合并结果（缓存优先） ──
     const cardMap: Record<string, FuzzyCardResult> = {};
     for (const r of cachedMap.values()) {
       cardMap[r.card_name] = r;
