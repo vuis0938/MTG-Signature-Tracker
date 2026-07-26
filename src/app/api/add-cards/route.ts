@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     for (const { card, data } of cardResults) {
       if (!data) {
-        failCount++;
+        failCount += parseInt(card.count, 10) || 1;
         failedCards.push({
           name: card.name,
           setCode: card.setCode,
@@ -72,19 +72,22 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      cardsToInsert.push({
-        deck_id: deckId,
-        scryfall_id: data.id,
-        card_name: data.name,
-        set_name: data.set_name,
-        set_code: card.setCode,
-        collector_number: card.collectorNumber,
-        artist_names: extractArtists(data),
-        image_url: extractImageUrl(data),
-        status: 0,
-        is_signed: false,
-      });
-      successCount++;
+      const count = parseInt(card.count, 10) || 1;
+      for (let i = 0; i < count; i++) {
+        cardsToInsert.push({
+          deck_id: deckId,
+          scryfall_id: data.id,
+          card_name: data.name,
+          set_name: data.set_name,
+          set_code: card.setCode,
+          collector_number: card.collectorNumber,
+          artist_names: extractArtists(data),
+          image_url: extractImageUrl(data),
+          status: 0,
+          is_signed: false,
+        });
+      }
+      successCount += count;
     }
 
     if (cardsToInsert.length > 0) {
