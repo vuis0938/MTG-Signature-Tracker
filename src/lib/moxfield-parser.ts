@@ -88,9 +88,13 @@ export function detectFormat(text: string): ImportFormat {
 
 // ─── 工具 ──────────────────────────────────────────────────
 
-/** 去除 *F* / *S* / #tag 标记 */
+/** 去除 *F* / *S* / #tag / 行尾 // 标记 */
 function stripTags(line: string): string {
-  return line.replace(/\s*\*[FS]\*/g, "").replace(/\s*#\S.*$/, "").trim();
+  return line
+    .replace(/\s*\*[FS]\*/g, "")
+    .replace(/\s*\/\/\s*$/, "") // 仅去除行尾 //（不影响双面卡牌名中的 //）
+    .replace(/\s*#\S.*$/, "")
+    .trim();
 }
 
 /** 判断是否为节头行（含分类头如 "Creatures (20):"） */
@@ -189,15 +193,17 @@ export function parseMoxfieldFormat(text: string): CardRow[] {
       continue;
     }
 
-    // 5. 斜杠格式：COUNT NAME / SET
-    const slashMatch = cleaned.match(RE_SLASH);
-    if (slashMatch) {
-      rows.push({
-        count: slashMatch[1],
-        name: slashMatch[2].trim(),
-        setCode: slashMatch[3],
-      });
-      continue;
+    // 5. 斜杠格式：COUNT NAME / SET（跳过含 // 的行，它们是注释或双面卡）
+    if (!cleaned.includes("//")) {
+      const slashMatch = cleaned.match(RE_SLASH);
+      if (slashMatch) {
+        rows.push({
+          count: slashMatch[1],
+          name: slashMatch[2].trim(),
+          setCode: slashMatch[3],
+        });
+        continue;
+      }
     }
 
     // 6. Cockatrice 备牌
@@ -213,9 +219,12 @@ export function parseMoxfieldFormat(text: string): CardRow[] {
     // 7. 简单格式：COUNT NAME
     const simpleMatch = cleaned.match(RE_SIMPLE);
     if (simpleMatch) {
+      let name = simpleMatch[2].trim();
+      // 清理尾部孤立的 / 和 // 注释
+      name = name.replace(/\s*\/\/\s.*$/, "").replace(/\s*\/\/?\s*$/, "").trim();
       rows.push({
         count: simpleMatch[1],
-        name: simpleMatch[2].trim(),
+        name,
       });
     }
   }

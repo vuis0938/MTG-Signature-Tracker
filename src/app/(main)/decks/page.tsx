@@ -583,9 +583,11 @@ export default function DecksPage() {
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{card.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {card.setCode} / {card.collectorNumber}
-                    </p>
+                    {(card.setCode || card.collectorNumber) && (
+                      <p className="text-xs text-muted-foreground">
+                        {card.setCode || "?"} / {card.collectorNumber || "?"}
+                      </p>
+                    )}
                   </div>
                   <Button
                     size="sm"

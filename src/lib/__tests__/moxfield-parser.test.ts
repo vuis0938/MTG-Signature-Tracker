@@ -292,6 +292,60 @@ describe("parseMoxfieldFormat — 注释和分类头", () => {
 });
 
 // ═════════════════════════════════════════════════════════════
+// 9b. 行内 // 注释和尾部 / 清理
+// ═════════════════════════════════════════════════════════════
+
+describe("parseMoxfieldFormat — 行内 // 注释", () => {
+  it("1 Academy Ruins // comment — 去除 // 注释", () => {
+    expect(parseMoxfieldFormat("1 Academy Ruins // comment")).toEqual([
+      { count: "1", name: "Academy Ruins" },
+    ]);
+  });
+
+  it("1 Sol Ring // 备注信息", () => {
+    expect(parseMoxfieldFormat("1 Sol Ring // 备注信息")).toEqual([
+      { count: "1", name: "Sol Ring" },
+    ]);
+  });
+
+  it("多行带 // 注释", () => {
+    const text = `1 Academy Ruins // land\n1 Adarkar Wastes // land\n1 Adeline, Resplendent Cathar // commander`;
+    expect(parseMoxfieldFormat(text)).toEqual([
+      { count: "1", name: "Academy Ruins" },
+      { count: "1", name: "Adarkar Wastes" },
+      { count: "1", name: "Adeline, Resplendent Cathar" },
+    ]);
+  });
+
+  it("// 在行尾无内容", () => {
+    expect(parseMoxfieldFormat("1 Academy Ruins //")).toEqual([
+      { count: "1", name: "Academy Ruins" },
+    ]);
+  });
+});
+
+describe("parseMoxfieldFormat — 尾部 / 清理", () => {
+  it("1 Academy Ruins / — 清理尾部 /", () => {
+    expect(parseMoxfieldFormat("1 Academy Ruins /")).toEqual([
+      { count: "1", name: "Academy Ruins" },
+    ]);
+  });
+
+  it("1 Sol Ring / — 清理尾部 /", () => {
+    expect(parseMoxfieldFormat("1 Sol Ring /")).toEqual([
+      { count: "1", name: "Sol Ring" },
+    ]);
+  });
+
+  it("// 不会被 RE_SLASH 误匹配为 setCode", () => {
+    // 之前 RE_SLASH 会把 "// comment" 中的 "comment" 当作 setCode
+    const result = parseMoxfieldFormat("1 Academy Ruins // comment");
+    expect(result[0].setCode).toBeUndefined();
+    expect(result[0].name).toBe("Academy Ruins");
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
 // 10. 混合格式
 // ═════════════════════════════════════════════════════════════
 
