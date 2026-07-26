@@ -173,6 +173,17 @@ export default function MatchPage() {
   const [hasRun, setHasRun] = useState(false);
   const matchingRef = useRef(false); // 防止并发匹配
 
+  // 🔒 用 ref 锁定最新状态，避免闭包陷阱
+  const selectedDecksRef = useRef(selectedDecks);
+  selectedDecksRef.current = selectedDecks;
+  const parsedArtistsRef = useRef(parsedArtists);
+  parsedArtistsRef.current = parsedArtists;
+  const decksRef = useRef(decks);
+  decksRef.current = decks;
+
+  // 🐛 调试面板
+  const [debugInfo, setDebugInfo] = useState<string[]>([]);
+
   useEffect(() => {
     supabase
       .from("decks")
@@ -232,22 +243,25 @@ export default function MatchPage() {
 
   // 执行匹配
   async function handleMatch() {
-    if (parsedArtists.length === 0 || selectedDecks.size === 0) return;
+    const currentSelectedDecks = selectedDecksRef.current;
+    const currentParsedArtists = parsedArtistsRef.current;
+
+    if (currentParsedArtists.length === 0 || currentSelectedDecks.size === 0) return;
     if (matchingRef.current) return; // 防止并发
     matchingRef.current = true;
 
     setMatching(true);
     setHasRun(true);
 
-    const deckIds = Array.from(selectedDecks);
-    console.log("[handleMatch] deckIds:", JSON.stringify(deckIds), "count:", deckIds.length);
-    console.log("[handleMatch] parsedArtists count:", parsedArtists.length);
+    const deckIds = Array.from(currentSelectedDecks);
+    const debug: string[] = [];
+    debug.push(`[匹配] 套牌数: ${deckIds.length}, 画家数: ${currentParsedArtists.length}`);
+    debug.push(`[匹配] deckIds: ${JSON.stringify(deckIds)}`);
+    setDebugInfo(debug);
 
     if (fuzzyMode) {
-      // ── 模糊匹配模式 ──────────────────────────────────
       await handleFuzzyMatch(deckIds);
     } else {
-      // ── 精确匹配模式（原有逻辑） ──────────────────────
       await handleExactMatch(deckIds);
     }
 
@@ -255,41 +269,66 @@ export default function MatchPage() {
     matchingRef.current = false;
   }
 
-  // 精确匹配（原有逻辑）
+  // 精确匹配（核心逻辑 — 顺序查询 + 错误处理 + 调试）
   async function handleExactMatch(deckIds: string[]) {
-    console.log("[handleExactMatch] deckIds:", JSON.stringify(deckIds));
+    const currentDecks = decksRef.current;
+    const currentParsedArtists = parsedArtistsRef.current;
+    const deckMap = new Map(currentDecks.map((d) => [d.id, d.name]));
 
-    // 分别查询每个套牌（避免 .in() 过滤器的潜在问题），并行执行
-    const results = await Promise.all(
-      deckIds.map((deckId) =>
-        supabase.from("cards").select("*").eq("deck_id", deckId)
-      )
-    );
+    const debug: string[] = [];
+    debug.push(`[精确匹配] 开始查询 ${deckIds.length} 个套牌`);
+    if (typeof window !== "undefined") console.log("[精确匹配] 开始查询", deckIds);
 
-    const cards: CardEntry[] = [];
-    for (let i = 0; i < results.length; i++) {
-      const deckCards = results[i].data || [];
-      console.log(`[handleExactMatch] deck ${deckIds[i]}: ${deckCards.length} cards`);
-      cards.push(...(deckCards as CardEntry[]));
+    // ✅ 顺序查询（不用 Promise.all，避免并发竞态）
+    const allCards: CardEntry[] = [];
+    for (const deckId of deckIds) {
+      try {
+        const { data, error, status, statusText } = await supabase
+          .from("cards")
+          .select("*")
+          .eq("deck_id", deckId);
+
+        const deckName = deckMap.get(deckId) || deckId;
+        if (error) {
+          debug.push(`❌ 套牌 "${deckName}" 查询失败: ${error.message || JSON.stringify(error)}`);
+          console.error(`[精确匹配] 套牌 "${deckName}" 查询失败:`, error);
+          continue;
+        }
+        const count = data?.length || 0;
+        debug.push(`✅ 套牌 "${deckName}" (${deckId}): ${count} 张卡, status=${status}`);
+        if (data && data.length > 0) {
+          // 打印每张卡的关键信息
+          for (const card of data) {
+            const c = card as CardEntry;
+            const artists = normalizeArtists(c.artist_names);
+            debug.push(`  📋 ${c.card_name} [${c.set_code}] artists=${JSON.stringify(artists)} status=${c.status}`);
+          }
+          allCards.push(...(data as CardEntry[]));
+        }
+      } catch (err: any) {
+        const deckName = deckMap.get(deckId) || deckId;
+        debug.push(`💥 套牌 "${deckName}" 查询异常: ${err?.message || String(err)}`);
+        console.error(`[精确匹配] 套牌 "${deckName}" 查询异常:`, err);
+      }
     }
-    console.log("[handleExactMatch] total cards:", cards.length);
 
-    if (cards.length === 0) {
+    debug.push(`[精确匹配] 总计获取 ${allCards.length} 张卡牌`);
+    setDebugInfo([...debug]);
+
+    if (allCards.length === 0) {
       setMatched(new Map());
       setFuzzyMatched(new Map());
-      setUnmatched([...parsedArtists]);
+      setUnmatched([...currentParsedArtists]);
       return;
     }
 
-    // 构建简单的 key→cards 映射（key = 小写 trim 后的画家名）
+    // 构建 key→cards 映射（key = 小写 trim 后的画家名）
     const artistToCards = new Map<string, CardEntry[]>();
-    const deckMap = new Map(decks.map((d) => [d.id, d.name]));
     const allDbNames: string[] = [];
 
-    for (const card of cards) {
+    for (const card of allCards) {
       card.deck_name = deckMap.get(card.deck_id) || "";
       const artists = normalizeArtists(card.artist_names);
-      console.log(`[handleExactMatch] card: ${card.card_name}, deck: ${card.deck_name}, artist_names raw:`, JSON.stringify(card.artist_names), "parsed:", JSON.stringify(artists));
       for (const artist of artists) {
         allDbNames.push(artist);
         const key = artist.toLowerCase().trim();
@@ -299,7 +338,8 @@ export default function MatchPage() {
       }
     }
 
-    console.log("[handleExactMatch] artistToCards keys:", JSON.stringify([...artistToCards.keys()]));
+    debug.push(`[精确匹配] artistToCards 共 ${artistToCards.size} 个画家key`);
+    debug.push(`[精确匹配] 画家keys: ${JSON.stringify([...artistToCards.keys()])}`);
 
     // Fuse 索引用去重后的原名
     const uniqueDbNames = [...new Set(allDbNames)];
@@ -312,7 +352,7 @@ export default function MatchPage() {
     const newMatched = new Map<string, CardEntry[]>();
     const newUnmatched: string[] = [];
 
-    for (const parsedArtist of parsedArtists) {
+    for (const parsedArtist of currentParsedArtists) {
       const key = parsedArtist.toLowerCase().trim();
       const matchedCards = artistToCards.get(key);
 
@@ -326,14 +366,25 @@ export default function MatchPage() {
       if (result.length > 0 && result[0].score !== undefined && result[0].score < 0.4) {
         const matchedName = result[0].item;
         const matchedKey = matchedName.toLowerCase().trim();
-        newMatched.set(parsedArtist, artistToCards.get(matchedKey) || []);
+        const cards = artistToCards.get(matchedKey) || [];
+        newMatched.set(parsedArtist, cards);
       } else {
         newUnmatched.push(parsedArtist);
       }
     }
 
-    console.log("[handleExactMatch] matched artists:", [...newMatched.keys()].length, "names:", JSON.stringify([...newMatched.keys()]));
-    console.log("[handleExactMatch] unmatched:", newUnmatched.length, "names:", JSON.stringify(newUnmatched));
+    // 计算总卡牌数
+    let totalCards = 0;
+    for (const cards of newMatched.values()) totalCards += cards.length;
+
+    debug.push(`[精确匹配] 结果: ${newMatched.size} 位画家匹配, ${totalCards} 张卡, ${newUnmatched.length} 位未匹配`);
+    debug.push(`[精确匹配] 匹配画家: ${JSON.stringify([...newMatched.keys()])}`);
+    debug.push(`[精确匹配] 未匹配画家: ${JSON.stringify(newUnmatched)}`);
+    setDebugInfo([...debug]);
+
+    if (typeof window !== "undefined") {
+      console.log("[精确匹配] 结果:", { matched: [...newMatched.keys()], unmatched: newUnmatched, totalCards });
+    }
 
     setMatched(newMatched);
     setFuzzyMatched(new Map());
@@ -355,16 +406,31 @@ export default function MatchPage() {
 
   // 模糊匹配：查询 Scryfall 获取所有卡牌的全部印刷版本，扩展画家列表
   async function handleFuzzyMatch(deckIds: string[]) {
-    // 1. 分别查询每个套牌（并行），获取所有卡牌
-    const results = await Promise.all(
-      deckIds.map((deckId) =>
-        supabase.from("cards").select("*").eq("deck_id", deckId)
-      )
-    );
+    const currentDecks = decksRef.current;
+    const currentParsedArtists = parsedArtistsRef.current;
+    const deckMap = new Map(currentDecks.map((d) => [d.id, d.name]));
 
+    // 1. 顺序查询每个套牌，获取所有卡牌
     const cards: CardEntry[] = [];
-    for (const r of results) {
-      if (r.data) cards.push(...(r.data as CardEntry[]));
+    for (const deckId of deckIds) {
+      try {
+        const { data, error } = await supabase
+          .from("cards")
+          .select("*")
+          .eq("deck_id", deckId);
+        if (error) {
+          console.error(`[模糊匹配] 套牌 ${deckId} 查询失败:`, error);
+          continue;
+        }
+        if (data) {
+          for (const card of data) {
+            (card as CardEntry).deck_name = deckMap.get((card as CardEntry).deck_id) || "";
+          }
+          cards.push(...(data as CardEntry[]));
+        }
+      } catch (err) {
+        console.error(`[模糊匹配] 套牌 ${deckId} 查询异常:`, err);
+      }
     }
 
     if (cards.length === 0) {
@@ -372,11 +438,6 @@ export default function MatchPage() {
       setFuzzyMatched(new Map());
       setUnmatched([]);
       return;
-    }
-
-    const deckMap = new Map(decks.map((d) => [d.id, d.name]));
-    for (const card of cards) {
-      card.deck_name = deckMap.get(card.deck_id) || "";
     }
 
     // 2. 先跑精确匹配，作为基线（保证模糊 ≥ 精确）
@@ -402,7 +463,7 @@ export default function MatchPage() {
 
     // 精确匹配命中的画家 key 集合
     const exactMatchedKeys = new Set<string>();
-    for (const artist of parsedArtists) {
+    for (const artist of currentParsedArtists) {
       const key = artist.toLowerCase().trim();
       if (artistCards.has(key)) {
         exactMatchedKeys.add(key);
@@ -538,7 +599,7 @@ export default function MatchPage() {
     const newFuzzyMatched = new Map<string, FuzzyCardEntry[]>();
     const newUnmatched: string[] = [];
 
-    for (const parsedArtist of parsedArtists) {
+    for (const parsedArtist of currentParsedArtists) {
       const key = parsedArtist.toLowerCase().trim();
       const entries = expandedKeyMap.get(key);
 
@@ -563,7 +624,7 @@ export default function MatchPage() {
       if (exactCards.length === 0) continue;
 
       // 找到所有映射到这个 key 的 parsedArtist
-      for (const parsedArtist of parsedArtists) {
+      for (const parsedArtist of currentParsedArtists) {
         if (parsedArtist.toLowerCase().trim() !== key) continue;
         if (newFuzzyMatched.has(parsedArtist)) continue;
 
@@ -803,6 +864,22 @@ Kev Walker - Table 5
           toggleStatus={toggleStatus}
           exportText={exportText}
         />
+      )}
+
+      {/* 🐛 调试面板 — 仅在匹配后有数据时显示 */}
+      {hasRun && debugInfo.length > 0 && (
+        <Card className="border-dashed border-amber-300 bg-amber-50/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <span className="text-amber-600">🐛</span> 调试信息
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <pre className="text-xs text-amber-900 whitespace-pre-wrap font-mono max-h-64 overflow-y-auto">
+              {debugInfo.join("\n")}
+            </pre>
+          </CardContent>
+        </Card>
       )}
 
       {/* ─── 画家卡牌画廊弹窗 ─── */}
