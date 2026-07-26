@@ -7,8 +7,6 @@ import { parseMoxfieldFormat } from "@/lib/moxfield-parser";
 
 // ─── API Handler ──────────────────────────────────────────
 
-export const maxDuration = 180; // Vercel Fluid Compute: Hobby 最大 300s，180s 足够处理约 1600 张卡
-
 export async function POST(request: NextRequest) {
   const t0 = Date.now();
 
@@ -46,7 +44,7 @@ export async function POST(request: NextRequest) {
     // 令牌桶限速顺序查询 Scryfall（170s 软截止）
     const RATE = 9;
     const rateLimiter = new RateLimiter(RATE);
-    const SOFT_DEADLINE_MS = 170 * 1000; // 170s 软截止，留 10s 给 DB 写入和响应
+    const SOFT_DEADLINE_MS = 180 * 1000; // 180s 软截止，Vercel Hobby 默认 300s 兜底
 
     const cardResults: Array<{ card: (typeof rows)[number]; data: ScryfallCard | null; timedOut: boolean }> = [];
 
