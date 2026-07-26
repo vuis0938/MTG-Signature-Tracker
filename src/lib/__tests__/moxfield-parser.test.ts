@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { parseMoxfieldFormat, detectFormat } from "../moxfield-parser";
 
 // ═════════════════════════════════════════════════════════════
-// parseMoxfieldFormat — Moxfield 格式（已有）
+// parseMoxfieldFormat — Moxfield 格式
 // ═════════════════════════════════════════════════════════════
 
 describe("parseMoxfieldFormat — Moxfield", () => {
@@ -43,6 +43,13 @@ describe("parseMoxfieldFormat — Moxfield", () => {
 
   it("去除 *S* 标记", () => {
     const result = parseMoxfieldFormat("1 *S* Sol Ring (CMM) 345");
+    expect(result).toEqual([
+      { count: "1", name: "Sol Ring", setCode: "CMM", collectorNumber: "345" },
+    ]);
+  });
+
+  it("去除 #tag 注释", () => {
+    const result = parseMoxfieldFormat("1 Sol Ring (CMM) 345 #Card Advantage #Draw");
     expect(result).toEqual([
       { count: "1", name: "Sol Ring", setCode: "CMM", collectorNumber: "345" },
     ]);
@@ -113,45 +120,85 @@ invalid line
 
 // ═════════════════════════════════════════════════════════════
 // parseMoxfieldFormat — Arena 格式
+// 实际 Arena 导出格式：无系列/编号，有 About/Commander/Deck/Sideboard 分区头
 // ═════════════════════════════════════════════════════════════
 
 describe("parseMoxfieldFormat — Arena", () => {
-  it("跳过 Deck 头", () => {
+  it("跳过 Deck 头，解析简单格式卡牌", () => {
     const text = `Deck
-1 Sol Ring (CMM) 345
-1 Arcane Signet (SLD) 123`;
+1 Sol Ring
+1 Arcane Signet`;
     const result = parseMoxfieldFormat(text);
     expect(result).toHaveLength(2);
-    expect(result[0].name).toBe("Sol Ring");
+    expect(result[0]).toEqual({ count: "1", name: "Sol Ring" });
+    expect(result[1]).toEqual({ count: "1", name: "Arcane Signet" });
   });
 
   it("跳过 Deck 和 Sideboard 头", () => {
     const text = `Deck
-1 Sol Ring (CMM) 345
+1 Sol Ring
 
 Sideboard
-1 Pithing Needle (MID) 256`;
+1 Pithing Needle`;
     const result = parseMoxfieldFormat(text);
     expect(result).toHaveLength(2);
     expect(result[0].name).toBe("Sol Ring");
     expect(result[1].name).toBe("Pithing Needle");
   });
 
-  it("跳过 Companion 头", () => {
-    const text = `Companion
-1 Lurrus of the Dream-Den (IKO) 226
+  it("跳过 About 头及其内容行", () => {
+    const text = `About
+Name (Secrets of Strixhaven Commander) Lorehold Spirit
 
 Deck
-1 Sol Ring (CMM) 345`;
+1 Sol Ring
+1 Arcane Signet`;
     const result = parseMoxfieldFormat(text);
     expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({ count: "1", name: "Sol Ring" });
+    expect(result[1]).toEqual({ count: "1", name: "Arcane Signet" });
   });
 
-  it("去除 #tag 注释", () => {
-    const result = parseMoxfieldFormat("1 Sol Ring (CMM) 345 #Card Advantage #Draw");
-    expect(result).toEqual([
-      { count: "1", name: "Sol Ring", setCode: "CMM", collectorNumber: "345" },
-    ]);
+  it("跳过 Commander 和 Companion 头", () => {
+    const text = `Companion
+1 Lurrus of the Dream-Den
+
+Commander
+1 Quintorius, History Chaser
+
+Deck
+1 Sol Ring`;
+    const result = parseMoxfieldFormat(text);
+    expect(result).toHaveLength(3);
+    expect(result[0].name).toBe("Lurrus of the Dream-Den");
+    expect(result[1].name).toBe("Quintorius, History Chaser");
+    expect(result[2].name).toBe("Sol Ring");
+  });
+
+  it("完整 Arena 格式（含 About/Commander/Deck）", () => {
+    const text = `About
+Name (Secrets of Strixhaven Commander) Lorehold Spirit
+
+Commander
+1 Quintorius, History Chaser
+
+Deck
+1 Arcane Signet
+1 Arena of Glory
+10 Mountain
+
+Sideboard
+1 Abrade`;
+    const result = parseMoxfieldFormat(text);
+    expect(result).toHaveLength(5);
+    // Commander
+    expect(result[0]).toEqual({ count: "1", name: "Quintorius, History Chaser" });
+    // Deck
+    expect(result[1]).toEqual({ count: "1", name: "Arcane Signet" });
+    expect(result[2]).toEqual({ count: "1", name: "Arena of Glory" });
+    expect(result[3]).toEqual({ count: "10", name: "Mountain" });
+    // Sideboard
+    expect(result[4]).toEqual({ count: "1", name: "Abrade" });
   });
 });
 
@@ -208,15 +255,33 @@ describe("detectFormat", () => {
 
   it("检测 Arena 格式（有 Deck 头）", () => {
     const text = `Deck
-1 Sol Ring (CMM) 345`;
+1 Sol Ring`;
+    expect(detectFormat(text)).toBe("arena");
+  });
+
+  it("检测 Arena 格式（有 About 头）", () => {
+    const text = `About
+Name My Deck
+
+Deck
+1 Sol Ring`;
     expect(detectFormat(text)).toBe("arena");
   });
 
   it("检测 Arena 格式（有 Sideboard 头）", () => {
-    const text = `1 Sol Ring (CMM) 345
+    const text = `1 Sol Ring
 
 Sideboard
-1 Pithing Needle (MID) 256`;
+1 Pithing Needle`;
+    expect(detectFormat(text)).toBe("arena");
+  });
+
+  it("检测 Arena 格式（有 Commander 头）", () => {
+    const text = `Commander
+1 Atraxa, Praetors' Voice
+
+Deck
+1 Sol Ring`;
     expect(detectFormat(text)).toBe("arena");
   });
 

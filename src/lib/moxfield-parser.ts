@@ -3,9 +3,9 @@
  *
  * 支持 Moxfield 四种导出格式的自动检测与解析：
  *   - Copy for Moxfield:  "1 Sol Ring (CMM) 345"
- *   - Copy for Arena:     "1 Sol Ring (CMM) 345"  (含 Deck/Sideboard 头 + #tag)
- *   - Copy for MTGO:      "1 Sol Ring"            (无系列/编号)
- *   - Copy Plain Text:    "1 Sol Ring"            (无系列/编号)
+ *   - Copy for Arena:     "Deck\n1 Sol Ring"  (含 About/Commander/Deck/Sideboard 分区头，无系列/编号)
+ *   - Copy for MTGO:      "1 Sol Ring"        (无系列/编号)
+ *   - Copy Plain Text:    "1 Sol Ring"        (无系列/编号)
  *
  * 统一 import-deck 和 add-cards 的解析逻辑。
  */
@@ -14,10 +14,10 @@ import { CardRow, ImportFormat } from "@/types";
 
 // ─── 正则 ──────────────────────────────────────────────────
 
-/** Moxfield / Arena：有系列和编号 */
+/** Moxfield：有系列和编号 */
 const RE_FULL = /^(\d+)\s+(.+?)\s+\((\w+)\)\s+(\S+)/i;
 
-/** MTGO / Plain Text：仅有数量 + 卡名 */
+/** Arena / MTGO / Plain Text：仅有数量 + 卡名 */
 const RE_SIMPLE = /^(\d+)\s+(.+)$/;
 
 // ─── 检测 ──────────────────────────────────────────────────
@@ -30,13 +30,13 @@ export function detectFormat(text: string): ImportFormat {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
   if (lines.length === 0) return "moxfield";
 
-  // 检查是否有 Deck/Sideboard 头（Arena 特征）
+  // 检查是否有 Arena 特有分区头（About / Commander / Deck / Sideboard / Companion）
   const hasArenaHeader = lines.some(
-    (l) => /^(Deck|Sideboard|Companion|Commander)$/i.test(l)
+    (l) => /^(About|Deck|Sideboard|Companion|Commander)$/i.test(l)
   );
   if (hasArenaHeader) return "arena";
 
-  // 抽样检查：有 (SET) NUMBER 的就是 Moxfield/Arena 格式
+  // 抽样检查：有 (SET) NUMBER 的就是 Moxfield 格式
   let fullCount = 0;
   let simpleCount = 0;
   const sampleSize = Math.min(lines.length, 10);
@@ -55,9 +55,9 @@ function stripTags(line: string): string {
   return line.replace(/\s*\*[FS]\*/g, "").replace(/\s*#\S.*$/, "").trim();
 }
 
-/** 判断是否为 Arena 的节头行 */
+/** 判断是否为 Arena 分区头行（About 区、Commander、Deck、Sideboard、Companion） */
 function isHeaderLine(line: string): boolean {
-  return /^(Deck|Sideboard|Companion|Commander)$/i.test(line.trim());
+  return /^(About|Deck|Sideboard|Companion|Commander)$/i.test(line.trim());
 }
 
 // ─── 解析 ──────────────────────────────────────────────────

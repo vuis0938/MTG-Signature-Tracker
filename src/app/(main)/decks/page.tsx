@@ -530,8 +530,8 @@ export default function DecksPage() {
                 id="text"
                 placeholder={`粘贴套牌列表内容，支持以下格式：
 ◆ Copy for Moxfield：1 Sol Ring (CMM) 345
-◆ Copy for Arena：  1 Sol Ring (CMM) 345
-  （含 Deck/Sideboard 头）
+◆ Copy for Arena：  Deck\\n1 Sol Ring
+  （含 About/Commander/Deck/Sideboard 分区头）
 ◆ Copy for MTGO：   1 Sol Ring
 ◆ Copy Plain Text： 1 Sol Ring`}
                 rows={8}
@@ -544,7 +544,7 @@ export default function DecksPage() {
                 1. 在 Moxfield 牌表页面，点击每张卡牌 → <b>Switch Printing</b> 切换为实际持有的印刷版本<br />
                 2. 点击 <b>Export</b> → 选择 <b>Copy for Moxfield</b>（推荐）、<b>Copy for Arena</b>、<b>Copy for MTGO</b> 或 <b>Copy Plain Text</b><br />
                 3. 粘贴到上方文本框 → 点击「开始导入」<br />
-                注意：MTGO 和 Plain Text 格式不含系列/编号信息，导入时会自动匹配最接近的印刷版本。
+                注意：Arena、MTGO 和 Plain Text 格式不含系列/编号信息，导入时会自动按卡名匹配最接近的印刷版本。
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -643,7 +643,7 @@ export default function DecksPage() {
               id="addCardsText"
               placeholder={`粘贴套牌列表内容，支持以下格式：
 ◆ Copy for Moxfield：1 Sol Ring (CMM) 345
-◆ Copy for Arena：  1 Sol Ring (CMM) 345
+◆ Copy for Arena：  Deck\\n1 Sol Ring
 ◆ Copy for MTGO：   1 Sol Ring
 ◆ Copy Plain Text： 1 Sol Ring`}
               rows={6}
