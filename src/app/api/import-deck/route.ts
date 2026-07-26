@@ -177,14 +177,20 @@ export async function POST(request: NextRequest) {
     const tTotal = ((Date.now() - t0) / 1000).toFixed(1);
     const tS = ((tScryfallDone - tScryfall) / 1000).toFixed(1);
 
-    // ── 后台异步填充模糊匹配缓存（fire-and-forget，不阻塞响应） ──
+    // ── 同步填充模糊匹配缓存（等缓存写完再返回响应） ──
+    const tCacheStart = Date.now();
     const uniqueCardNames = [...new Set(cardsToInsert.map((c) => c.card_name as string))];
+    let cacheCount = 0;
     if (uniqueCardNames.length > 0) {
-      fetch(`${request.nextUrl.origin}/api/cache-printings`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cardNames: uniqueCardNames }),
-      }).catch(() => {}); // 静默失败，不影响主流程
+      try {
+        const cacheRes = await fetch(`${request.nextUrl.origin}/api/cache-printings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cardNames: uniqueCardNames }),
+        });
+        const cacheData = await cacheRes.json();
+        cacheCount = cacheData.cached || 0;
+      } catch {}
     }
 
     return NextResponse.json({
@@ -198,6 +204,7 @@ export async function POST(request: NextRequest) {
         total: `${tTotal}s`,
         scryfall: `${tS}s (${rows.length} cards × ${CONCURRENCY} concurrent)`,
         db: `${(tDB / 1000).toFixed(1)}s`,
+        cache: `${((Date.now() - tCacheStart) / 1000).toFixed(1)}s (${cacheCount} cached)`,
       },
       results,
     });
