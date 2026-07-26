@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import {
+  extractArtists,
+  extractImageUrl,
+} from "@/lib/scryfall";
+import { quickFetchCard, searchCardByName, RateLimiter } from "@/lib/scryfall-client";
 import { parseMoxfieldFormat, detectFormat } from "@/lib/moxfield-parser";
 
 // ─── API Handler ──────────────────────────────────────────
 
+export const maxDuration = 60; // Vercel Fluid Compute: Hobby 最大 300s，60s 绰绰有余
+
 export async function POST(request: NextRequest) {
+  const t0 = Date.now();
+
   try {
     const body = await request.json();
     const { name, text } = body as { name?: string; text?: string };
@@ -46,11 +55,93 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `创建套牌失败: ${deckError?.message}` }, { status: 500 });
     }
 
+    // ── 令牌桶限速并发查询 Scryfall ──
+    const RATE = 9;
+    const rateLimiter = new RateLimiter(RATE);
+    const tScryfall = Date.now();
+
+    const cardResults = await Promise.all(
+      rows.map(async (card) => {
+        await rateLimiter.acquire();
+        const data = card.setCode
+          ? await quickFetchCard(card.setCode, card.collectorNumber!)
+          : await searchCardByName(card.name);
+        return { card, data };
+      })
+    );
+
+    const tScryfallDone = Date.now();
+
+    // ── 批量写入 Supabase ──
+    let successCount = 0;
+    let failCount = 0;
+    const failedCards: Array<{ name: string; setCode?: string; collectorNumber?: string }> = [];
+    const cardsToInsert: Array<Record<string, unknown>> = [];
+
+    for (const { card, data } of cardResults) {
+      if (!data) {
+        failCount += parseInt(card.count, 10) || 1;
+        failedCards.push({
+          name: card.name,
+          setCode: card.setCode,
+          collectorNumber: card.collectorNumber,
+        });
+        continue;
+      }
+      const count = parseInt(card.count, 10) || 1;
+      for (let i = 0; i < count; i++) {
+        cardsToInsert.push({
+          deck_id: deck.id,
+          scryfall_id: data.id,
+          card_name: data.name,
+          set_name: data.set_name,
+          set_code: data.set,
+          collector_number: data.collector_number,
+          artist_names: extractArtists(data),
+          image_url: extractImageUrl(data),
+        });
+      }
+      successCount += count;
+    }
+
+    const tBeforeDB = Date.now();
+    if (cardsToInsert.length > 0) {
+      const { error: batchError } = await supabase.from("cards").insert(cardsToInsert);
+      if (batchError) {
+        console.warn("[Import] 批量写入失败，降级:", batchError.message);
+        for (const c of cardsToInsert) {
+          await supabase.from("cards").insert(c);
+        }
+      }
+    }
+    const tDB = Date.now() - tBeforeDB;
+    const tTotal = ((Date.now() - t0) / 1000).toFixed(1);
+    const tS = ((tScryfallDone - tScryfall) / 1000).toFixed(1);
+
+    // ── 同步填充模糊匹配缓存 ──
+    const uniqueCardNames = [...new Set(cardsToInsert.map((c) => c.card_name as string))];
+    if (uniqueCardNames.length > 0) {
+      try {
+        fetch(`${request.nextUrl.origin}/api/cache-printings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cardNames: uniqueCardNames }),
+        }).catch(() => {});
+      } catch {}
+    }
+
     return NextResponse.json({
       success: true,
       deckId: deck.id,
-      rows,
       total: rows.length,
+      successCount,
+      failCount,
+      failedCards,
+      timing: {
+        total: `${tTotal}s`,
+        scryfall: `${tS}s (${rows.length} cards @ ${RATE}/s)`,
+        db: `${(tDB / 1000).toFixed(1)}s`,
+      },
     });
   } catch (error) {
     console.error("[Import]", error);

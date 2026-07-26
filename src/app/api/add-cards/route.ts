@@ -1,25 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { extractArtists, extractImageUrl, ScryfallCard } from "@/lib/scryfall";
+import { extractArtists, extractImageUrl } from "@/lib/scryfall";
 import { quickFetchCard, searchCardByName, RateLimiter } from "@/lib/scryfall-client";
 import { parseMoxfieldFormat } from "@/lib/moxfield-parser";
-import type { CardRow } from "@/types";
 
 // ─── API Handler ──────────────────────────────────────────
 
-export const maxDuration = 30; // 延长 Vercel 超时至 30 秒（Pro 计划）
+export const maxDuration = 60; // Vercel Fluid Compute: Hobby 最大 300s，60s 绰绰有余
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { deckId, text, rows: preParsedRows } = body as {
-      deckId?: string;
-      text?: string;
-      rows?: any[]; // 预解析的 rows（来自 import-deck）
-    };
+    const { deckId, text } = body as { deckId?: string; text?: string };
 
     if (!deckId?.trim()) {
       return NextResponse.json({ error: "缺少套牌 ID" }, { status: 400 });
+    }
+    if (!text?.trim()) {
+      return NextResponse.json({ error: "请粘贴套牌列表内容" }, { status: 400 });
     }
 
     // 验证套牌存在
@@ -33,11 +31,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "套牌不存在" }, { status: 404 });
     }
 
-    // 解析：如果没传预解析的，自己解析
-    let rows: CardRow[] = preParsedRows || [];
-    if (rows.length === 0 && text) {
-      rows = parseMoxfieldFormat(text);
-    }
+    // 解析
+    const rows = parseMoxfieldFormat(text);
     if (rows.length === 0) {
       return NextResponse.json(
         { error: "未识别到有效卡牌。支持 Moxfield 的 Copy for Moxfield / Arena / MTGO / Plain Text 格式" },
@@ -106,11 +101,11 @@ export async function POST(request: NextRequest) {
     const uniqueCardNames = [...new Set(cardsToInsert.map((c) => c.card_name as string))];
     if (uniqueCardNames.length > 0) {
       try {
-        await fetch(`${request.nextUrl.origin}/api/cache-printings`, {
+        fetch(`${request.nextUrl.origin}/api/cache-printings`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ cardNames: uniqueCardNames }),
-        });
+        }).catch(() => {});
       } catch {}
     }
 
