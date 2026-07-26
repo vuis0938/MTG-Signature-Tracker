@@ -16,7 +16,7 @@ interface Printing {
 /**
  * POST /api/cache-printings
  * 接收一组去重卡牌名，从 Scryfall 拉取所有印刷版本并写入 card_printings 表
- * 由导入流程在后台异步调用，不阻塞导入响应
+ * 由导入/添加卡牌流程同步调用，需等待缓存完成才返回
  */
 export async function POST(request: NextRequest) {
   try {
