@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/user";
-import Fuse from "fuse.js";
 import { Search, Download, CheckSquare, Square, Loader2, Sparkles } from "lucide-react";
 import {
   Dialog,
@@ -579,7 +578,7 @@ export default function MatchPage() {
       }
     }
 
-    // 6. 匹配活动画家（简化逻辑：先精确匹配，再 Fuse 兜底）
+    // 6. 匹配活动画家（纯精确匹配，不用 Fuse 近似）
     // 构建 expandedArtistCards 的 key→entries 映射
     const expandedKeyMap = new Map<string, FuzzyCardEntry[]>();
     for (const [artist, entries] of expandedArtistCards) {
@@ -593,13 +592,6 @@ export default function MatchPage() {
       expandedKeyMap.set(key, existing);
     }
 
-    const expandedNames = [...new Set(Array.from(expandedArtistCards.keys()))];
-    const fuse = new Fuse(expandedNames, {
-      threshold: 0.4,
-      distance: 100,
-      includeScore: true,
-    });
-
     const newFuzzyMatched = new Map<string, FuzzyCardEntry[]>();
     const newUnmatched: string[] = [];
 
@@ -609,14 +601,6 @@ export default function MatchPage() {
 
       if (entries && entries.length > 0) {
         newFuzzyMatched.set(parsedArtist, entries);
-        continue;
-      }
-
-      // Fuse 兜底
-      const result = fuse.search(parsedArtist);
-      if (result.length > 0 && result[0].score !== undefined && result[0].score < 0.4) {
-        const matchedKey = result[0].item.toLowerCase().trim();
-        newFuzzyMatched.set(parsedArtist, expandedKeyMap.get(matchedKey) || []);
       } else {
         newUnmatched.push(parsedArtist);
       }
