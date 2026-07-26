@@ -260,10 +260,13 @@ export default function MatchPage() {
     const artistCards = buildArtistCards(cards || []);
     const dbArtists = Array.from(artistCards.keys());
 
-    // 构建小写 → 原名映射，用于精确匹配
-    const lowerMap = new Map<string, string>();
+    // 构建小写 → [原名列表] 映射，处理大小写不同的同名画家
+    const lowerMap = new Map<string, string[]>();
     for (const dbName of dbArtists) {
-      lowerMap.set(dbName.toLowerCase(), dbName);
+      const lower = dbName.toLowerCase();
+      const existing = lowerMap.get(lower) || [];
+      existing.push(dbName);
+      lowerMap.set(lower, existing);
     }
 
     const fuse = new Fuse(dbArtists, {
@@ -277,9 +280,11 @@ export default function MatchPage() {
 
     for (const artist of parsedArtists) {
       // 第一步：精确匹配（忽略大小写），不受池大小影响
-      const exactMatch = lowerMap.get(artist.toLowerCase());
-      if (exactMatch) {
-        mergeCardsToMatched(newMatched, artistCards, exactMatch, artist);
+      const matches = lowerMap.get(artist.toLowerCase());
+      if (matches && matches.length > 0) {
+        for (const dbName of matches) {
+          mergeCardsToMatched(newMatched, artistCards, dbName, artist);
+        }
         continue;
       }
 
@@ -305,16 +310,18 @@ export default function MatchPage() {
     dbName: string,
     artist: string
   ) {
-    const existingCards = newMatched.get(dbName) || [];
+    // 用 artist（解析出的画家名）作为 key 取已有卡牌，避免多次调用时覆盖
+    const existingCards = newMatched.get(artist) || [];
     const newCards = artistCards.get(dbName) || [];
+    const seenIds = new Set(existingCards.map((c) => c.id));
     for (const card of newCards) {
-      if (!existingCards.find((c) => c.id === card.id)) {
+      if (!seenIds.has(card.id)) {
+        seenIds.add(card.id);
         existingCards.push(card);
       }
     }
-    newMatched.set(dbName, existingCards);
+    newMatched.set(artist, existingCards);
     if (dbName !== artist) {
-      newMatched.set(artist, existingCards);
       newMatched.delete(dbName);
     }
   }
@@ -343,9 +350,12 @@ export default function MatchPage() {
     // 2. 先跑精确匹配，作为基线（保证模糊 ≥ 精确）
     const artistCards = buildArtistCards(cards);
     const dbArtists = Array.from(artistCards.keys());
-    const exactLowerMap = new Map<string, string>();
+    const exactLowerMap = new Map<string, string[]>();
     for (const dbName of dbArtists) {
-      exactLowerMap.set(dbName.toLowerCase(), dbName);
+      const lower = dbName.toLowerCase();
+      const existing = exactLowerMap.get(lower) || [];
+      existing.push(dbName);
+      exactLowerMap.set(lower, existing);
     }
     const exactFuse = new Fuse(dbArtists, {
       threshold: 0.4,
@@ -357,9 +367,11 @@ export default function MatchPage() {
     const exactMatchedArtists = new Set<string>();
     for (const artist of parsedArtists) {
       // 先精确匹配
-      const exactMatch = exactLowerMap.get(artist.toLowerCase());
-      if (exactMatch) {
-        exactMatchedArtists.add(exactMatch);
+      const matches = exactLowerMap.get(artist.toLowerCase());
+      if (matches && matches.length > 0) {
+        for (const dbName of matches) {
+          exactMatchedArtists.add(dbName);
+        }
         continue;
       }
       // 再 Fuse 兜底
@@ -467,9 +479,12 @@ export default function MatchPage() {
 
     // 6. 匹配活动画家（先精确匹配，再 Fuse 兜底）
     const allArtists = Array.from(expandedArtistCards.keys());
-    const fuzzyLowerMap = new Map<string, string>();
+    const fuzzyLowerMap = new Map<string, string[]>();
     for (const a of allArtists) {
-      fuzzyLowerMap.set(a.toLowerCase(), a);
+      const lower = a.toLowerCase();
+      const existing = fuzzyLowerMap.get(lower) || [];
+      existing.push(a);
+      fuzzyLowerMap.set(lower, existing);
     }
     const fuse = new Fuse(allArtists, {
       threshold: 0.4,
@@ -482,26 +497,30 @@ export default function MatchPage() {
 
     function mergeFuzzyEntries(dbName: string, artist: string) {
       const entries = expandedArtistCards.get(dbName) || [];
-      const existing = newFuzzyMatched.get(dbName) || [];
+      const existing = newFuzzyMatched.get(artist) || [];
+      const seenKeys = new Set(existing.map((e) => `${e.card_name}|${e.set_code}|${e.collector_number}`));
 
       for (const entry of entries) {
-        if (!existing.find((e) => e.card_name === entry.card_name && e.set_code === entry.set_code && e.collector_number === entry.collector_number)) {
+        const key = `${entry.card_name}|${entry.set_code}|${entry.collector_number}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
           existing.push(entry);
         }
       }
 
-      newFuzzyMatched.set(dbName, existing);
+      newFuzzyMatched.set(artist, existing);
       if (dbName !== artist) {
-        newFuzzyMatched.set(artist, existing);
         newFuzzyMatched.delete(dbName);
       }
     }
 
     for (const artist of parsedArtists) {
       // 第一步：精确匹配（忽略大小写），不受池大小影响
-      const exactMatch = fuzzyLowerMap.get(artist.toLowerCase());
-      if (exactMatch) {
-        mergeFuzzyEntries(exactMatch, artist);
+      const matches = fuzzyLowerMap.get(artist.toLowerCase());
+      if (matches && matches.length > 0) {
+        for (const dbName of matches) {
+          mergeFuzzyEntries(dbName, artist);
+        }
         continue;
       }
 
