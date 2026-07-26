@@ -12,13 +12,14 @@ export const maxDuration = 30; // 延长 Vercel 超时至 30 秒（Pro 计划）
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { deckId, text } = body as { deckId?: string; text?: string };
+    const { deckId, text, rows: preParsedRows } = body as {
+      deckId?: string;
+      text?: string;
+      rows?: any[]; // 预解析的 rows（来自 import-deck）
+    };
 
     if (!deckId?.trim()) {
       return NextResponse.json({ error: "缺少套牌 ID" }, { status: 400 });
-    }
-    if (!text?.trim()) {
-      return NextResponse.json({ error: "请粘贴套牌列表内容" }, { status: 400 });
     }
 
     // 验证套牌存在
@@ -32,8 +33,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "套牌不存在" }, { status: 404 });
     }
 
-    // 解析
-    const rows = parseMoxfieldFormat(text);
+    // 解析：如果没传预解析的，自己解析
+    let rows: CardRow[] = preParsedRows || [];
+    if (rows.length === 0 && text) {
+      rows = parseMoxfieldFormat(text);
+    }
     if (rows.length === 0) {
       return NextResponse.json(
         { error: "未识别到有效卡牌。支持 Moxfield 的 Copy for Moxfield / Arena / MTGO / Plain Text 格式" },
@@ -43,17 +47,10 @@ export async function POST(request: NextRequest) {
 
     // 令牌桶限速并发查询 Scryfall
     const RATE = 9;
-    const TIME_LIMIT_MS = 9_000;
     const rateLimiter = new RateLimiter(RATE);
-    const tScryfall = Date.now();
-    let timedOut = false;
 
     const cardResults = await Promise.all(
       rows.map(async (card) => {
-        if (Date.now() - tScryfall > TIME_LIMIT_MS) {
-          timedOut = true;
-          return { card, data: null };
-        }
         await rateLimiter.acquire();
         const data = card.setCode
           ? await quickFetchCard(card.setCode, card.collectorNumber!)
@@ -62,11 +59,6 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    if (timedOut) {
-      console.warn(`[AddCards] 时间保护触发：${cardResults.filter((r) => !r.data).length} 张因超时跳过`);
-    }
-
-    // 批量写入
     let successCount = 0;
     let failCount = 0;
     const failedCards: Array<{ name: string; setCode?: string; collectorNumber?: string }> = [];
@@ -129,7 +121,6 @@ export async function POST(request: NextRequest) {
       successCount,
       failCount,
       failedCards,
-      timedOut,
     });
   } catch (error) {
     console.error("[AddCards]", error);

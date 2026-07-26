@@ -22,7 +22,7 @@ import {
   DialogDescription,
   DialogContent,
 } from "@/components/ui/dialog";
-import type { Deck, CardEntry, DeckStats, Printing } from "@/types";
+import type { CardRow, Deck, CardEntry, DeckStats, Printing } from "@/types";
 
 // ─── 纯工具函数 ──────────────────────────────────────────
 
@@ -51,6 +51,7 @@ export default function DecksPage() {
   const [deckName, setDeckName] = useState("");
   const [deckText, setDeckText] = useState("");
   const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState<string | null>(null); // 分批导入进度
 
   // Toast 通知
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -169,6 +170,16 @@ export default function DecksPage() {
 
   // ─── 导入套牌 ──────────────────────────────────────────
 
+// ─── 分批导入套牌 ──────────────────────────────────────────
+//
+// 流程：
+//  1. 解析套牌并创建空套牌 → 1 秒内完成
+//  2. 把所有卡牌分成每批 20-30 张，分批调用 add-cards
+//  3. 每批请求都不超过 10 秒，全程可以看到进度
+//  4. 全部导入完成后通知结果
+//
+// 优势：不管多少张卡牌，不会被 Vercel 一刀切断，能等到全部完成
+//
   const handleImport = useCallback(async () => {
     if (!deckName.trim()) {
       setToast({ message: "请输入套牌名称", type: "error" });
@@ -180,46 +191,94 @@ export default function DecksPage() {
     }
 
     setImporting(true);
+    let totalSuccess = 0;
+    let totalFail = 0;
+    let allFailedCards: typeof failedCards = [];
 
     try {
-      const res = await fetch("/api/import-deck", {
+      // 第一步：创建套牌并解析
+      setImportProgress("正在解析...");
+      const createRes = await fetch("/api/import-deck", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: deckName, text: deckText }),
       });
+      const createData = await createRes.json();
 
-      const data = await res.json();
+      if (!createData.success) {
+        setToast({ message: createData.error, type: "error" });
+        return;
+      }
 
-      if (data.success) {
-        const t = data.timing;
-        const hasFailures = data.failCount > 0;
-        const timeoutHint = data.timedOut ? "（超时保护，剩余卡牌可点击下方重试）" : "";
-        const msg =
-          `✅ 「${deckName}」${data.successCount}/${data.total} 张成功` +
-          (hasFailures ? `，${data.failCount} 张未找到${timeoutHint}` : "") +
-          ` | ${t.total}`;
+      const deckId = createData.deckId;
+      const allRows = createData.rows;
+      const total = createData.total;
 
-        setToast({ message: msg, type: hasFailures ? "error" : "success" });
+      // 第二步：分批查询 Scryfall，每批 25 张
+      const BATCH_SIZE = 25; // 每批 25 张 ≈ 3 秒，远小于 10 秒限制
+      let processed = 0;
 
-        if (hasFailures && data.failedCards) {
-          setFailedCards(data.failedCards);
-          setRetryingDeckId(data.deckId);
+      for (let i = 0; i < allRows.length; i += BATCH_SIZE) {
+        const batch = allRows.slice(i, i + BATCH_SIZE);
+        processed += batch.length;
+        setImportProgress(`导入中... ${processed}/${total}`);
+
+        const addRes = await fetch("/api/add-cards", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ deckId, rows: batch }),
+        });
+        const addData = await addRes.json();
+
+        if (addData.success) {
+          totalSuccess += addData.successCount;
+          totalFail += addData.failCount;
+          if (addData.failedCards) {
+            allFailedCards.push(...addData.failedCards);
+          }
         } else {
-          setFailedCards([]);
-          setRetryingDeckId(null);
+          // 单批失败，把这一批全部标记为失败
+          batch.forEach(row => {
+            totalFail += parseInt(row.count, 10) || 1;
+            allFailedCards.push({
+              name: row.name,
+              setCode: row.setCode,
+              collectorNumber: row.collectorNumber,
+            });
+          });
         }
 
-        setDeckName("");
-        setDeckText("");
-        setShowImport(false);
-        await loadDecks();
-      } else {
-        setToast({ message: data.error, type: "error" });
+        // 批之间短等待，避免连续请求冲击
+        if (i + BATCH_SIZE < allRows.length) {
+          await new Promise(r => setTimeout(r, 500));
+        }
       }
+
+      // 全部完成
+      const hasFailures = totalFail > 0;
+      const msg =
+        `✅ 「${deckName}」${totalSuccess}/${total} 张成功` +
+        (hasFailures ? `，${totalFail} 张未找到` : "");
+
+      setToast({ message: msg, type: hasFailures ? "error" : "success" });
+
+      if (hasFailures && allFailedCards.length > 0) {
+        setFailedCards(allFailedCards);
+        setRetryingDeckId(deckId);
+      } else {
+        setFailedCards([]);
+        setRetryingDeckId(null);
+      }
+
+      setDeckName("");
+      setDeckText("");
+      setShowImport(false);
+      await loadDecks();
     } catch {
       setToast({ message: "网络错误，请重试", type: "error" });
     } finally {
       setImporting(false);
+      setImportProgress(null);
     }
   }, [deckName, deckText, loadDecks]);
 
@@ -555,7 +614,12 @@ export default function DecksPage() {
             </div>
             <div className="flex items-center gap-3">
               <Button onClick={handleImport} disabled={importing}>
-                {importing ? "导入中..." : "开始导入"}
+                {importing ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {importProgress || "导入中..."}
+                  </span>
+                ) : "开始导入"}
               </Button>
               <Button variant="outline" onClick={() => setShowImport(false)}>
                 取消
