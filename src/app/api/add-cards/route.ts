@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractArtists, extractImageUrl } from "@/lib/scryfall";
+import type { ScryfallCard } from "@/lib/scryfall";
 import { quickFetchCard, searchCardByName, RateLimiter } from "@/lib/scryfall-client";
 import { parseMoxfieldFormat } from "@/lib/moxfield-parser";
 
 // ─── API Handler ──────────────────────────────────────────
 
-export const maxDuration = 60; // Vercel Fluid Compute: Hobby 最大 300s，60s 绰绰有余
+export const maxDuration = 180; // Vercel Fluid Compute: Hobby 最大 300s，180s 足够处理约 1600 张卡
 
 export async function POST(request: NextRequest) {
+  const t0 = Date.now();
+
   try {
     const body = await request.json();
     const { deckId, text } = body as { deckId?: string; text?: string };
@@ -40,26 +43,47 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 令牌桶限速并发查询 Scryfall
+    // 令牌桶限速顺序查询 Scryfall（170s 软截止）
     const RATE = 9;
     const rateLimiter = new RateLimiter(RATE);
+    const SOFT_DEADLINE_MS = 170 * 1000; // 170s 软截止，留 10s 给 DB 写入和响应
 
-    const cardResults = await Promise.all(
-      rows.map(async (card) => {
-        await rateLimiter.acquire();
-        const data = card.setCode
-          ? await quickFetchCard(card.setCode, card.collectorNumber!)
-          : await searchCardByName(card.name);
-        return { card, data };
-      })
-    );
+    const cardResults: Array<{ card: (typeof rows)[number]; data: ScryfallCard | null; timedOut: boolean }> = [];
+
+    for (const card of rows) {
+      if (Date.now() - t0 > SOFT_DEADLINE_MS) {
+        cardResults.push({ card, data: null, timedOut: true });
+        continue;
+      }
+      await rateLimiter.acquire();
+      if (Date.now() - t0 > SOFT_DEADLINE_MS) {
+        cardResults.push({ card, data: null, timedOut: true });
+        continue;
+      }
+      const data = card.setCode
+        ? await quickFetchCard(card.setCode, card.collectorNumber!)
+        : await searchCardByName(card.name);
+      cardResults.push({ card, data, timedOut: false });
+    }
 
     let successCount = 0;
     let failCount = 0;
     const failedCards: Array<{ name: string; setCode?: string; collectorNumber?: string }> = [];
+    const timedOutCards: Array<{ name: string; setCode?: string; collectorNumber?: string }> = [];
     const cardsToInsert: Array<Record<string, unknown>> = [];
 
-    for (const { card, data } of cardResults) {
+    for (const { card, data, timedOut } of cardResults) {
+      if (timedOut) {
+        const count = parseInt(card.count, 10) || 1;
+        failCount += count;
+        timedOutCards.push({
+          name: card.name,
+          setCode: card.setCode,
+          collectorNumber: card.collectorNumber,
+        });
+        continue;
+      }
+
       if (!data) {
         failCount += parseInt(card.count, 10) || 1;
         failedCards.push({
@@ -109,13 +133,19 @@ export async function POST(request: NextRequest) {
       } catch {}
     }
 
+    const isTimedOut = timedOutCards.length > 0;
     return NextResponse.json({
       success: true,
       deckId,
       total: rows.length,
       successCount,
       failCount,
-      failedCards,
+      failedCards: failedCards.length > 0 ? failedCards : undefined,
+      timedOut: isTimedOut,
+      timedOutCards: isTimedOut ? timedOutCards : undefined,
+      hint: isTimedOut
+        ? `⏱️ 超时保护：${timedOutCards.length} 张卡牌未处理，已添加的 ${successCount} 张已保存。请将剩余卡牌重新添加。`
+        : undefined,
     });
   } catch (error) {
     console.error("[AddCards]", error);

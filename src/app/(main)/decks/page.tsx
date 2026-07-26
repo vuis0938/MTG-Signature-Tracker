@@ -192,16 +192,23 @@ export default function DecksPage() {
 
       if (data.success) {
         const t = data.timing;
-        const hasFailures = data.failCount > 0;
-        const msg =
+        const hasFailures = (data.failCount ?? 0) > 0;
+        const timedOut = data.timedOut;
+        let msg =
           `✅ 「${deckName}」${data.successCount}/${data.total} 张成功` +
-          (hasFailures ? `，${data.failCount} 张未找到` : "") +
-          ` | ${t.total}`;
+          (hasFailures ? `，${data.failCount} 张未处理` : "");
+        if (timedOut) msg += `（超时保护，已导入的已保存）`;
+        msg += ` | ${t.total}`;
 
         setToast({ message: msg, type: hasFailures ? "error" : "success" });
 
-        if (hasFailures && data.failedCards) {
-          setFailedCards(data.failedCards);
+        // 合并失败和超时卡牌，供手动重试
+        const allFailed = [
+          ...(data.failedCards || []),
+          ...(data.timedOutCards || []),
+        ];
+        if (allFailed.length > 0) {
+          setFailedCards(allFailed);
           setRetryingDeckId(data.deckId);
         } else {
           setFailedCards([]);
@@ -323,11 +330,13 @@ export default function DecksPage() {
       const data = await res.json();
 
       if (data.success) {
-        const hasFailures = data.failCount > 0;
-        const timeoutHint = data.timedOut ? "（超时保护，剩余卡牌可重新添加）" : "";
+        const hasFailures = (data.failCount ?? 0) > 0;
+        const timedOut = data.timedOut;
+        let msg = `✅ 添加 ${data.successCount}/${data.total} 张成功`;
+        if (hasFailures) msg += `，${data.failCount} 张未处理`;
+        if (timedOut) msg += `（超时保护，剩余卡牌可重新添加）`;
         setToast({
-          message: `✅ 添加 ${data.successCount}/${data.total} 张成功` +
-            (hasFailures ? `，${data.failCount} 张未找到${timeoutHint}` : ""),
+          message: msg,
           type: hasFailures ? "error" : "success",
         });
         setAddCardsOpen(null);
