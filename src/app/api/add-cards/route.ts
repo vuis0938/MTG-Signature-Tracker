@@ -41,28 +41,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 令牌桶限速顺序查询 Scryfall（170s 软截止）
+    // 分批并发查询 Scryfall（5张/批，令牌桶限速，180s 软截止）
     const RATE = 9;
+    const CONCURRENCY = 5; // 每批并发数，让慢请求（模糊搜索）互相重叠
     const rateLimiter = new RateLimiter(RATE);
     const SOFT_DEADLINE_MS = 180 * 1000; // 180s 软截止，Vercel Hobby 默认 300s 兜底
     const totalCards = rows.reduce((sum, r) => sum + (parseInt(r.count, 10) || 1), 0);
 
     const cardResults: Array<{ card: (typeof rows)[number]; data: ScryfallCard | null; timedOut: boolean }> = [];
 
-    for (const card of rows) {
+    for (let i = 0; i < rows.length; i += CONCURRENCY) {
       if (Date.now() - t0 > SOFT_DEADLINE_MS) {
-        cardResults.push({ card, data: null, timedOut: true });
-        continue;
+        for (let j = i; j < rows.length; j++) {
+          cardResults.push({ card: rows[j], data: null, timedOut: true });
+        }
+        break;
       }
-      await rateLimiter.acquire();
-      if (Date.now() - t0 > SOFT_DEADLINE_MS) {
-        cardResults.push({ card, data: null, timedOut: true });
-        continue;
-      }
-      const data = card.setCode
-        ? await quickFetchCard(card.setCode, card.collectorNumber!)
-        : await searchCardByName(card.name);
-      cardResults.push({ card, data, timedOut: false });
+      const batch = rows.slice(i, i + CONCURRENCY);
+      const batchResults = await Promise.all(
+        batch.map(async (card) => {
+          await rateLimiter.acquire();
+          if (Date.now() - t0 > SOFT_DEADLINE_MS) {
+            return { card, data: null as ScryfallCard | null, timedOut: true };
+          }
+          const data = card.setCode
+            ? await quickFetchCard(card.setCode, card.collectorNumber!)
+            : await searchCardByName(card.name);
+          return { card, data, timedOut: false };
+        })
+      );
+      cardResults.push(...batchResults);
     }
 
     let successCount = 0;
