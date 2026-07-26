@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/user";
-import { LogOut, Download, Trash2, User, Info } from "lucide-react";
+import { LogOut, Download, Trash2, User, Info, Database } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -20,6 +20,7 @@ export default function SettingsPage() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   // ─── 退出登录 ───
@@ -64,6 +65,28 @@ export default function SettingsPage() {
       setToast({ message: "导出失败", type: "error" });
     } finally {
       setExporting(false);
+    }
+  }
+
+  // ─── 补全模糊匹配缓存 ───
+  async function handleBackfill() {
+    setBackfilling(true);
+    try {
+      const res = await fetch("/api/backfill-cache", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        if (data.skipped === data.total) {
+          setToast({ message: `✅ 所有 ${data.total} 张卡牌已缓存，无需补全`, type: "success" });
+        } else {
+          setToast({ message: `✅ 补全完成：${data.cached} 张新增，${data.skipped} 张已存在` + (data.failed > 0 ? `，${data.failed} 张失败` : ""), type: "success" });
+        }
+      } else {
+        setToast({ message: data.error || "补全失败", type: "error" });
+      }
+    } catch {
+      setToast({ message: "补全失败", type: "error" });
+    } finally {
+      setBackfilling(false);
     }
   }
 
@@ -184,6 +207,22 @@ export default function SettingsPage() {
             >
               <Trash2 className="h-4 w-4 mr-2" />
               {clearing ? "清除中..." : "清除"}
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between border-t pt-3">
+            <div>
+              <p className="text-sm font-medium">补全模糊匹配缓存</p>
+              <p className="text-xs text-muted-foreground">为所有历史套牌预填充缓存，加速模糊匹配</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBackfill}
+              disabled={backfilling}
+            >
+              <Database className="h-4 w-4 mr-2" />
+              {backfilling ? "补全中..." : "补全缓存"}
             </Button>
           </div>
         </CardContent>
