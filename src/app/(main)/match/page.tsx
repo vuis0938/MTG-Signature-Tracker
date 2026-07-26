@@ -183,6 +183,15 @@ export default function MatchPage() {
 
   // 🐛 调试面板
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
+  // 📊 原始数据面板 — 存储每张卡的关键信息用于对比
+  const [rawDataPanel, setRawDataPanel] = useState<Array<{
+    deckName: string;
+    cardName: string;
+    setCode: string;
+    artists: string[];
+    status: number;
+    deckId: string;
+  }>>([]);
 
   useEffect(() => {
     supabase
@@ -276,14 +285,17 @@ export default function MatchPage() {
     const deckMap = new Map(currentDecks.map((d) => [d.id, d.name]));
 
     const debug: string[] = [];
-    debug.push(`[精确匹配] 开始查询 ${deckIds.length} 个套牌`);
-    if (typeof window !== "undefined") console.log("[精确匹配] 开始查询", deckIds);
+    const rawRows: Array<{ deckName: string; cardName: string; setCode: string; artists: string[]; status: number; deckId: string }> = [];
 
-    // ✅ 顺序查询（不用 Promise.all，避免并发竞态）
+    debug.push(`🔖 代码版本: v4 (ref+顺序+rawPanel) — ${new Date().toISOString()}`);
+    debug.push(`[精确匹配] 开始查询 ${deckIds.length} 个套牌`);
+    console.log("[精确匹配] 开始查询", deckIds);
+
+    // ✅ 顺序查询
     const allCards: CardEntry[] = [];
     for (const deckId of deckIds) {
       try {
-        const { data, error, status, statusText } = await supabase
+        const { data, error } = await supabase
           .from("cards")
           .select("*")
           .eq("deck_id", deckId);
@@ -295,16 +307,22 @@ export default function MatchPage() {
           continue;
         }
         const count = data?.length || 0;
-        debug.push(`✅ 套牌 "${deckName}" (${deckId}): ${count} 张卡, status=${status}`);
+        debug.push(`✅ 套牌 "${deckName}" (${deckId}): ${count} 张卡`);
+
+        // 🔍 console.table 原始数据
+        const deckRows: Array<Record<string, unknown>> = [];
         if (data && data.length > 0) {
-          // 打印每张卡的关键信息
           for (const card of data) {
             const c = card as CardEntry;
             const artists = normalizeArtists(c.artist_names);
             debug.push(`  📋 ${c.card_name} [${c.set_code}] artists=${JSON.stringify(artists)} status=${c.status}`);
+            rawRows.push({ deckName, cardName: c.card_name, setCode: c.set_code, artists, status: c.status, deckId });
+            deckRows.push({ 卡牌名: c.card_name, 系列: c.set_code, 画家: artists.join(", "), 状态: c.status });
           }
           allCards.push(...(data as CardEntry[]));
         }
+        console.log(`\n=== 套牌: ${deckName} (${count} 张) ===`);
+        console.table(deckRows);
       } catch (err: any) {
         const deckName = deckMap.get(deckId) || deckId;
         debug.push(`💥 套牌 "${deckName}" 查询异常: ${err?.message || String(err)}`);
@@ -313,6 +331,7 @@ export default function MatchPage() {
     }
 
     debug.push(`[精确匹配] 总计获取 ${allCards.length} 张卡牌`);
+    setRawDataPanel(rawRows);
     setDebugInfo([...debug]);
 
     if (allCards.length === 0) {
@@ -380,11 +399,32 @@ export default function MatchPage() {
     debug.push(`[精确匹配] 结果: ${newMatched.size} 位画家匹配, ${totalCards} 张卡, ${newUnmatched.length} 位未匹配`);
     debug.push(`[精确匹配] 匹配画家: ${JSON.stringify([...newMatched.keys()])}`);
     debug.push(`[精确匹配] 未匹配画家: ${JSON.stringify(newUnmatched)}`);
-    setDebugInfo([...debug]);
 
-    if (typeof window !== "undefined") {
-      console.log("[精确匹配] 结果:", { matched: [...newMatched.keys()], unmatched: newUnmatched, totalCards });
+    // 🔍 console.table 最终结果
+    const resultRows: Array<Record<string, unknown>> = [];
+    for (const [artist, cards] of newMatched) {
+      for (const c of cards) {
+        resultRows.push({ 画家: artist, 卡牌: c.card_name, 系列: c.set_code, 套牌: c.deck_name, 状态: c.status });
+      }
     }
+    console.log(`\n=== 最终匹配结果 (${newMatched.size} 位画家, ${totalCards} 张卡) ===`);
+    console.table(resultRows);
+
+    // 🔍 专门检查 "Harbinger"
+    const harbingerCards = allCards.filter((c) => c.card_name.toLowerCase().includes("harbinger"));
+    if (harbingerCards.length > 0) {
+      debug.push(`🔍 找到 ${harbingerCards.length} 张含 "Harbinger" 的卡:`);
+      for (const hc of harbingerCards) {
+        debug.push(`  → ${hc.card_name} [${hc.set_code}] deck=${hc.deck_name} artists=${JSON.stringify(normalizeArtists(hc.artist_names))}`);
+      }
+      // 检查这些卡是否出现在最终结果中
+      const harbingerInResult = resultRows.filter((r) => String(r.卡牌).toLowerCase().includes("harbinger"));
+      debug.push(`🔍 其中 ${harbingerInResult.length} 张出现在最终匹配结果中`);
+    } else {
+      debug.push(`🔍 未找到含 "Harbinger" 的卡牌`);
+    }
+
+    setDebugInfo([...debug]);
 
     setMatched(newMatched);
     setFuzzyMatched(new Map());
@@ -878,6 +918,59 @@ Kev Walker - Table 5
             <pre className="text-xs text-amber-900 whitespace-pre-wrap font-mono max-h-64 overflow-y-auto">
               {debugInfo.join("\n")}
             </pre>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 📊 原始数据对比面板 */}
+      {hasRun && rawDataPanel.length > 0 && (
+        <Card className="border-dashed border-blue-300 bg-blue-50/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <span className="text-blue-600">📊</span> 数据库原始返回 (共 {rawDataPanel.length} 张卡)
+              <span className="text-xs font-normal text-blue-500 ml-2">
+                — 按套牌分组
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const byDeck = new Map<string, typeof rawDataPanel>();
+              for (const row of rawDataPanel) {
+                const arr = byDeck.get(row.deckName) || [];
+                arr.push(row);
+                byDeck.set(row.deckName, arr);
+              }
+              return Array.from(byDeck).map(([deckName, rows]) => (
+                <div key={deckName} className="mb-4 last:mb-0">
+                  <p className="text-sm font-semibold text-blue-800 mb-2">
+                    📦 {deckName} ({rows.length} 张)
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-blue-100">
+                          <th className="p-1.5 text-left border border-blue-200">卡牌名</th>
+                          <th className="p-1.5 text-left border border-blue-200">系列</th>
+                          <th className="p-1.5 text-left border border-blue-200">画家</th>
+                          <th className="p-1.5 text-center border border-blue-200 w-12">状态</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((row, i) => (
+                          <tr key={i} className={row.cardName.toLowerCase().includes("harbinger") ? "bg-yellow-100 font-bold" : ""}>
+                            <td className="p-1.5 border border-blue-100">{row.cardName}</td>
+                            <td className="p-1.5 border border-blue-100">{row.setCode}</td>
+                            <td className="p-1.5 border border-blue-100">{row.artists.join(", ")}</td>
+                            <td className="p-1.5 text-center border border-blue-100">{row.status}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ));
+            })()}
           </CardContent>
         </Card>
       )}
