@@ -22,89 +22,9 @@ import {
 
 // ─── 类型定义 ──────────────────────────────────────────────
 
-import type { Deck, CardEntry, FuzzyCardEntry, ArtistCard, CalendarEvent, Printing } from "@/types";
-
-/** 模糊匹配 API 返回结构 */
-interface FuzzyApiResponse {
-  success: boolean;
-  cardMap?: Record<string, {
-    card_name: string;
-    printings: Printing[];
-    allArtists: string[];
-  }>;
-}
-
-// ─── 纯工具函数（组件体外，不依赖状态） ──────────────────────
-
-/** 安全解析 artist_names：兼容 string[] 和 Supabase 可能返回的 string */
-function normalizeArtists(raw: unknown): string[] {
-  if (Array.isArray(raw)) return raw;
-  if (typeof raw === "string") {
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
-    } catch {}
-    return [raw];
-  }
-  return [];
-}
-
-/** 构建 NFD 规范化 key → 原始 key 映射 */
-function buildNormalizedMap(dbKeys: string[]): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const dbKey of dbKeys) {
-    const normalized = dbKey.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    if (!map.has(normalized)) {
-      map.set(normalized, dbKey);
-    }
-  }
-  return map;
-}
-
-/**
- * 在候选画家中查找匹配。
- * 规则（按优先级）：
- *   1. 精确匹配（大小写不敏感）
- *   2. 首尾名匹配：如 "Dan Scott" 匹配 "Dan Murayama Scott"
- *   3. 变音符号规范化匹配：如 "Milivoj Ceran" 匹配 "Milivoj Ćeran"
- */
-function findMatchingArtist(
-  parsedArtist: string,
-  dbKeys: string[],
-  normalizedMap?: Map<string, string>
-): string | null {
-  const key = parsedArtist.toLowerCase().trim();
-  if (dbKeys.includes(key)) return key;
-
-  const words = key.split(/\s+/).filter(Boolean);
-
-  // 规则 2：首尾名匹配
-  if (words.length >= 2) {
-    const first = words[0];
-    const last = words[words.length - 1];
-    for (const dbKey of dbKeys) {
-      const dbWords = dbKey.split(/\s+/).filter(Boolean);
-      if (dbWords.length >= 2) {
-        if (dbWords[0] === first && dbWords[dbWords.length - 1] === last) {
-          return dbKey;
-        }
-      }
-    }
-  }
-
-  // 规则 3：变音符号规范化
-  const map = normalizedMap ?? buildNormalizedMap(dbKeys);
-  const normalizedKey = key.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  return map.get(normalizedKey) || null;
-}
-
-/** 判断两张卡牌是否是同一印刷版本（同名+同系列+同编号） */
-function isSamePrinting(
-  a: { card_name: string; set_code: string; collector_number: string },
-  b: { card_name: string; set_code: string; collector_number: string }
-): boolean {
-  return a.card_name === b.card_name && a.set_code === b.set_code && a.collector_number === b.collector_number;
-}
+import type { Deck, CardEntry, FuzzyCardEntry, ArtistCard, CalendarEvent } from "@/types";
+import { normalizeArtists, buildNormalizedMap, findMatchingArtist, isSamePrinting } from "@/lib/match-utils";
+import type { FuzzyApiResponse } from "@/lib/match-utils";
 
 // ─── 页面组件 ──────────────────────────────────────────────
 

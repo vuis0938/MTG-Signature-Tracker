@@ -19,8 +19,8 @@ export function parseMoxfieldFormat(text: string): CardRow[] {
   for (const line of text.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-    // 去掉 *F* / *S* 标记
-    const cleaned = trimmed.replace(/\s*\*[FS]\*\s*/g, "");
+    // 去掉 *F* / *S* 标记（保留前后空格中的前空格）
+    const cleaned = trimmed.replace(/\s*\*[FS]\*/g, "");
     const m = cleaned.match(re);
     if (!m) continue;
     rows.push({
