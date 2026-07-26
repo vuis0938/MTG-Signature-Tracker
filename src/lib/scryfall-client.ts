@@ -21,6 +21,56 @@ function jitter(baseMs: number): number {
   return baseMs + Math.random() * baseMs * 0.5;
 }
 
+// ─── 令牌桶限速器 ──────────────────────────────────────────
+
+/**
+ * 令牌桶限速器
+ *
+ * 核心思想：桶中初始有 N 个令牌，每秒匀速补充 N 个。
+ * 每次请求消耗一个令牌，令牌不足时等待补充。
+ * 相比固定批次延迟，优势是：
+ *   - 无浪费等待：快请求不放慢，慢请求不拖累
+ *   - 天然平滑：不会出现「批次边界」的突发流量
+ *   - 可预测时间：N 张卡 ÷ R req/s ≈ 理论最短时间
+ */
+export class RateLimiter {
+  private tokens: number;
+  private lastRefill: number;
+  private readonly maxTokens: number;
+  private readonly refillPerMs: number;
+
+  constructor(requestsPerSecond: number) {
+    this.maxTokens = requestsPerSecond;
+    this.tokens = requestsPerSecond;
+    this.lastRefill = Date.now();
+    this.refillPerMs = requestsPerSecond / 1000;
+  }
+
+  /** 获取一个令牌，若不足则等待 */
+  async acquire(): Promise<void> {
+    this._refill();
+
+    if (this.tokens >= 1) {
+      this.tokens -= 1;
+      return;
+    }
+
+    // 计算等待时间（精确到所需令牌数）
+    const waitMs = Math.ceil((1 - this.tokens) / this.refillPerMs);
+    await delay(waitMs);
+    this._refill();
+    this.tokens -= 1;
+  }
+
+  /** 补充令牌 */
+  private _refill(): void {
+    const now = Date.now();
+    const elapsed = now - this.lastRefill;
+    this.tokens = Math.min(this.maxTokens, this.tokens + elapsed * this.refillPerMs);
+    this.lastRefill = now;
+  }
+}
+
 // ─── 工具函数 ──────────────────────────────────────────────
 
 /** 延迟工具（只定义一次） */

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractArtists, extractImageUrl, ScryfallCard } from "@/lib/scryfall";
-import { quickFetchCard, searchCardByName, delay } from "@/lib/scryfall-client";
+import { quickFetchCard, searchCardByName, RateLimiter } from "@/lib/scryfall-client";
 import { parseMoxfieldFormat } from "@/lib/moxfield-parser";
 import type { CardRow } from "@/types";
 
@@ -41,35 +41,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 并行查询 Scryfall（含时间保护）
-    const CONCURRENCY = 5;
-    const BATCH_DELAY = 500;
-    const TIME_LIMIT_MS = 8_500;
-    const cardResults: Array<{ card: CardRow; data: ScryfallCard | null }> = [];
+    // 令牌桶限速并发查询 Scryfall
+    const RATE = 9;
+    const TIME_LIMIT_MS = 9_000;
+    const rateLimiter = new RateLimiter(RATE);
     const tScryfall = Date.now();
     let timedOut = false;
 
-    for (let i = 0; i < rows.length; i += CONCURRENCY) {
-      if (Date.now() - tScryfall > TIME_LIMIT_MS) {
-        timedOut = true;
-        for (let j = i; j < rows.length; j++) {
-          cardResults.push({ card: rows[j], data: null });
+    const cardResults = await Promise.all(
+      rows.map(async (card) => {
+        if (Date.now() - tScryfall > TIME_LIMIT_MS) {
+          timedOut = true;
+          return { card, data: null };
         }
-        console.warn(`[AddCards] 时间保护触发：已处理 ${i}/${rows.length}，剩余 ${rows.length - i} 张跳过`);
-        break;
-      }
+        await rateLimiter.acquire();
+        const data = card.setCode
+          ? await quickFetchCard(card.setCode, card.collectorNumber!)
+          : await searchCardByName(card.name);
+        return { card, data };
+      })
+    );
 
-      const batch = rows.slice(i, i + CONCURRENCY);
-      const batchResults = await Promise.all(
-        batch.map(async (card) => ({
-          card,
-          data: card.setCode
-            ? await quickFetchCard(card.setCode, card.collectorNumber!)
-            : await searchCardByName(card.name),
-        }))
-      );
-      cardResults.push(...batchResults);
-      if (i + CONCURRENCY < rows.length) await delay(BATCH_DELAY);
+    if (timedOut) {
+      console.warn(`[AddCards] 时间保护触发：${cardResults.filter((r) => !r.data).length} 张因超时跳过`);
     }
 
     // 批量写入

@@ -5,7 +5,7 @@ import {
   extractArtists,
   extractImageUrl,
 } from "@/lib/scryfall";
-import { quickFetchCard, searchCardByName, delay } from "@/lib/scryfall-client";
+import { quickFetchCard, searchCardByName, RateLimiter } from "@/lib/scryfall-client";
 import { parseMoxfieldFormat, detectFormat } from "@/lib/moxfield-parser";
 import type { CardRow } from "@/types";
 
@@ -57,36 +57,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `创建套牌失败: ${deckError?.message}` }, { status: 500 });
     }
 
-    // ── 5 路并行查询 Scryfall（含时间保护，避免限速和超时）──
-    const CONCURRENCY = 5;
-    const BATCH_DELAY = 500;
-    const TIME_LIMIT_MS = 8_500; // 8.5 秒硬上限，留 1.5 秒给数据库写入
-    const cardResults: Array<{ card: CardRow; data: ScryfallCard | null }> = [];
+    // ── 令牌桶限速并发查询 Scryfall ──
+    // 令牌桶保证严格 ≤9 req/s，不触发限速；同时所有请求并发发出，零浪费等待
+    const RATE = 9; // 9 req/s（Scryfall 要求 <10，留 1 余量）
+    const TIME_LIMIT_MS = 9_000; // 9 秒硬上限（Hobby 10s，留 1s 给 DB）
+    const rateLimiter = new RateLimiter(RATE);
     const tScryfall = Date.now();
     let timedOut = false;
 
-    for (let i = 0; i < rows.length; i += CONCURRENCY) {
-      // 时间保护：如果快超时了，停止查询，剩余卡牌标记为失败
-      if (Date.now() - tScryfall > TIME_LIMIT_MS) {
-        timedOut = true;
-        for (let j = i; j < rows.length; j++) {
-          cardResults.push({ card: rows[j], data: null });
+    // 全部请求并发发出，令牌桶自动排队调速
+    const cardResults = await Promise.all(
+      rows.map(async (card, index) => {
+        // 时间保护：如果已超时，跳过剩余
+        if (Date.now() - tScryfall > TIME_LIMIT_MS) {
+          timedOut = true;
+          return { card, data: null };
         }
-        console.warn(`[Import] 时间保护触发：已处理 ${i}/${rows.length}，剩余 ${rows.length - i} 张跳过`);
-        break;
-      }
+        await rateLimiter.acquire();
+        const data = card.setCode
+          ? await quickFetchCard(card.setCode, card.collectorNumber!)
+          : await searchCardByName(card.name);
+        return { card, data };
+      })
+    );
 
-      const batch = rows.slice(i, i + CONCURRENCY);
-      const batchResults = await Promise.all(
-        batch.map(async (card) => ({
-          card,
-          data: card.setCode
-            ? await quickFetchCard(card.setCode, card.collectorNumber!)
-            : await searchCardByName(card.name),
-        }))
-      );
-      cardResults.push(...batchResults);
-      if (i + CONCURRENCY < rows.length) await delay(BATCH_DELAY);
+    if (timedOut) {
+      console.warn(`[Import] 时间保护触发：${cardResults.filter((r) => !r.data).length} 张因超时跳过`);
     }
 
     const tScryfallDone = Date.now();
@@ -166,7 +162,7 @@ export async function POST(request: NextRequest) {
       timedOut,
       timing: {
         total: `${tTotal}s`,
-        scryfall: `${tS}s (${rows.length} cards × ${CONCURRENCY} concurrent)`,
+        scryfall: `${tS}s (${rows.length} cards @ ${RATE}/s)`,
         db: `${(tDB / 1000).toFixed(1)}s`,
         cache: `${((Date.now() - tCacheStart) / 1000).toFixed(1)}s (${cacheCount} cached)`,
       },
