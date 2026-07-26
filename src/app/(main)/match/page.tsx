@@ -15,6 +15,12 @@ import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/user";
 import Fuse from "fuse.js";
 import { Search, Download, CheckSquare, Square, Loader2, Sparkles } from "lucide-react";
+import {
+  Dialog,
+  DialogHeader,
+  DialogTitle,
+  DialogContent,
+} from "@/components/ui/dialog";
 
 interface Deck {
   id: string;
@@ -43,6 +49,15 @@ interface FuzzyCardEntry {
   artist: string;
   /** 如果该版本正好在用户套牌中，指向套牌中的卡牌 */
   deckCard?: CardEntry;
+}
+
+interface ArtistCard {
+  name: string;
+  set: string;
+  set_name: string;
+  collector_number: string;
+  image_url: string | null;
+  released_at: string;
 }
 
 export default function MatchPage() {
@@ -76,6 +91,11 @@ export default function MatchPage() {
   const [currentEvent, setCurrentEvent] = useState(""); // 当前选中的活动名
   const [currentEventDate, setCurrentEventDate] = useState(""); // 当前选中的活动日期
 
+  // 画家卡牌弹窗
+  const [artistDialog, setArtistDialog] = useState<string | null>(null);
+  const [artistCards, setArtistCards] = useState<ArtistCard[]>([]);
+  const [artistCardsLoading, setArtistCardsLoading] = useState(false);
+
   // 加载活动列表
   async function loadEvents() {
     setLoadingEvents(true);
@@ -102,6 +122,28 @@ export default function MatchPage() {
     setFuzzyMatched(new Map());
     setUnmatched([]);
     setHasRun(false);
+  }
+
+  // 点击画家名 → 加载其所有卡牌版本
+  async function handleArtistClick(artist: string) {
+    setArtistDialog(artist);
+    setArtistCards([]);
+    setArtistCardsLoading(true);
+
+    try {
+      const res = await fetch(`/api/artist-cards?artist=${encodeURIComponent(artist)}`);
+      const data = await res.json();
+
+      if (data.success) {
+        setArtistCards(data.cards);
+      } else {
+        setArtistCards([]);
+      }
+    } catch {
+      setArtistCards([]);
+    } finally {
+      setArtistCardsLoading(false);
+    }
   }
 
   // 解析名单（粘贴文本时用 LLM/正则）
@@ -347,11 +389,12 @@ export default function MatchPage() {
       }
     }
 
-    // 5. 把精确匹配中但模糊匹配中缺失的画家也补进来（Scryfall 失败时的兜底）
+    // 5. 把精确匹配的结果全部并入 expandedArtistCards（兜底 + 补缺）
     for (const artist of exactMatchedArtists) {
+      const exactCards = artistCards.get(artist) || [];
       if (!expandedArtistCards.has(artist)) {
-        const cards = artistCards.get(artist) || [];
-        const entries: FuzzyCardEntry[] = cards.map((c) => ({
+        // 画家完全缺失：添加所有精确匹配的卡牌
+        const entries: FuzzyCardEntry[] = exactCards.map((c) => ({
           card_name: c.card_name,
           set_code: c.set_code,
           set_name: "",
@@ -361,6 +404,28 @@ export default function MatchPage() {
           deckCard: c,
         }));
         expandedArtistCards.set(artist, entries);
+      } else {
+        // 画家存在但可能缺少某些卡牌：补全缺失的卡牌
+        const existing = expandedArtistCards.get(artist)!;
+        for (const c of exactCards) {
+          const alreadyExists = existing.some(
+            (e) =>
+              e.card_name === c.card_name &&
+              e.set_code === c.set_code &&
+              e.collector_number === c.collector_number
+          );
+          if (!alreadyExists) {
+            existing.push({
+              card_name: c.card_name,
+              set_code: c.set_code,
+              set_name: "",
+              collector_number: c.collector_number,
+              image_url: c.image_url,
+              artist,
+              deckCard: c,
+            });
+          }
+        }
       }
     }
 
@@ -395,6 +460,51 @@ export default function MatchPage() {
         }
       } else {
         newUnmatched.push(artist);
+      }
+    }
+
+    // 7. 兜底：确保精确匹配结果 100% 包含在模糊匹配中
+    for (const artist of exactMatchedArtists) {
+      const exactCards = artistCards.get(artist) || [];
+      if (exactCards.length === 0) continue;
+
+      if (!newFuzzyMatched.has(artist)) {
+        // 精确匹配到的画家在模糊匹配中完全缺失
+        const entries: FuzzyCardEntry[] = exactCards.map((c) => ({
+          card_name: c.card_name,
+          set_code: c.set_code,
+          set_name: "",
+          collector_number: c.collector_number,
+          image_url: c.image_url,
+          artist,
+          deckCard: c,
+        }));
+        newFuzzyMatched.set(artist, entries);
+        // 同时从未匹配列表中移除
+        const idx = newUnmatched.indexOf(artist);
+        if (idx !== -1) newUnmatched.splice(idx, 1);
+      } else {
+        // 画家存在但确保所有精确匹配的卡牌都在列表中
+        const existing = newFuzzyMatched.get(artist)!;
+        for (const c of exactCards) {
+          const alreadyExists = existing.some(
+            (e) =>
+              e.card_name === c.card_name &&
+              e.set_code === c.set_code &&
+              e.collector_number === c.collector_number
+          );
+          if (!alreadyExists) {
+            existing.push({
+              card_name: c.card_name,
+              set_code: c.set_code,
+              set_name: "",
+              collector_number: c.collector_number,
+              image_url: c.image_url,
+              artist,
+              deckCard: c,
+            });
+          }
+        }
       }
     }
 
@@ -542,12 +652,13 @@ Kev Walker - Table 5
           {parsedArtists.length > 0 && (
             <div className="flex flex-wrap gap-2 p-3 bg-accent/50 rounded-lg">
               {parsedArtists.map((a) => (
-                <span
+                <button
                   key={a}
-                  className="px-2 py-1 bg-background border rounded text-sm"
+                  onClick={() => handleArtistClick(a)}
+                  className="px-2 py-1 bg-background hover:bg-accent border rounded text-sm cursor-pointer transition-colors"
                 >
                   {a}
-                </span>
+                </button>
               ))}
             </div>
           )}
@@ -610,6 +721,13 @@ Kev Walker - Table 5
               </span>
             </label>
           </div>
+          {fuzzyMode && (
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
+              <Sparkles className="h-3 w-3 inline mr-1" />
+              模糊匹配会搜索套牌中每张卡牌的<strong>所有印刷版本</strong>，扩大匹配范围。
+              例如：你的套牌中有一张异画版「脑力激荡」，开启后将匹配<strong>所有画过脑力激荡</strong>的画家，而非仅限当前版本的画家。
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -626,6 +744,62 @@ Kev Walker - Table 5
           exportText={exportText}
         />
       )}
+
+      {/* ─── 画家卡牌画廊弹窗 ─── */}
+      <Dialog
+        open={artistDialog !== null}
+        onOpenChange={() => { setArtistDialog(null); setArtistCards([]); }}
+        className="max-w-3xl"
+      >
+        <DialogHeader>
+          <DialogTitle>{artistDialog} 的卡牌</DialogTitle>
+        </DialogHeader>
+        {artistCardsLoading ? (
+          <DialogContent>
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-sm text-muted-foreground">加载中...</span>
+            </div>
+          </DialogContent>
+        ) : (
+          <DialogContent>
+            {artistCards.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                未找到该画家的卡牌
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[65vh] overflow-y-auto pr-2">
+                {artistCards.map((card) => (
+                  <div
+                    key={`${card.set}-${card.collector_number}`}
+                    className="rounded-lg border overflow-hidden bg-background"
+                    title={`${card.set_name} #${card.collector_number}`}
+                  >
+                    {card.image_url ? (
+                      <img
+                        src={card.image_url}
+                        alt={card.name}
+                        className="w-full"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
+                        {card.name}
+                      </div>
+                    )}
+                    <div className="p-1.5 text-[10px]">
+                      <p className="font-medium truncate">{card.name}</p>
+                      <p className="text-muted-foreground truncate">
+                        {card.set_name} #{card.collector_number}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 }

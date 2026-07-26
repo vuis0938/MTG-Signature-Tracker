@@ -191,7 +191,7 @@ export default function EventsPage() {
                 未找到该画家的卡牌
               </p>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[65vh] overflow-y-auto">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[65vh] overflow-y-auto pr-2">
                 {artistCards.map((card) => (
                   <div
                     key={`${card.set}-${card.collector_number}`}

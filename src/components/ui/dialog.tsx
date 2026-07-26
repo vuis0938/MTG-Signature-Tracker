@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
 
@@ -12,20 +13,35 @@ interface DialogProps {
 }
 
 export function Dialog({ open, onOpenChange, children, className }: DialogProps) {
+  // 弹窗打开时锁定背景滚动
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = "hidden";
+      // 保存滚动位置，防止布局偏移
+      document.body.style.paddingRight = `${
+        window.innerWidth - document.documentElement.clientWidth
+      }px`;
+      return () => {
+        document.body.style.overflow = "";
+        document.body.style.paddingRight = "";
+      };
+    }
+  }, [open]);
+
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50">
-      {/* 背景遮罩 */}
+      {/* 背景遮罩 — 阻止点击穿透 */}
       <div
         className="fixed inset-0 bg-black/50"
         onClick={() => onOpenChange(false)}
       />
       {/* 弹窗内容 */}
-      <div className="fixed inset-0 flex items-center justify-center p-4">
+      <div className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
         <div
           className={cn(
-            "relative bg-background rounded-xl border shadow-lg w-full max-h-[85vh] overflow-y-auto",
+            "relative bg-background rounded-xl border shadow-lg w-full max-h-[85vh] overflow-y-auto pr-2 pointer-events-auto",
             className || "max-w-lg"
           )}
           onClick={(e) => e.stopPropagation()}
