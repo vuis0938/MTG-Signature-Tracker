@@ -23,7 +23,7 @@ import {
 // ─── 类型定义 ──────────────────────────────────────────────
 
 import type { Deck, CardEntry, FuzzyCardEntry, ArtistCard, CalendarEvent } from "@/types";
-import { normalizeArtists, buildNormalizedMap, findMatchingArtist, isSamePrinting, getNextStatus } from "@/lib/match-utils";
+import { normalizeArtists, buildNormalizedMap, findMatchingArtist, isSamePrinting, getNextStatus, matchAgainstArtists } from "@/lib/match-utils";
 import type { FuzzyApiResponse } from "@/lib/match-utils";
 
 // ─── 页面组件 ──────────────────────────────────────────────
@@ -231,6 +231,7 @@ export default function MatchPage() {
   // ─── 状态切换 ──────────────────────────────────────────
 
   async function toggleStatus(cardId: string) {
+    // 1. 查找当前状态
     let currentStatus = 0;
     for (const cards of matchedRef.current.values()) {
       const found = cards.find((c) => c.id === cardId);
@@ -244,7 +245,32 @@ export default function MatchPage() {
     }
 
     const newStatus = getNextStatus(currentStatus);
+    const updatePayload = {
+      status: newStatus,
+      is_signed: false,
+      event_name: newStatus === 3 ? currentEvent : null,
+      event_date: newStatus === 3 ? currentEventDate : null,
+    };
 
+    // 2. 先写数据库，成功后再更新 UI（避免乐观更新不一致）
+    try {
+      const { error } = await supabase
+        .from("cards")
+        .update(updatePayload)
+        .eq("id", cardId);
+
+      if (error) {
+        console.error("[toggleStatus] 数据库更新失败:", error.message);
+        setMatchError(`状态更新失败: ${error.message}`);
+        return;
+      }
+    } catch (err: unknown) {
+      console.error("[toggleStatus] 数据库更新异常:", err);
+      setMatchError("状态更新失败，请刷新页面重试");
+      return;
+    }
+
+    // 3. 数据库写入成功后更新 UI
     setMatched((prev) => {
       const next = new Map(prev);
       for (const [artist, cards] of next) {
@@ -252,7 +278,7 @@ export default function MatchPage() {
           artist,
           cards.map((c) =>
             c.id === cardId
-              ? { ...c, status: newStatus, event_name: newStatus === 3 ? currentEvent : null, event_date: newStatus === 3 ? currentEventDate : null }
+              ? { ...c, ...updatePayload }
               : c
           )
         );
@@ -267,23 +293,13 @@ export default function MatchPage() {
           artist,
           entries.map((e) =>
             e.deckCard?.id === cardId
-              ? { ...e, deckCard: { ...e.deckCard, status: newStatus, event_name: newStatus === 3 ? currentEvent : null, event_date: newStatus === 3 ? currentEventDate : null } }
+              ? { ...e, deckCard: { ...e.deckCard, ...updatePayload } }
               : e
           )
         );
       }
       return next;
     });
-
-    try {
-      await supabase
-        .from("cards")
-        .update({ status: newStatus, is_signed: false, event_name: newStatus === 3 ? currentEvent : null, event_date: newStatus === 3 ? currentEventDate : null })
-        .eq("id", cardId);
-    } catch (err: unknown) {
-      console.error("[toggleStatus] 数据库更新失败:", err);
-      setMatchError("状态更新失败，请刷新页面重试");
-    }
   }
 
   // ─── 匹配入口 ──────────────────────────────────────────
@@ -447,8 +463,10 @@ export default function MatchPage() {
       });
       if (fuzzyRes.ok) return await fuzzyRes.json();
       console.error(`[模糊匹配] API 返回错误状态: ${fuzzyRes.status}`);
+      setMatchError("模糊匹配服务暂时不可用，已降级为精确匹配结果。请稍后重试。");
     } catch (err: unknown) {
       console.error("[模糊匹配] API 调用异常:", err instanceof Error ? err.message : String(err));
+      setMatchError("模糊匹配服务网络异常，已降级为精确匹配结果。请稍后重试。");
     }
     return { success: false };
   }
@@ -543,64 +561,6 @@ export default function MatchPage() {
         }
       }
     }
-  }
-
-  /** 匹配活动画家 */
-  function matchAgainstArtists(
-    parsedArtists: string[],
-    expandedArtistCards: Map<string, FuzzyCardEntry[]>,
-    exactMatchedKeys: Set<string>,
-    artistDbKeys: string[],
-    artistNormalizedMap: Map<string, string>,
-    artistCards: Map<string, CardEntry[]>
-  ) {
-    // 构建小写 key → entries 映射
-    const expandedKeyMap = new Map<string, FuzzyCardEntry[]>();
-    for (const [artist, entries] of expandedArtistCards) {
-      const key = artist.toLowerCase().trim();
-      const existing = expandedKeyMap.get(key) || [];
-      for (const e of entries) {
-        if (!existing.some((x) => isSamePrinting(x, e))) {
-          existing.push(e);
-        }
-      }
-      expandedKeyMap.set(key, existing);
-    }
-
-    const newFuzzyMatched = new Map<string, FuzzyCardEntry[]>();
-    const newUnmatched: string[] = [];
-    const expandedDbKeys = [...expandedKeyMap.keys()];
-    const expandedNormalizedMap = buildNormalizedMap(expandedDbKeys);
-
-    for (const parsedArtist of parsedArtists) {
-      const matchedKey = findMatchingArtist(parsedArtist, expandedDbKeys, expandedNormalizedMap);
-      if (matchedKey) {
-        newFuzzyMatched.set(parsedArtist, expandedKeyMap.get(matchedKey) || []);
-      } else {
-        newUnmatched.push(parsedArtist);
-      }
-    }
-
-    // 兜底：确保精确匹配结果 100% 包含
-    for (const parsedArtist of parsedArtists) {
-      if (newFuzzyMatched.has(parsedArtist)) continue;
-      const key = findMatchingArtist(parsedArtist, artistDbKeys, artistNormalizedMap);
-      if (!key || !exactMatchedKeys.has(key)) continue;
-
-      const exactCards = artistCards.get(key) || [];
-      if (exactCards.length === 0) continue;
-
-      const displayArtist = normalizeArtists(exactCards[0].artist_names)[0] || key;
-      newFuzzyMatched.set(parsedArtist, exactCards.map((c) => ({
-        card_name: c.card_name, set_code: c.set_code, set_name: "",
-        collector_number: c.collector_number, image_url: c.image_url,
-        artist: displayArtist, deckCard: c,
-      })));
-      const idx = newUnmatched.indexOf(parsedArtist);
-      if (idx !== -1) newUnmatched.splice(idx, 1);
-    }
-
-    return { newFuzzyMatched, newUnmatched };
   }
 
   // ─── 其他操作 ──────────────────────────────────────────

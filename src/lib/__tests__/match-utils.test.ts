@@ -5,6 +5,7 @@ import {
   findMatchingArtist,
   isSamePrinting,
   getNextStatus,
+  matchAgainstArtists,
 } from "../match-utils";
 
 // ═════════════════════════════════════════════════════════════
@@ -42,6 +43,144 @@ describe("normalizeArtists", () => {
 
   it("数字类型返回空数组", () => {
     expect(normalizeArtists(123)).toEqual([]);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// matchAgainstArtists
+// ═════════════════════════════════════════════════════════════
+
+describe("matchAgainstArtists", () => {
+  // 辅助：创建模拟 CardEntry
+  function makeCard(name: string, set: string, num: string, artist: string, deckId = "d1"): import("@/types").CardEntry {
+    return {
+      id: `${name}-${set}-${num}`,
+      deck_id: deckId,
+      card_name: name,
+      set_code: set,
+      collector_number: num,
+      artist_names: [artist],
+      image_url: null,
+      status: 0,
+    };
+  }
+
+  // 辅助：创建模拟 FuzzyCardEntry
+  function makeFuzzy(
+    name: string, set: string, num: string, artist: string,
+    deckCard?: import("@/types").CardEntry
+  ): import("@/types").FuzzyCardEntry {
+    return {
+      card_name: name,
+      set_code: set,
+      set_name: `${set} Edition`,
+      collector_number: num,
+      image_url: null,
+      artist,
+      deckCard,
+    };
+  }
+
+  it("模糊匹配直接命中", () => {
+    const expanded = new Map();
+    expanded.set("Alice", [makeFuzzy("Sol Ring", "CMM", "345", "Alice")]);
+    expanded.set("Bob", [makeFuzzy("Arcane Signet", "SLD", "123", "Bob")]);
+
+    const result = matchAgainstArtists(
+      ["Alice", "Bob"],
+      expanded,
+      new Set(),
+      [], new Map(),
+      new Map()
+    );
+
+    expect(result.newFuzzyMatched.size).toBe(2);
+    expect(result.newFuzzyMatched.has("Alice")).toBe(true);
+    expect(result.newFuzzyMatched.has("Bob")).toBe(true);
+    expect(result.newUnmatched).toEqual([]);
+  });
+
+  it("部分匹配：一个命中一个未命中", () => {
+    const expanded = new Map();
+    expanded.set("Alice", [makeFuzzy("Sol Ring", "CMM", "345", "Alice")]);
+
+    const result = matchAgainstArtists(
+      ["Alice", "Charlie"],
+      expanded,
+      new Set(),
+      [], new Map(),
+      new Map()
+    );
+
+    expect(result.newFuzzyMatched.has("Alice")).toBe(true);
+    expect(result.newUnmatched).toEqual(["Charlie"]);
+  });
+
+  it("兜底：精确匹配结果被合并到模糊匹配中", () => {
+    const exactMatchedKeys = new Set(["dan scott"]);
+    const artistDbKeys = ["dan scott"];
+    const artistNormalizedMap = buildNormalizedMap(artistDbKeys);
+
+    const card = makeCard("Sol Ring", "CMM", "345", "Dan Scott");
+    const artistCards = new Map();
+    artistCards.set("dan scott", [card]);
+
+    const expanded = new Map(); // 空，模拟模糊匹配没覆盖
+
+    const result = matchAgainstArtists(
+      ["Dan Scott"],
+      expanded,
+      exactMatchedKeys,
+      artistDbKeys,
+      artistNormalizedMap,
+      artistCards
+    );
+
+    // 兜底生效：Dan Scott 应该出现在模糊匹配中
+    expect(result.newFuzzyMatched.has("Dan Scott")).toBe(true);
+    const entries = result.newFuzzyMatched.get("Dan Scott")!;
+    expect(entries.length).toBe(1);
+    expect(entries[0].card_name).toBe("Sol Ring");
+    expect(entries[0].deckCard).toBeDefined();
+    expect(result.newUnmatched).toEqual([]);
+  });
+
+  it("兜底不重复：画家已在模糊匹配中时不重复添加", () => {
+    const exactMatchedKeys = new Set(["dan scott"]);
+    const artistDbKeys = ["dan scott"];
+    const artistNormalizedMap = buildNormalizedMap(artistDbKeys);
+
+    const card = makeCard("Sol Ring", "CMM", "345", "Dan Scott");
+    const artistCards = new Map();
+    artistCards.set("dan scott", [card]);
+
+    // 模糊匹配中已有 Dan Scott
+    const expanded = new Map();
+    expanded.set("Dan Scott", [makeFuzzy("Mana Crypt", "SLD", "99", "Dan Scott")]);
+
+    const result = matchAgainstArtists(
+      ["Dan Scott"],
+      expanded,
+      exactMatchedKeys,
+      artistDbKeys,
+      artistNormalizedMap,
+      artistCards
+    );
+
+    // 不应该重复添加
+    expect(result.newFuzzyMatched.has("Dan Scott")).toBe(true);
+    const entries = result.newFuzzyMatched.get("Dan Scott")!;
+    expect(entries.length).toBe(1); // 只有模糊匹配的，没有兜底
+    expect(entries[0].card_name).toBe("Mana Crypt");
+  });
+
+  it("空活动画家列表返回空结果", () => {
+    const result = matchAgainstArtists(
+      [],
+      new Map(), new Set(), [], new Map(), new Map()
+    );
+    expect(result.newFuzzyMatched.size).toBe(0);
+    expect(result.newUnmatched).toEqual([]);
   });
 });
 

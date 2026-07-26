@@ -7,7 +7,7 @@
 
 // ─── 类型定义 ──────────────────────────────────────────────
 
-import type { Printing } from "@/types";
+import type { Printing, CardEntry, FuzzyCardEntry } from "@/types";
 
 /** 模糊匹配 API 返回结构 */
 export interface FuzzyApiResponse {
@@ -109,4 +109,71 @@ const STATUS_CYCLE: Record<number, number> = { 0: 3, 3: 1, 1: 0, 2: 3 };
 /** 获取下一个状态值 */
 export function getNextStatus(current: number): number {
   return STATUS_CYCLE[current] ?? 0;
+}
+
+// ─── 模糊匹配兜底 ────────────────────────────────────────
+
+/**
+ * 模糊匹配结果与活动画家做最终匹配，并兜底确保精确匹配结果 100% 包含。
+ *
+ * 这是模糊匹配流程的最后一步，也是最关键的安全网：
+ * 之前出现过"联合搜索两个套牌漏卡"的 bug，就是因为精确匹配结果
+ * 没有被完整合并到模糊匹配结果中。
+ */
+export function matchAgainstArtists(
+  parsedArtists: string[],
+  expandedArtistCards: Map<string, FuzzyCardEntry[]>,
+  exactMatchedKeys: Set<string>,
+  artistDbKeys: string[],
+  artistNormalizedMap: Map<string, string>,
+  artistCards: Map<string, CardEntry[]>
+): { newFuzzyMatched: Map<string, FuzzyCardEntry[]>; newUnmatched: string[] } {
+  // 1. 构建小写 key → entries 映射（去重合并）
+  const expandedKeyMap = new Map<string, FuzzyCardEntry[]>();
+  for (const [artist, entries] of expandedArtistCards) {
+    const key = artist.toLowerCase().trim();
+    const existing = expandedKeyMap.get(key) || [];
+    for (const e of entries) {
+      if (!existing.some((x) => isSamePrinting(x, e))) {
+        existing.push(e);
+      }
+    }
+    expandedKeyMap.set(key, existing);
+  }
+
+  const newFuzzyMatched = new Map<string, FuzzyCardEntry[]>();
+  const newUnmatched: string[] = [];
+  const expandedDbKeys = [...expandedKeyMap.keys()];
+  const expandedNormalizedMap = buildNormalizedMap(expandedDbKeys);
+
+  // 2. 用三级匹配规则匹配活动画家
+  for (const parsedArtist of parsedArtists) {
+    const matchedKey = findMatchingArtist(parsedArtist, expandedDbKeys, expandedNormalizedMap);
+    if (matchedKey) {
+      newFuzzyMatched.set(parsedArtist, expandedKeyMap.get(matchedKey) || []);
+    } else {
+      newUnmatched.push(parsedArtist);
+    }
+  }
+
+  // 3. 兜底：确保精确匹配结果 100% 包含
+  for (const parsedArtist of parsedArtists) {
+    if (newFuzzyMatched.has(parsedArtist)) continue;
+    const key = findMatchingArtist(parsedArtist, artistDbKeys, artistNormalizedMap);
+    if (!key || !exactMatchedKeys.has(key)) continue;
+
+    const exactCards = artistCards.get(key) || [];
+    if (exactCards.length === 0) continue;
+
+    const displayArtist = normalizeArtists(exactCards[0].artist_names)[0] || key;
+    newFuzzyMatched.set(parsedArtist, exactCards.map((c) => ({
+      card_name: c.card_name, set_code: c.set_code, set_name: "",
+      collector_number: c.collector_number, image_url: c.image_url,
+      artist: displayArtist, deckCard: c,
+    })));
+    const idx = newUnmatched.indexOf(parsedArtist);
+    if (idx !== -1) newUnmatched.splice(idx, 1);
+  }
+
+  return { newFuzzyMatched, newUnmatched };
 }

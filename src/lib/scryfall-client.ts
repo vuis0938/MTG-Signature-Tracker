@@ -14,12 +14,29 @@ export const SCRYFALL_UA = "MTG-Signature-Tracker/1.0";
 const BASE_URL = "https://api.scryfall.com";
 const MIN_DELAY_MS = 100;
 const MAX_RETRIES = 2;
+const FETCH_TIMEOUT_MS = 15_000; // 单次请求超时 15 秒
 
 // ─── 工具函数 ──────────────────────────────────────────────
 
 /** 延迟工具（只定义一次） */
 export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** 带超时保护的 fetch 封装 */
+async function fetchWithTimeout(
+  url: string,
+  init?: RequestInit,
+  timeoutMs = FETCH_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...init, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // ─── 卡牌查询 ──────────────────────────────────────────────
@@ -35,7 +52,7 @@ export async function quickFetchCard(
 ): Promise<ScryfallCard | null> {
   const url = `${BASE_URL}/cards/${encodeURIComponent(setCode.toLowerCase())}/${encodeURIComponent(collectorNumber)}`;
   try {
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
     });
 
@@ -79,7 +96,7 @@ export async function fetchAllPrintings(
   while (pageUrl) {
     await delay(MIN_DELAY_MS);
     try {
-      const res = await fetch(pageUrl, {
+      const res = await fetchWithTimeout(pageUrl, {
         headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
       });
 
