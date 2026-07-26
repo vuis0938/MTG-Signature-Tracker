@@ -71,17 +71,40 @@ export default function SettingsPage() {
   // ─── 补全模糊匹配缓存 ───
   async function handleBackfill() {
     setBackfilling(true);
+    let totalCached = 0;
+    let totalSkipped = 0;
+    let totalFailed = 0;
+    let finalTotal = 0;
+
     try {
-      const res = await fetch("/api/backfill-cache", { method: "POST" });
-      const data = await res.json();
-      if (data.success) {
-        if (data.skipped === data.total) {
-          setToast({ message: `✅ 所有 ${data.total} 张卡牌已缓存，无需补全`, type: "success" });
-        } else {
-          setToast({ message: `✅ 补全完成：${data.cached} 张新增，${data.skipped} 张已存在` + (data.failed > 0 ? `，${data.failed} 张失败` : ""), type: "success" });
+      let keepGoing = true;
+      let safety = 0; // 防止无限循环
+      while (keepGoing && safety < 30) {
+        safety++;
+        const res = await fetch("/api/backfill-cache", { method: "POST" });
+        const data = await res.json();
+        if (!data.success) {
+          setToast({ message: data.error || "补全失败", type: "error" });
+          setBackfilling(false);
+          return;
         }
+
+        totalCached += data.cached || 0;
+        totalSkipped = data.skipped || 0;
+        totalFailed += data.failed || 0;
+        finalTotal = data.total || 0;
+
+        keepGoing = !!data.continue;
+      }
+
+      if (totalFailed === 0 && totalCached === 0) {
+        setToast({ message: `✅ 所有 ${finalTotal} 张卡牌已缓存，无需补全`, type: "success" });
       } else {
-        setToast({ message: data.error || "补全失败", type: "error" });
+        setToast({
+          message: `✅ 补全完成：${totalCached} 张新增，${totalSkipped} 张已存在` +
+            (totalFailed > 0 ? `，${totalFailed} 张失败` : ""),
+          type: "success",
+        });
       }
     } catch {
       setToast({ message: "补全失败", type: "error" });
