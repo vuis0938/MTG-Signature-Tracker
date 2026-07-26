@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
     const RATE = 9;
     const rateLimiter = new RateLimiter(RATE);
     const SOFT_DEADLINE_MS = 180 * 1000; // 180s 软截止，Vercel Hobby 默认 300s 兜底
+    const totalCards = rows.reduce((sum, r) => sum + (parseInt(r.count, 10) || 1), 0);
 
     const cardResults: Array<{ card: (typeof rows)[number]; data: ScryfallCard | null; timedOut: boolean }> = [];
 
@@ -135,7 +136,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       deckId,
-      total: rows.length,
+      total: totalCards,
       successCount,
       failCount,
       failedCards: failedCards.length > 0 ? failedCards : undefined,
