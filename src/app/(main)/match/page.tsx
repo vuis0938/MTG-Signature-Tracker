@@ -681,18 +681,15 @@ export default function MatchPage() {
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-2">
             {decks.map((deck) => (
-              <button
+              <Button
                 key={deck.id}
+                variant={selectedDecks.has(deck.id) ? "default" : "outline"}
+                size="sm"
                 onClick={() => toggleDeck(deck.id)}
-                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm transition-colors ${
-                  selectedDecks.has(deck.id)
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background border-border hover:bg-accent"
-                }`}
               >
-                {selectedDecks.has(deck.id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                {selectedDecks.has(deck.id) ? <CheckSquare className="h-4 w-4 mr-2" /> : <Square className="h-4 w-4 mr-2" />}
                 {deck.name}
-              </button>
+              </Button>
             ))}
             {decks.length === 0 && <p className="text-sm text-muted-foreground">暂无套牌，请先导入套牌</p>}
           </div>
