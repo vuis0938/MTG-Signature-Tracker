@@ -605,14 +605,14 @@ export default function MatchPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">活动匹配</h1>
-          <p className="text-muted-foreground">输入画家名单，匹配你的套牌</p>
+          <p className="text-muted-foreground">填入画家名单，匹配你的套牌</p>
         </div>
       </div>
 
       {/* 第一步：粘贴 + 解析 */}
       <Card>
         <CardHeader>
-          <CardTitle>1. 输入画家名单</CardTitle>
+          <CardTitle>1. 填入画家名单</CardTitle>
           <CardDescription>粘贴画家名单，或从下方活动日历中一键选取</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -633,7 +633,7 @@ export default function MatchPage() {
           </select>
 
           <Textarea
-            placeholder={`粘贴活动画家名单，例如：\nJohn Avon | Booth A12 | $20 per card\nKev Walker - Table 5\n1. Mark Tedin\n2. Terese Nielsen\n...`}
+            placeholder={`粘贴活动画家名单，支持多种格式，例如：\n1. John Avon  $6/$12\n2. Rebecca Guay  $6/$12\n3. ...`}
             rows={6}
             value={rawText}
             onChange={(e) => setRawText(e.target.value)}
