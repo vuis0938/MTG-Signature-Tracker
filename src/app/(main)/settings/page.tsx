@@ -149,7 +149,6 @@ export default function SettingsPage() {
             <Button
               variant="outline"
               size="sm"
-              className="w-28"
               onClick={toggleDisplayMode}
             >
               <Layout className="h-4 w-4 mr-2" />
