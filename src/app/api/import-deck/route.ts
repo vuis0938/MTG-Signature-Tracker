@@ -54,11 +54,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `创建套牌失败: ${deckError?.message}` }, { status: 500 });
     }
 
-    // ── 全并发查询 Scryfall（平滑限速 9/s，exact 优先，180s 软截止）──
-    // 所有卡牌同时发出请求，每张独立等待令牌，互不阻塞
-    // exact 端点限速宽松（~10+/s），fuzzy 降级时 429 pause 兜底
-    const RATE = 9;
-    const rateLimiter = new RateLimiter(RATE);
+    // ── 双限速器查询 Scryfall（180s 软截止）──
+    // 精确编号查询 (Moxfield) /cards/{code}/{num}：官方限速 10/s，我们用 9/s
+    // 卡名搜索 (Plain Text)  /cards/named?exact/fuzzy：官方限速 2/s，严格 2/s
+    const RATE_PRECISE = 9;
+    const RATE_NAMED = 2;
+    const limiterPrecise = new RateLimiter(RATE_PRECISE);
+    const limiterNamed = new RateLimiter(RATE_NAMED);
     const SOFT_DEADLINE_MS = 180 * 1000; // 180s 软截止，Vercel Hobby 默认 300s 兜底
     const tScryfall = Date.now();
     const totalCards = rows.reduce((sum, r) => sum + (parseInt(r.count, 10) || 1), 0);
@@ -69,14 +71,16 @@ export async function POST(request: NextRequest) {
         if (Date.now() - t0 > SOFT_DEADLINE_MS) {
           return { card, data: null as ScryfallCard | null, timedOut: true };
         }
-        await rateLimiter.acquire();
+        // 按端点选择限速器：有编号用精确查询，没编号用卡名搜索
+        const limiter = card.setCode ? limiterPrecise : limiterNamed;
+        await limiter.acquire();
         // 等待令牌期间可能已超时，再检查一次
         if (Date.now() - t0 > SOFT_DEADLINE_MS) {
           return { card, data: null as ScryfallCard | null, timedOut: true };
         }
         const data = card.setCode
-          ? await quickFetchCard(card.setCode, card.collectorNumber!, rateLimiter)
-          : await searchCardByName(card.name, rateLimiter);
+          ? await quickFetchCard(card.setCode, card.collectorNumber!, limiter)
+          : await searchCardByName(card.name, limiter);
         return { card, data, timedOut: false };
       })
     );
@@ -167,7 +171,7 @@ export async function POST(request: NextRequest) {
         : undefined,
       timing: {
         total: `${tTotal}s`,
-        scryfall: `${tS}s (${totalCards} cards @ ${RATE}/s)`,
+        scryfall: `${tS}s (${totalCards} cards, precise @${RATE_PRECISE}/s + named @${RATE_NAMED}/s)`,
         db: `${(tDB / 1000).toFixed(1)}s`,
       },
     });

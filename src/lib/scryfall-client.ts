@@ -161,7 +161,7 @@ async function fetchFuzzy(
   // 交错延迟：首次调用时按序列号排队，约 3/s 速率
   if (attempt === 0) {
     const mySeq = fuzzyCallSeq++;
-    const staggerMs = mySeq * 333; // 3/s 的交错间隔
+    const staggerMs = mySeq * 500; // 2/s 的交错间隔（官方限速）
     if (staggerMs > 0) {
       console.warn(`[Scryfall] fuzzy "${cardName}" 交错延迟 ${Math.round(staggerMs)}ms (seq=${mySeq})`);
       await delay(staggerMs);
