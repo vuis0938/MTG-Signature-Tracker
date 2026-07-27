@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/user";
 import { useDisplayMode } from "@/lib/display-mode";
-import { LogOut, Download, Trash2, User, Info, Database, Layout } from "lucide-react";
+import { LogOut, Download, Trash2, User, Info, Layout } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -22,7 +22,6 @@ export default function SettingsPage() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [clearing, setClearing] = useState(false);
-  const [backfilling, setBackfilling] = useState(false);
   const { toast: showToast } = useToast();
   const { mode: displayMode, toggle: toggleDisplayMode } = useDisplayMode();
 
@@ -68,51 +67,6 @@ export default function SettingsPage() {
       showToast("导出失败", "error");
     } finally {
       setExporting(false);
-    }
-  }
-
-  // ─── 补全模糊匹配缓存 ───
-  async function handleBackfill() {
-    setBackfilling(true);
-    let totalCached = 0;
-    let totalSkipped = 0;
-    let totalFailed = 0;
-    let finalTotal = 0;
-
-    try {
-      let keepGoing = true;
-      let safety = 0; // 防止无限循环
-      while (keepGoing && safety < 30) {
-        safety++;
-        const res = await fetch("/api/backfill-cache", { method: "POST" });
-        const data = await res.json();
-        if (!data.success) {
-          showToast(data.error || "补全失败", "error");
-          setBackfilling(false);
-          return;
-        }
-
-        totalCached += data.cached || 0;
-        totalSkipped = data.skipped || 0;
-        totalFailed += data.failed || 0;
-        finalTotal = data.total || 0;
-
-        keepGoing = !!data.continue;
-      }
-
-      if (totalFailed === 0 && totalCached === 0) {
-        showToast(`✅ 所有 ${finalTotal} 张卡牌已缓存，无需补全`, "success");
-      } else {
-        showToast(
-          `✅ 补全完成：${totalCached} 张新增，${totalSkipped} 张已存在` +
-            (totalFailed > 0 ? `，${totalFailed} 张失败` : ""),
-          "success",
-        );
-      }
-    } catch {
-      showToast("补全失败", "error");
-    } finally {
-      setBackfilling(false);
     }
   }
 
@@ -243,22 +197,6 @@ export default function SettingsPage() {
             >
               <Trash2 className="h-4 w-4 mr-2" />
               {clearing ? "清除中..." : "清除"}
-            </Button>
-          </div>
-
-          <div className="flex items-center justify-between border-t pt-3">
-            <div>
-              <p className="text-sm font-medium">补全模糊匹配缓存</p>
-              <p className="text-xs text-muted-foreground">为所有历史套牌预填充缓存，加速模糊匹配</p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleBackfill}
-              disabled={backfilling}
-            >
-              <Database className="h-4 w-4 mr-2" />
-              {backfilling ? "补全中..." : "补全缓存"}
             </Button>
           </div>
         </CardContent>
