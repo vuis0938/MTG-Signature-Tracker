@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/user";
+import { useDisplayMode } from "@/lib/display-mode";
 import { Search, Download, CheckSquare, Square, Loader2, Sparkles } from "lucide-react";
 import {
   Dialog,
@@ -46,6 +47,7 @@ export default function MatchPage() {
   // 匹配
   const [matching, setMatching] = useState(false);
   const [fuzzyMode, setFuzzyMode] = useState(false);
+  const { mode: displayMode } = useDisplayMode();
   const [matchError, setMatchError] = useState("");
   const [matched, setMatched] = useState<Map<string, CardEntry[]>>(new Map());
   const [fuzzyMatched, setFuzzyMatched] = useState<Map<string, FuzzyCardEntry[]>>(new Map());
@@ -761,6 +763,7 @@ export default function MatchPage() {
           fuzzyMatched={fuzzyMatched}
           unmatched={unmatched}
           parsedArtists={parsedArtists}
+          displayMode={displayMode}
           toggleStatus={toggleStatus}
           exportText={exportText}
         />
@@ -890,12 +893,13 @@ interface MatchResultCardProps {
   fuzzyMatched: Map<string, FuzzyCardEntry[]>;
   unmatched: string[];
   parsedArtists: string[];
+  displayMode: "individual" | "grouped";
   toggleStatus: (cardId: string) => void;
   exportText: () => void;
 }
 
 function MatchResultCard({
-  fuzzyMode, matching, matched, fuzzyMatched, unmatched, parsedArtists, toggleStatus, exportText,
+  fuzzyMode, matching, matched, fuzzyMatched, unmatched, parsedArtists, displayMode, toggleStatus, exportText,
 }: MatchResultCardProps) {
   const activeMatched = fuzzyMode ? fuzzyMatched : matched;
   const matchedCount = activeMatched.size;
@@ -948,7 +952,7 @@ function MatchResultCard({
         ) : fuzzyMode ? (
           <FuzzyMatchResults fuzzyMatched={fuzzyMatched} toggleStatus={toggleStatus} />
         ) : (
-          <ExactMatchResults matched={matched} toggleStatus={toggleStatus} />
+          <ExactMatchResults matched={matched} displayMode={displayMode} toggleStatus={toggleStatus} />
         )}
 
         {!matching && unmatched.length > 0 && (
@@ -968,7 +972,32 @@ function MatchResultCard({
 
 // ─── 精确匹配结果 ──────────────────────────────────────────
 
-function ExactMatchResults({ matched, toggleStatus }: { matched: Map<string, CardEntry[]>; toggleStatus: (cardId: string) => void }) {
+/** 合并相同卡牌（同名+同系列+同编号），返回 { card, count, ids } */
+function mergeCards(
+  cardList: CardEntry[]
+): Array<{ card: CardEntry; count: number; ids: string[] }> {
+  const key = (c: CardEntry) => `${c.card_name}|${c.set_code}|${c.collector_number}`;
+  const groups = new Map<string, { card: CardEntry; count: number; ids: string[] }>();
+
+  for (const card of cardList) {
+    const k = key(card);
+    const existing = groups.get(k);
+    if (existing) {
+      existing.count++;
+      existing.ids.push(card.id);
+    } else {
+      groups.set(k, { card, count: 1, ids: [card.id] });
+    }
+  }
+
+  return Array.from(groups.values());
+}
+
+function ExactMatchResults({ matched, displayMode, toggleStatus }: {
+  matched: Map<string, CardEntry[]>;
+  displayMode: "individual" | "grouped";
+  toggleStatus: (cardId: string) => void;
+}) {
   return (
     <div className="space-y-6">
       {Array.from(matched).map(([artist, cards]) => (
@@ -984,23 +1013,33 @@ function ExactMatchResults({ matched, toggleStatus }: { matched: Map<string, Car
               arr.push(c);
               byDeck.set(d, arr);
             }
-            return Array.from(byDeck).map(([deckName, deckCards]) => (
-              <div key={deckName} className="mb-3">
-                <p className="text-xs text-muted-foreground mb-2">📦 {deckName}</p>
-                <div className="flex flex-wrap gap-3">
-                  {deckCards.map((card) => (
-                    <CardThumbnail
-                      key={card.id}
-                      cardId={card.id}
-                      imageUrl={card.image_url}
-                      cardName={card.card_name}
-                      status={card.status}
-                      toggleStatus={toggleStatus}
-                    />
-                  ))}
+            return Array.from(byDeck).map(([deckName, deckCards]) => {
+              // 合并模式：相同卡牌（同名+同系列+同编号）合并
+              const displayCards =
+                displayMode === "grouped"
+                  ? mergeCards(deckCards)
+                  : deckCards.map((c) => ({ card: c, count: 1, ids: [c.id] }));
+
+              return (
+                <div key={deckName} className="mb-3">
+                  <p className="text-xs text-muted-foreground mb-2">📦 {deckName}</p>
+                  <div className="flex flex-wrap gap-3">
+                    {displayCards.map((group) => (
+                      <CardThumbnail
+                        key={group.ids[0]}
+                        cardId={group.ids[0]}
+                        imageUrl={group.card.image_url}
+                        cardName={group.card.card_name}
+                        status={group.card.status}
+                        count={group.count}
+                        allIds={group.ids}
+                        toggleStatus={toggleStatus}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ));
+              );
+            });
           })()}
         </div>
       ))}
@@ -1106,17 +1145,26 @@ function statusBorderClass(isInDeck: boolean, status: number): string {
 // ─── 卡牌缩略图（精确匹配用） ──────────────────────────────
 
 function CardThumbnail({
-  cardId, imageUrl, cardName, status, toggleStatus,
+  cardId, imageUrl, cardName, status, count = 1, allIds, toggleStatus,
 }: {
   cardId: string;
   imageUrl: string | null;
   cardName: string;
   status: number;
+  count?: number;
+  allIds?: string[];
   toggleStatus: (cardId: string) => void;
 }) {
+  function handleToggle() {
+    const ids = allIds && allIds.length > 0 ? allIds : [cardId];
+    for (const id of ids) {
+      toggleStatus(id);
+    }
+  }
+
   return (
     <div
-      onClick={() => toggleStatus(cardId)}
+      onClick={handleToggle}
       className={`relative w-24 rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 ${
         status >= 1
           ? status === 3 ? "border-pink-400" : status === 1 ? "border-blue-400" : "border-green-500"
@@ -1124,6 +1172,13 @@ function CardThumbnail({
       }`}
       title={{ 0: "待签", 1: "送签中", 2: "已签", 3: "心动" }[status ?? 0]}
     >
+      {/* 数量角标（合并模式） */}
+      {count > 1 && (
+        <div className="absolute top-0.5 left-0.5 z-10 bg-black/80 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-tight">
+          ×{count}
+        </div>
+      )}
+
       <div className={status >= 1 ? "opacity-75" : ""}>
         {imageUrl ? (
           <img src={imageUrl} alt={cardName} className="w-full" loading="lazy" />
