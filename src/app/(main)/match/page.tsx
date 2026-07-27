@@ -13,7 +13,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/user";
 import { useDisplayMode } from "@/lib/display-mode";
-import { Search, Download, CheckSquare, Square, Loader2, Sparkles } from "lucide-react";
+import { Search, Play, Download, CheckSquare, Square, Loader2, Sparkles } from "lucide-react";
 import {
   Dialog,
   DialogHeader,
@@ -699,6 +699,7 @@ export default function MatchPage() {
 
           <div className="flex items-center gap-3">
             <Button variant="outline" size="sm" onClick={handleMatch} disabled={matching || parsedArtists.length === 0 || selectedDecks.size === 0}>
+              <Play className="h-4 w-4 mr-2" />
               {matching ? "匹配中..." : "开始匹配"}
             </Button>
             <label className="flex items-center gap-2 cursor-pointer select-none">
