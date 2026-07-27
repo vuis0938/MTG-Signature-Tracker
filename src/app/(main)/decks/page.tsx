@@ -539,6 +539,7 @@ export default function DecksPage() {
 1 Sol Ring (SLD) 1494
 1 Arcane Signet
 4x Force of Will
+
 `}
                 rows={8}
                 value={deckText}
