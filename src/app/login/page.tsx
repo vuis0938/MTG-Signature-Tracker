@@ -84,7 +84,7 @@ export default function LoginPage() {
               <p className="text-sm text-destructive">{error}</p>
             )}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "处理中..." : isRegister ? "注册并登录" : "登录"}
+              {loading ? (isRegister ? "注册中..." : "登录中...") : isRegister ? "注册并登录" : "登录"}
             </Button>
           </form>
           <p className="text-center text-sm text-muted-foreground mt-4">

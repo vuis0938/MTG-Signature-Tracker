@@ -106,7 +106,7 @@ export default function SettingsPage() {
             <User className="h-4 w-4" />
             账户信息
           </CardTitle>
-          <CardDescription>当前登录的账户</CardDescription>
+          <CardDescription>当前登录账户</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between">
@@ -134,7 +134,7 @@ export default function SettingsPage() {
             <Layout className="h-4 w-4" />
             显示偏好
           </CardTitle>
-          <CardDescription>自定义卡牌在套牌中的展示方式</CardDescription>
+          <CardDescription>自定义卡牌展示方式</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between">
@@ -165,7 +165,7 @@ export default function SettingsPage() {
             <Download className="h-4 w-4" />
             数据管理
           </CardTitle>
-          <CardDescription>备份或清除你的套牌数据</CardDescription>
+          <CardDescription>备份与清除数据</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between">
@@ -218,7 +218,7 @@ export default function SettingsPage() {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">版本</span>
-              <span>v0.2.0</span>
+              <span>v1.0.0</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">数据来源</span>

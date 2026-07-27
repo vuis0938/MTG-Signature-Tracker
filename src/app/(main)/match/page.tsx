@@ -553,7 +553,7 @@ export default function MatchPage() {
     const currentMatched = matchedRef.current;
     const currentUnmatched = unmatched;
 
-    let text = "MTG 签绘管家 — 活动准备清单\n";
+    let text = "MTG 签绘管家 · 活动准备清单\n";
     text += "=".repeat(40) + "\n\n";
 
     if (currentFuzzyMode && currentFuzzyMatched.size > 0) {
@@ -585,7 +585,7 @@ export default function MatchPage() {
 
     if (currentUnmatched.length > 0) {
       text += "─".repeat(40) + "\n";
-      text += "以下画家出席但你没有未签卡牌：\n";
+      text += "以下画家出席，但你暂无待签卡牌：\n";
       currentUnmatched.forEach((a) => (text += `  - ${a}\n`));
     }
 
@@ -605,7 +605,7 @@ export default function MatchPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">活动匹配</h1>
-          <p className="text-muted-foreground">粘贴活动画家名单，匹配你需要签绘的卡牌</p>
+          <p className="text-muted-foreground">贴入画家名单，匹配你的套牌</p>
         </div>
       </div>
 
@@ -613,7 +613,7 @@ export default function MatchPage() {
       <Card>
         <CardHeader>
           <CardTitle>1. 粘贴活动画家名单</CardTitle>
-          <CardDescription>直接粘贴，或从下方活动日历中一键选取</CardDescription>
+          <CardDescription>粘贴名单，或从下方活动日历中一键选取</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <select
@@ -675,7 +675,7 @@ export default function MatchPage() {
       <Card>
         <CardHeader>
           <CardTitle>2. 选择套牌并匹配</CardTitle>
-          <CardDescription>勾选要比对的套牌，然后点击开始匹配</CardDescription>
+          <CardDescription>选择需要比对的套牌，点击开始匹配</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-2">
@@ -852,7 +852,7 @@ function MatchResultCard({
             <p>{fuzzyMode ? "正在查询所有印刷版本..." : "正在匹配画家..."}</p>
           </div>
         ) : matchedCount === 0 ? (
-          <p className="text-muted-foreground text-center py-8">没有匹配到任何画家，请确认活动名单和套牌选择是否正确</p>
+          <p className="text-muted-foreground text-center py-8">没有匹配到任何卡牌，请检查活动名单与套牌选择是否正确</p>
         ) : fuzzyMode ? (
           <FuzzyMatchResults fuzzyMatched={fuzzyMatched} toggleStatus={toggleStatus} />
         ) : (
@@ -861,7 +861,7 @@ function MatchResultCard({
 
         {!matching && unmatched.length > 0 && (
           <div className="pt-4 border-t mt-4">
-            <h4 className="text-sm font-medium text-muted-foreground mb-2">以下画家出席但你没有未签卡牌：</h4>
+            <h4 className="text-sm font-medium text-muted-foreground mb-2">以下画家出席，但你暂无待签卡牌：</h4>
             <div className="flex flex-wrap gap-2">
               {unmatched.map((a) => (
                 <span key={a} className="px-2 py-1 bg-accent text-muted-foreground rounded text-sm line-through">{a}</span>

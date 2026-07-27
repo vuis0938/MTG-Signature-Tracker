@@ -8,11 +8,11 @@ export function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">
       {toasts.map((t) => (
         <div
           key={t.id}
-          className={`pointer-events-auto rounded-lg border px-4 py-3 text-sm shadow-lg animate-in slide-in-from-right-full ${
+          className={`pointer-events-auto rounded-lg border px-4 py-3 text-sm shadow-lg animate-in slide-in-from-top ${
             t.type === "success"
               ? "bg-green-50 text-green-800 border-green-200"
               : "bg-red-50 text-red-800 border-red-200"

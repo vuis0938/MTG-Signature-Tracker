@@ -168,6 +168,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("[Import]", error);
-    return NextResponse.json({ error: "服务器内部错误" }, { status: 500 });
+    return NextResponse.json({ error: "服务器异常，请稍后重试" }, { status: 500 });
   }
 }

@@ -398,7 +398,7 @@ export default function DecksPage() {
         setSwitchCard(null);
       }
     } catch {
-      showToast("网络错误", "error");
+      showToast("网络错误，请重试", "error");
       setSwitchCard(null);
     } finally {
       setPrintingsLoading(false);
@@ -450,7 +450,7 @@ export default function DecksPage() {
         showToast(`切换失败: ${data.error}`, "error");
       }
     } catch {
-      showToast("网络错误", "error");
+      showToast("网络错误，请重试", "error");
     } finally {
       setSwitchPrintingLoading(null);
     }
@@ -485,7 +485,7 @@ export default function DecksPage() {
       setPrintings([]);
       await loadDecks();
     } catch {
-      showToast("网络错误", "error");
+      showToast("网络错误，请重试", "error");
     } finally {
       setDeletingCard(null);
     }
@@ -497,8 +497,8 @@ export default function DecksPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">管理套牌</h1>
-          <p className="text-muted-foreground">管理你的套牌和签绘清单</p>
+          <h1 className="text-2xl font-semibold tracking-tight">套牌管理</h1>
+          <p className="text-muted-foreground">管理你的套牌与签绘清单</p>
         </div>
         <Button
           onClick={() => {
@@ -624,7 +624,7 @@ export default function DecksPage() {
         </div>
       ) : decks.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center">
-          <p className="text-muted-foreground">暂无套牌数据，点击"导入套牌"开始</p>
+          <p className="text-muted-foreground">暂无套牌数据，点击上方「导入套牌」开始吧</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -777,7 +777,7 @@ function DeckListItem({
           {cardsLoading ? (
             <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-sm">加载卡牌...</span>
+              <span className="text-sm">加载中...</span>
             </div>
           ) : cards?.length === 0 ? (
             <p className="text-muted-foreground text-sm">暂无卡牌</p>
