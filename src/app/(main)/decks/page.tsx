@@ -526,7 +526,7 @@ export default function DecksPage() {
               <Label htmlFor="deckName">套牌名称</Label>
               <Input
                 id="deckName"
-                placeholder="例如：Edgar Markov EDH"
+                placeholder=""
                 value={deckName}
                 onChange={(e) => setDeckName(e.target.value)}
               />
