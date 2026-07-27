@@ -165,7 +165,7 @@ export default function MatchPage() {
       }
     } catch {
       setArtistCards([]);
-      setMatchError("加载画家卡牌失败，请稍后重试");
+      setMatchError("加载画家卡牌失败，请稍后再试");
     } finally {
       setArtistCardsLoading(false);
     }
@@ -436,10 +436,10 @@ export default function MatchPage() {
       });
       if (fuzzyRes.ok) return await fuzzyRes.json();
       console.error(`[模糊匹配] API 返回错误状态: ${fuzzyRes.status}`);
-      setMatchError("模糊匹配服务暂时不可用，已降级为精确匹配结果。请稍后重试。");
+      setMatchError("模糊匹配服务暂时不可用，已降级为精确匹配结果。请稍后再试。");
     } catch (err: unknown) {
       console.error("[模糊匹配] API 调用异常:", err instanceof Error ? err.message : String(err));
-      setMatchError("模糊匹配服务网络异常，已降级为精确匹配结果。请稍后重试。");
+      setMatchError("模糊匹配服务网络异常，已降级为精确匹配结果。请稍后再试。");
     }
     return { success: false };
   }
@@ -605,15 +605,15 @@ export default function MatchPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">活动匹配</h1>
-          <p className="text-muted-foreground">贴入画家名单，匹配你的套牌</p>
+          <p className="text-muted-foreground">输入画家名单，匹配你的套牌</p>
         </div>
       </div>
 
       {/* 第一步：粘贴 + 解析 */}
       <Card>
         <CardHeader>
-          <CardTitle>1. 粘贴活动画家名单</CardTitle>
-          <CardDescription>粘贴名单，或从下方活动日历中一键选取</CardDescription>
+          <CardTitle>1. 输入画家名单</CardTitle>
+          <CardDescription>粘贴画家名单，或从下方活动日历中一键选取</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <select

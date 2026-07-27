@@ -79,6 +79,6 @@ export async function PUT(request: NextRequest) {
     setCookies(response, username, password);
     return response;
   } catch {
-    return NextResponse.json({ error: "服务器异常，请稍后重试" }, { status: 500 });
+    return NextResponse.json({ error: "服务器异常，请稍后再试" }, { status: 500 });
   }
 }
