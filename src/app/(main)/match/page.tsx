@@ -633,10 +633,11 @@ export default function MatchPage() {
           </select>
 
           <Textarea
-            placeholder={`粘贴活动画家名单，支持多种格式，例如：\n1. John Avon  $6/$12\n2. Rebecca Guay  $6/$12\n3. ...`}
+            placeholder={`粘贴活动画家名单，支持多种格式，例如：\n1. John Avon  $6/$12\n2. Rebecca Guay  $6/$12\n3. ...\n`}
             rows={6}
             value={rawText}
             onChange={(e) => setRawText(e.target.value)}
+            className="text-sm"
           />
           <div className="flex items-center gap-3">
             <Button onClick={handleParse} disabled={parsing || !rawText.trim()}>
