@@ -4,8 +4,7 @@ import {
   extractArtists,
   extractImageUrl,
 } from "@/lib/scryfall";
-import type { ScryfallCard } from "@/lib/scryfall";
-import { quickFetchCard, batchSearchByName, RateLimiter } from "@/lib/scryfall-client";
+import { batchSearch, CardIdentifier, RateLimiter } from "@/lib/scryfall-client";
 import { parseMoxfieldFormat, detectFormat } from "@/lib/moxfield-parser";
 
 // ─── API Handler ──────────────────────────────────────────
@@ -54,53 +53,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `创建套牌失败: ${deckError?.message}` }, { status: 500 });
     }
 
-    // ── 查询 Scryfall（180s 软截止）──
-    // 策略：有编号的用精确查询（Moxfield，9/s），
-    // 没编号的用批量接口（Plain Text，/cards/collection 一次查 75 张）
-    const RATE_PRECISE = 9;
-    const limiterPrecise = new RateLimiter(RATE_PRECISE);
+    // ── 统一批量查询 Scryfall ──
+    // 所有格式统一使用 /cards/collection 批量接口
+    // 有 set+number 的传精确标识符，没的传卡名
+    // 100 张牌只需 2 次请求，~3s 完成，彻底消除 429
     const SOFT_DEADLINE_MS = 180 * 1000;
     const tScryfall = Date.now();
     const totalCards = rows.reduce((sum, r) => sum + (parseInt(r.count, 10) || 1), 0);
 
-    // 分离：有编号 vs 没编号
-    const preciseCards = rows.filter((r) => r.setCode && r.collectorNumber);
-    const namedCards = rows.filter((r) => !r.setCode || !r.collectorNumber);
+    const identifiers: CardIdentifier[] = rows.map((r) => ({
+      name: r.name,
+      set: r.setCode || undefined,
+      collector_number: r.collectorNumber || undefined,
+    }));
 
-    // 1. 批量查询没编号的卡牌（Plain Text/Arena 格式）
-    let namedResults: (ScryfallCard | null)[] = [];
-    if (namedCards.length > 0) {
-      console.log(`[Import] 批量查询 ${namedCards.length} 张卡牌...`);
-      namedResults = await batchSearchByName(
-        namedCards.map((c) => c.name),
-        new RateLimiter(1), // 批量接口只需 1/s，100 张 = 2 次请求
-      );
-    }
+    const scryfallResults = await batchSearch(identifiers, new RateLimiter(1));
 
-    // 2. 并行查询有编号的卡牌（Moxfield 格式）
-    const preciseResults = await Promise.all(
-      preciseCards.map(async (card) => {
-        if (Date.now() - t0 > SOFT_DEADLINE_MS) {
-          return { card, data: null as ScryfallCard | null, timedOut: true };
-        }
-        await limiterPrecise.acquire();
-        if (Date.now() - t0 > SOFT_DEADLINE_MS) {
-          return { card, data: null as ScryfallCard | null, timedOut: true };
-        }
-        const data = await quickFetchCard(card.setCode!, card.collectorNumber!, limiterPrecise);
-        return { card, data, timedOut: false };
-      })
-    );
-
-    // 3. 合并结果
-    const cardResults = [
-      ...preciseResults,
-      ...namedCards.map((card, i) => ({
-        card,
-        data: namedResults[i],
-        timedOut: Date.now() - t0 > SOFT_DEADLINE_MS,
-      })),
-    ];
+    // 组装结果
+    const cardResults = rows.map((card, i) => ({
+      card,
+      data: scryfallResults[i],
+      timedOut: Date.now() - t0 > SOFT_DEADLINE_MS,
+    }));
 
     const tScryfallDone = Date.now();
 
@@ -188,7 +162,7 @@ export async function POST(request: NextRequest) {
         : undefined,
       timing: {
         total: `${tTotal}s`,
-        scryfall: `${tS}s (${preciseCards.length} precise @${RATE_PRECISE}/s + ${namedCards.length} batch)`,
+        scryfall: `${tS}s (${rows.length} batch, ${totalCards} cards)`,
         db: `${(tDB / 1000).toFixed(1)}s`,
       },
     });

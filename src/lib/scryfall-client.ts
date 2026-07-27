@@ -295,26 +295,36 @@ export async function quickFetchCard(
 
 // ─── 批量查询 ─────────────────────────────────────────────
 
+/** Scryfall Collection 接口标识符 */
+export interface CardIdentifier {
+  /** 卡名（始终存在，用于 not_found 时降级 fuzzy） */
+  name: string;
+  /** 有 set code 时用精确查询，否则用卡名查询 */
+  set?: string;
+  collector_number?: string;
+}
+
 /**
- * 批量按卡名查询（用于 Plain Text/Arena 格式导入）
- * 使用 /cards/collection 接口，一次最多查 75 张，
- * 大大减少请求次数，从根本上消除限速问题。
+ * 批量查询卡牌（适用于所有格式，统一入口）
+ *
+ * 使用 /cards/collection 接口，一次最多查 75 张。
+ * 支持混合标识符：有 set+number 的精确查询，没 set 的按卡名查询。
+ * 100 张牌只需 2 次请求，彻底消除 429 限速问题。
  *
  * 返回结果按输入顺序对应，找不到返回 null。
  */
-export async function batchSearchByName(
-  cardNames: string[],
+export async function batchSearch(
+  ids: CardIdentifier[],
   rateLimiter?: RateLimiter,
   attempt = 0
 ): Promise<(ScryfallCard | null)[]> {
-  // Scryfall Collection 接口上限 75
   const BATCH_SIZE = 75;
-  const batches: string[][] = [];
-  for (let i = 0; i < cardNames.length; i += BATCH_SIZE) {
-    batches.push(cardNames.slice(i, i + BATCH_SIZE));
+  const batches: CardIdentifier[][] = [];
+  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+    batches.push(ids.slice(i, i + BATCH_SIZE));
   }
 
-  const results: (ScryfallCard | null)[] = new Array(cardNames.length).fill(null);
+  const results: (ScryfallCard | null)[] = new Array(ids.length).fill(null);
   let batchIndex = 0;
 
   for (const batch of batches) {
@@ -322,7 +332,13 @@ export async function batchSearchByName(
       await rateLimiter.acquire();
     }
 
-    const identifiers = batch.map(name => ({ name }));
+    // 构建 Scryfall 标识符：有 set 用 set+number，没 set 用 name
+    const identifiers = batch.map((id) =>
+      id.set && id.collector_number
+        ? { set: id.set, collector_number: id.collector_number }
+        : { name: id.name }
+    );
+
     const url = `${BASE_URL}/cards/collection`;
     const body = JSON.stringify({ identifiers });
 
@@ -343,40 +359,78 @@ export async function batchSearchByName(
         console.warn(`[Scryfall] batch ${batchIndex + 1} 429, 暂停限速器 ${retryAfter}s (${attempt + 1}/${MAX_RETRIES})`);
         rateLimiter?.pause(waitMs);
         await delay(waitMs);
-        return batchSearchByName(cardNames, rateLimiter, attempt + 1);
+        return batchSearch(ids, rateLimiter, attempt + 1);
       }
 
       if (!res.ok) {
         console.error(`[Scryfall] batch ${batchIndex + 1} HTTP ${res.status}, fallback to individual queries`);
-        // 批量失败，逐个回退
         const fallbackResults = await Promise.all(
-          batch.map(async (name) => searchCardByName(name, rateLimiter))
+          batch.map(async (id) => searchCardByName(id.name, rateLimiter))
         );
         for (let i = 0; i < fallbackResults.length; i++) {
           results[batchIndex * BATCH_SIZE + i] = fallbackResults[i];
         }
       } else {
         const data = await res.json();
-        // 按输入顺序填充结果
-        for (let i = 0; i < batch.length; i++) {
-          results[batchIndex * BATCH_SIZE + i] = data.data[i] || null;
+
+        // Scryfall 返回的 data 只包含找到的卡牌，不包含 not_found 的项
+        // not_found 里没有 identifier_index，需要通过匹配标识符来定位
+        const notFoundSet = new Set<number>();
+        for (const nf of data.not_found || []) {
+          for (let i = 0; i < batch.length; i++) {
+            const id = batch[i];
+            if (nf.name && id.name === nf.name) {
+              notFoundSet.add(i);
+              break;
+            }
+            if (nf.set && nf.collector_number && id.set === nf.set && id.collector_number === nf.collector_number) {
+              notFoundSet.add(i);
+              break;
+            }
+          }
         }
+
+        let dataIdx = 0;
+        for (let i = 0; i < batch.length; i++) {
+          const globalIdx = batchIndex * BATCH_SIZE + i;
+          if (notFoundSet.has(i)) {
+            // 没找到，后续降级 fuzzy
+            results[globalIdx] = null;
+          } else {
+            results[globalIdx] = data.data[dataIdx++] || null;
+          }
+        }
+
         // 处理 not_found — 降级 fuzzy
         const notFound = data.not_found || [];
         if (notFound.length > 0 && rateLimiter) {
           console.warn(`[Scryfall] batch ${batchIndex + 1}: ${notFound.length} not found, fallback fuzzy`);
           for (const nf of notFound) {
-            const originalIndex = batchIndex * BATCH_SIZE + nf.identifier_index;
-            const name = cardNames[originalIndex];
-            results[originalIndex] = await fetchFuzzy(name, rateLimiter);
+            // 找到对应的原始索引
+            let originalIndex = -1;
+            for (let i = 0; i < batch.length; i++) {
+              const id = batch[i];
+              if (nf.name && id.name === nf.name) {
+                originalIndex = i;
+                break;
+              }
+              if (nf.set && nf.collector_number && id.set === nf.set && id.collector_number === nf.collector_number) {
+                originalIndex = i;
+                break;
+              }
+            }
+            if (originalIndex >= 0) {
+              const globalIdx = batchIndex * BATCH_SIZE + originalIndex;
+              const name = ids[globalIdx].name;
+              results[globalIdx] = await fetchFuzzy(name, rateLimiter);
+            }
           }
         }
       }
     } catch (err) {
       console.error(`[Scryfall] batch ${batchIndex + 1} network error:`, err);
-      // 网络错误也降级
       const fallbackResults = await Promise.all(
-        batch.map(async (name) => searchCardByName(name, rateLimiter))
+        batch.map(async (id) => searchCardByName(id.name, rateLimiter))
       );
       for (let i = 0; i < fallbackResults.length; i++) {
         results[batchIndex * BATCH_SIZE + i] = fallbackResults[i];
