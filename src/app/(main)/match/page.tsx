@@ -640,10 +640,15 @@ export default function MatchPage() {
             className="text-sm"
           />
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" onClick={handleParse} disabled={parsing || !rawText.trim()}>
-              <Search className="h-4 w-4 mr-2" />
-              {parsing ? "解析中..." : "智能解析"}
-            </Button>
+            <Button
+                variant={parsing || !rawText.trim() ? "secondary" : "default"}
+                size="sm"
+                onClick={handleParse}
+                disabled={parsing || !rawText.trim()}
+              >
+                <Search className="h-4 w-4 mr-2" />
+                {parsing ? "解析中..." : "智能解析"}
+              </Button>
             {parseMethod && (
               <span className="text-xs text-muted-foreground">
                 已解析 {parsedArtists.length} 位画家 ({parseMethod})
@@ -695,10 +700,15 @@ export default function MatchPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" onClick={handleMatch} disabled={matching || parsedArtists.length === 0 || selectedDecks.size === 0}>
-              <Play className="h-4 w-4 mr-2" />
-              {matching ? "匹配中..." : "开始匹配"}
-            </Button>
+            <Button
+                variant={matching || parsedArtists.length === 0 || selectedDecks.size === 0 ? "secondary" : "default"}
+                size="sm"
+                onClick={handleMatch}
+                disabled={matching || parsedArtists.length === 0 || selectedDecks.size === 0}
+              >
+                <Play className="h-4 w-4 mr-2" />
+                {matching ? "匹配中..." : "开始匹配"}
+              </Button>
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <input
                 type="checkbox"
