@@ -641,7 +641,7 @@ export default function MatchPage() {
           />
           <div className="flex items-center gap-3">
             <Button
-                variant={parsing || !rawText.trim() ? "secondary" : "default"}
+                variant={parsing || !rawText.trim() ? "outline" : "default"}
                 size="sm"
                 onClick={handleParse}
                 disabled={parsing || !rawText.trim()}
@@ -701,7 +701,7 @@ export default function MatchPage() {
 
           <div className="flex items-center gap-3">
             <Button
-                variant={matching || parsedArtists.length === 0 || selectedDecks.size === 0 ? "secondary" : "default"}
+                variant={matching || parsedArtists.length === 0 || selectedDecks.size === 0 ? "outline" : "default"}
                 size="sm"
                 onClick={handleMatch}
                 disabled={matching || parsedArtists.length === 0 || selectedDecks.size === 0}
