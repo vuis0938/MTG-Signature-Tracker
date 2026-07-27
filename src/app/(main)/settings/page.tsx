@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/lib/toast-context";
 import { Button } from "@/components/ui/button";
@@ -11,18 +11,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { getCurrentUser } from "@/lib/user";
 import { useDisplayMode } from "@/lib/display-mode";
+import { useUser } from "@/lib/user-context";
 import { LogOut, Download, Trash2, User, Info, Layout } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState("");
-
-  // 客户端挂载后读取 cookie，避免 SSR 期间闪现"默认用户"
-  useEffect(() => {
-    setCurrentUser(getCurrentUser());
-  }, []);
+  const currentUser = useUser();
 
   const [loggingOut, setLoggingOut] = useState(false);
   const [exporting, setExporting] = useState(false);
