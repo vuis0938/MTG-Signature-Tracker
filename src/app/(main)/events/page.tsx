@@ -202,7 +202,7 @@ export default function EventsPage() {
                         {card.name}
                       </div>
                     )}
-                    <div className="p-1.5 text-[10px]">
+                    <div className="p-1.5 text-xs">
                       <p className="font-medium truncate">{card.name}</p>
                       <p className="text-muted-foreground truncate">
                         {card.set_name} #{card.collector_number}

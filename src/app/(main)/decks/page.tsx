@@ -865,14 +865,14 @@ function CardThumbnail({ card, deckId, count = 1, allIds, onToggleStatus, onLoad
       >
         {/* 数量角标（合并模式） */}
         {count > 1 && (
-          <div className="absolute top-0.5 left-0.5 z-10 bg-black/80 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-tight">
+          <div className="absolute top-0.5 left-0.5 z-10 bg-black/80 text-white text-xs font-bold px-1.5 py-0.5 rounded-md leading-tight">
             ×{count}
           </div>
         )}
 
         {/* 心动活动标签 */}
         {status === 3 && card.event_name && (
-          <div className="absolute top-0 left-0 right-0 z-10 bg-pink-500/90 text-white text-[9px] px-1 py-0.5 text-center leading-tight">
+          <div className="absolute top-0 left-0 right-0 z-10 bg-pink-500/90 text-white text-xs px-1 py-0.5 text-center leading-tight">
             ♥ {card.event_name}
             {card.event_date && ` · ${card.event_date}`}
           </div>
@@ -896,7 +896,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, onToggleStatus, onLoad
           </div>
         )}
 
-        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-1 py-0.5 text-center truncate">
+        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate">
           {card.card_name}
         </div>
       </div>
@@ -983,7 +983,7 @@ function VersionSwitchDialog({
                       {printing.set_name}
                     </div>
                   )}
-                  <div className="p-1.5 text-[10px]">
+                  <div className="p-1.5 text-xs">
                     <p className="font-medium truncate">{printing.set_name}</p>
                     <p className="text-muted-foreground truncate">
                       #{printing.collector_number} · {printing.artist}
