@@ -518,7 +518,7 @@ export default function DecksPage() {
           <CardHeader>
             <CardTitle>导入套牌</CardTitle>
             <CardDescription>
-              从 Moxfield 导入套牌数据，自动匹配每张卡牌的画家信息。支持 Copy for Moxfield / Arena / MTGO / Plain Text 四种格式
+              从 Moxfield 导入套牌，自动匹配每张卡牌的画家信息。支持多种牌表格式，自动识别。
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -526,7 +526,7 @@ export default function DecksPage() {
               <Label htmlFor="deckName">套牌名称</Label>
               <Input
                 id="deckName"
-                placeholder="例如: Edgar Markov EDH"
+                placeholder="例如：Edgar Markov EDH"
                 value={deckName}
                 onChange={(e) => setDeckName(e.target.value)}
               />
@@ -535,16 +535,12 @@ export default function DecksPage() {
               <Label htmlFor="text">牌表内容</Label>
               <Textarea
                 id="text"
-                placeholder={`粘贴套牌列表内容，自动识别以下格式：
-◆ 1 Sol Ring (CMM) 345   — Moxfield 完整格式
-◆ 4x Lightning Bolt    — 4x 格式
-◆ 4 [ZNR:45] Card      — 方括号格式
-◆ 4 Card (MM2)         — 括号 SET-only
-◆ 4 Card / MM2         — 斜杠格式
-◆ SB: 1 Card           — Cockatrice 备牌
-◆ Deck\\n1 Card          — Arena 分区头
-◆ 1 Card               — 简单格式
-◆ // 注释、# 注释、分类头 — 自动跳过`}
+                placeholder={`粘贴牌表内容，自动识别格式，例如：
+1 Sol Ring (CMM) 345
+4x Lightning Bolt
+4 Card (MM2)
+4 Card / MM2
+1 Card`}
                 rows={8}
                 value={deckText}
                 onChange={(e) => setDeckText(e.target.value)}
