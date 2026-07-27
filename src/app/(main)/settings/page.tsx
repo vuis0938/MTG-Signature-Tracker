@@ -149,10 +149,11 @@ export default function SettingsPage() {
             <Button
               variant="outline"
               size="sm"
+              className="w-28"
               onClick={toggleDisplayMode}
             >
               <Layout className="h-4 w-4 mr-2" />
-              切换为{displayMode === "individual" ? "合并" : "独立"}展示
+              {displayMode === "individual" ? "合并展示" : "独立展示"}
             </Button>
           </div>
         </CardContent>
