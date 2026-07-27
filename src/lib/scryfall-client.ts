@@ -115,12 +115,17 @@ async function fetchWithTimeout(
 let fuzzyCallSeq = 0;
 
 /**
- * 精确卡名查询（带简易重试，避免网络抖动误降级）
- * 速度快（~200ms）、限速宽松，适合大批量导入
+ * 精确卡名查询（带简易重试 + 429 限速器暂停）
+ * 速度快（~200ms），适合大批量导入
  *
- * 重试策略：404 不重试（真正的"没找到"），网络错误和 429 最多重试 2 次
+ * 重试策略：404 不重试（真正的"没找到"），
+ * 429 读 Retry-After 并暂停限速器，网络错误短暂等待后重试
  */
-async function fetchExact(cardName: string, attempt = 0): Promise<ScryfallCard | null> {
+async function fetchExact(
+  cardName: string,
+  rateLimiter?: RateLimiter,
+  attempt = 0
+): Promise<ScryfallCard | null> {
   const url = `${BASE_URL}/cards/named?exact=${encodeURIComponent(cardName)}`;
   try {
     const res = await fetchWithTimeout(url, {
@@ -129,18 +134,27 @@ async function fetchExact(cardName: string, attempt = 0): Promise<ScryfallCard |
     if (res.ok) return await res.json();
     // 404 是真正的"没找到"，不重试，直接降级 fuzzy
     if (res.status === 404) return null;
-    // 429 或 5xx：短暂等待后重试
+    // 429：读 Retry-After 头，暂停限速器，等够再重试
+    if (res.status === 429 && rateLimiter && attempt < 2) {
+      const retryAfter = parseInt(res.headers.get("Retry-After") || "30", 10) || 30;
+      const waitMs = retryAfter * 1000 + jitter(500);
+      console.warn(`[Scryfall] exact "${cardName}" 429, 暂停限速器 ${retryAfter}s (${attempt + 1}/2)`);
+      rateLimiter.pause(waitMs);
+      await delay(waitMs);
+      return fetchExact(cardName, rateLimiter, attempt + 1);
+    }
+    // 其他错误（5xx 等）：短暂等待后重试
     if (attempt < 2) {
-      const wait = jitter(400 * (attempt + 1));
+      const wait = jitter(800 * (attempt + 1));
       await delay(wait);
-      return fetchExact(cardName, attempt + 1);
+      return fetchExact(cardName, rateLimiter, attempt + 1);
     }
     return null;
   } catch {
     if (attempt < 2) {
-      const wait = jitter(400 * (attempt + 1));
+      const wait = jitter(800 * (attempt + 1));
       await delay(wait);
-      return fetchExact(cardName, attempt + 1);
+      return fetchExact(cardName, rateLimiter, attempt + 1);
     }
     return null;
   }
@@ -150,15 +164,15 @@ async function fetchExact(cardName: string, attempt = 0): Promise<ScryfallCard |
  * 模糊搜索（带自动重试 + 429 限速器暂停 + 交错延迟）
  * 仅在 exact 匹配失败时作为降级方案使用
  *
- * 交错延迟：多个 fuzzy 降级时，每个按序列号 × 300ms 延迟，
- * 确保 fuzzy 调用速率约 3/s，避免触发 Scryfall 累计限流。
+ * 交错延迟：多个 fuzzy 降级时，每个按序列号 × 500ms 延迟，
+ * 确保 fuzzy 调用速率约 2/s，避免触发 Scryfall 累计限流。
  */
 async function fetchFuzzy(
   cardName: string,
   rateLimiter?: RateLimiter,
   attempt = 0
 ): Promise<ScryfallCard | null> {
-  // 交错延迟：首次调用时按序列号排队，约 3/s 速率
+  // 交错延迟：首次调用时按序列号排队，约 2/s 速率
   if (attempt === 0) {
     const mySeq = fuzzyCallSeq++;
     const staggerMs = mySeq * 500; // 2/s 的交错间隔（官方限速）
@@ -174,7 +188,7 @@ async function fetchFuzzy(
     });
 
     if (res.status === 429 && rateLimiter && attempt < MAX_RETRIES) {
-      const retryAfter = parseInt(res.headers.get("Retry-After") || "3", 10) || 3;
+      const retryAfter = parseInt(res.headers.get("Retry-After") || "30", 10) || 30;
       const waitMs = retryAfter * 1000 + jitter(500);
       console.warn(`[Scryfall] fuzzy "${cardName}" 429, 暂停限速器 ${retryAfter}s (${attempt + 1}/${MAX_RETRIES})`);
       rateLimiter.pause(waitMs);
@@ -222,7 +236,7 @@ export async function searchCardByName(
   rateLimiter?: RateLimiter,
 ): Promise<ScryfallCard | null> {
   // 1. 先尝试 exact 精确匹配（快速）
-  const exactResult = await fetchExact(cardName);
+  const exactResult = await fetchExact(cardName, rateLimiter);
   if (exactResult) return exactResult;
 
   // 2. exact 失败，降级到 fuzzy 模糊搜索
@@ -247,7 +261,7 @@ export async function quickFetchCard(
     });
 
     if (res.status === 429 && rateLimiter && attempt < MAX_RETRIES) {
-      const retryAfter = parseInt(res.headers.get("Retry-After") || "3", 10) || 3;
+      const retryAfter = parseInt(res.headers.get("Retry-After") || "30", 10) || 30;
       const waitMs = retryAfter * 1000 + jitter(500);
       console.warn(`[Scryfall] ${setCode}/${collectorNumber} 429, 暂停限速器 ${retryAfter}s (${attempt + 1}/${MAX_RETRIES})`);
       rateLimiter.pause(waitMs);
