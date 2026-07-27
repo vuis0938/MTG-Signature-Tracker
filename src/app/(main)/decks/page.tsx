@@ -536,9 +536,9 @@ export default function DecksPage() {
               <Textarea
                 id="text"
                 placeholder={`粘贴牌表内容，自动识别格式，例如：
-1 Sol Ring (CMM) 345
-4x Lightning Bolt
-1 Counterspell
+1 Sol Ring (SLD) 1494
+1 Arcane Signet
+4x Force of Will
 `}
                 rows={8}
                 value={deckText}
