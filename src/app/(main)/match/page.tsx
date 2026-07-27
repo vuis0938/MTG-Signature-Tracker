@@ -773,7 +773,7 @@ export default function MatchPage() {
                         {card.name}
                       </div>
                     )}
-                    <div className="p-1.5 text-[10px]">
+                    <div className="p-1.5 text-xs">
                       <p className="font-medium truncate">{card.name}</p>
                       <p className="text-muted-foreground truncate">{card.set_name} #{card.collector_number}</p>
                     </div>
@@ -1003,9 +1003,9 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
                         </div>
                         <StatusBadge status={status} isInDeck={isInDeck} />
                         {!isInDeck && (
-                          <div className="absolute top-0 right-0 bg-amber-500 text-white text-[9px] px-1 rounded-bl">其他</div>
+                          <div className="absolute top-0 right-0 bg-amber-500 text-white text-xs px-1 rounded-bl">其他</div>
                         )}
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-1 py-0.5 text-center truncate">
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate">
                           {v.set_code.toUpperCase()} #{v.collector_number}
                         </div>
                       </div>
@@ -1078,7 +1078,7 @@ function CardThumbnail({
     >
       {/* 数量角标（合并模式） */}
       {count > 1 && (
-        <div className="absolute top-0.5 left-0.5 z-10 bg-black/80 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-tight">
+        <div className="absolute top-0.5 left-0.5 z-10 bg-black/80 text-white text-xs font-bold px-1.5 py-0.5 rounded-md leading-tight">
           ×{count}
         </div>
       )}
@@ -1093,7 +1093,7 @@ function CardThumbnail({
         )}
       </div>
       <StatusBadge status={status} isInDeck={true} />
-      <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-1 py-0.5 text-center truncate">
+      <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate">
         {cardName}
       </div>
     </div>
