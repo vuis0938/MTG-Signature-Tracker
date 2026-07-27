@@ -13,7 +13,7 @@ import type { ScryfallCard } from "@/lib/scryfall";
 export const SCRYFALL_UA = "MTG-Signature-Tracker/1.0";
 const BASE_URL = "https://api.scryfall.com";
 const MIN_DELAY_MS = 100;
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 2; // 初始 + 2 次重试 = 3 次机会
 const FETCH_TIMEOUT_MS = 15_000; // 单次请求超时 15 秒
 
 /** 随机抖动，避免惊群效应（多个请求同时重试） */
