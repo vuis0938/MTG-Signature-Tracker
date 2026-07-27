@@ -60,12 +60,6 @@ export default function MatchPage() {
   const [artistCards, setArtistCards] = useState<ArtistCard[]>([]);
   const [artistCardsLoading, setArtistCardsLoading] = useState(false);
 
-  // 调试面板
-  const [debugInfo, setDebugInfo] = useState<string[]>([]);
-  const [rawDataPanel, setRawDataPanel] = useState<Array<{
-    deckName: string; cardName: string; setCode: string; artists: string[]; status: number; deckId: string;
-  }>>([]);
-
   const [hasRun, setHasRun] = useState(false);
 
   // Ref 锁定最新状态，避免闭包陷阱
@@ -95,18 +89,10 @@ export default function MatchPage() {
   }
 
   /** 查询多个套牌的所有卡牌 */
-  async function fetchCardsByDeckIds(deckIds: string[]): Promise<{
-    cards: CardEntry[];
-    rawRows: Array<{ deckName: string; cardName: string; setCode: string; artists: string[]; status: number; deckId: string }>;
-    debug: string[];
-  }> {
+  async function fetchCardsByDeckIds(deckIds: string[]): Promise<CardEntry[]> {
     const currentDecks = decksRef.current;
     const deckMap = new Map(currentDecks.map((d) => [d.id, d.name]));
     const cards: CardEntry[] = [];
-    const rawRows: Array<{ deckName: string; cardName: string; setCode: string; artists: string[]; status: number; deckId: string }> = [];
-    const debug: string[] = [];
-
-    debug.push(`[查询] 开始查询 ${deckIds.length} 个套牌`);
 
     for (const deckId of deckIds) {
       try {
@@ -117,29 +103,21 @@ export default function MatchPage() {
 
         const deckName = deckMap.get(deckId) || deckId;
         if (error) {
-          debug.push(`❌ 套牌 "${deckName}" 查询失败: ${error.message || JSON.stringify(error)}`);
+          console.error(`[查询] 套牌 "${deckName}" 查询失败:`, error.message);
           continue;
         }
-        const count = data?.length || 0;
-        debug.push(`✅ 套牌 "${deckName}" (${deckId}): ${count} 张卡`);
 
         if (data && data.length > 0) {
           for (const card of data) {
-            const c = card as CardEntry;
-            const artists = normalizeArtists(c.artist_names);
-            rawRows.push({ deckName, cardName: c.card_name, setCode: c.set_code, artists, status: c.status, deckId });
-            cards.push({ ...c, deck_name: deckName });
+            cards.push({ ...(card as CardEntry), deck_name: deckName });
           }
         }
       } catch (err: unknown) {
-        const deckName = deckMap.get(deckId) || deckId;
-        const msg = err instanceof Error ? err.message : String(err);
-        debug.push(`💥 套牌 "${deckName}" 查询异常: ${msg}`);
+        console.error(`[查询] 套牌查询异常:`, err);
       }
     }
 
-    debug.push(`[查询] 总计获取 ${cards.length} 张卡牌`);
-    return { cards, rawRows, debug };
+    return cards;
   }
 
   // ─── 事件处理 ──────────────────────────────────────────
@@ -341,11 +319,9 @@ export default function MatchPage() {
 
   async function handleExactMatch(deckIds: string[]) {
     const currentParsedArtists = parsedArtistsRef.current;
-    const { cards, rawRows, debug } = await fetchCardsByDeckIds(deckIds);
-    setRawDataPanel(rawRows);
+    const cards = await fetchCardsByDeckIds(deckIds);
 
     if (cards.length === 0) {
-      setDebugInfo([...debug]);
       setMatched(new Map());
       setFuzzyMatched(new Map());
       setUnmatched([...currentParsedArtists]);
@@ -377,11 +353,6 @@ export default function MatchPage() {
       }
     }
 
-    let totalCards = 0;
-    for (const cards of newMatched.values()) totalCards += cards.length;
-    debug.push(`[精确匹配] 结果: ${newMatched.size} 位画家匹配, ${totalCards} 张卡, ${newUnmatched.length} 位未匹配`);
-    setDebugInfo([...debug]);
-
     setMatched(newMatched);
     setFuzzyMatched(new Map());
     setUnmatched(newUnmatched);
@@ -393,7 +364,7 @@ export default function MatchPage() {
     const currentParsedArtists = parsedArtistsRef.current;
 
     // 1. 查询套牌卡牌
-    const { cards } = await fetchCardsByDeckIds(deckIds);
+    const cards = await fetchCardsByDeckIds(deckIds);
 
     if (cards.length === 0) {
       setMatched(new Map());
@@ -627,8 +598,6 @@ export default function MatchPage() {
     URL.revokeObjectURL(url);
   }, [unmatched]);
 
-  const isDev = typeof process !== "undefined" && process.env.NODE_ENV === "development";
-
   // ─── 渲染 ──────────────────────────────────────────────
 
   return (
@@ -767,71 +736,6 @@ export default function MatchPage() {
           toggleStatus={toggleStatus}
           exportText={exportText}
         />
-      )}
-
-      {/* 调试面板 — 仅开发环境 */}
-      {isDev && hasRun && debugInfo.length > 0 && (
-        <Card className="border-dashed border-amber-300 bg-amber-50/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <span className="text-amber-600">🐛</span> 调试信息
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <pre className="text-xs text-amber-900 whitespace-pre-wrap font-mono max-h-64 overflow-y-auto">
-              {debugInfo.join("\n")}
-            </pre>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 原始数据面板 — 仅开发环境 */}
-      {isDev && hasRun && rawDataPanel.length > 0 && (
-        <Card className="border-dashed border-blue-300 bg-blue-50/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <span className="text-blue-600">📊</span> 数据库原始返回 (共 {rawDataPanel.length} 张卡)
-              <span className="text-xs font-normal text-blue-500 ml-2">— 按套牌分组</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {(() => {
-              const byDeck = new Map<string, typeof rawDataPanel>();
-              for (const row of rawDataPanel) {
-                const arr = byDeck.get(row.deckName) || [];
-                arr.push(row);
-                byDeck.set(row.deckName, arr);
-              }
-              return Array.from(byDeck).map(([deckName, rows]) => (
-                <div key={deckName} className="mb-4 last:mb-0">
-                  <p className="text-sm font-semibold text-blue-800 mb-2">📦 {deckName} ({rows.length} 张)</p>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-blue-100">
-                          <th className="p-1.5 text-left border border-blue-200">卡牌名</th>
-                          <th className="p-1.5 text-left border border-blue-200">系列</th>
-                          <th className="p-1.5 text-left border border-blue-200">画家</th>
-                          <th className="p-1.5 text-center border border-blue-200 w-12">状态</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rows.map((row, i) => (
-                          <tr key={`${row.deckName}-${row.cardName}-${row.setCode}-${i}`}>
-                            <td className="p-1.5 border border-blue-100">{row.cardName}</td>
-                            <td className="p-1.5 border border-blue-100">{row.setCode}</td>
-                            <td className="p-1.5 border border-blue-100">{row.artists.join(", ")}</td>
-                            <td className="p-1.5 text-center border border-blue-100">{row.status}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ));
-            })()}
-          </CardContent>
-        </Card>
       )}
 
       {/* 画家卡牌画廊弹窗 */}
