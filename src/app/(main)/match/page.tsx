@@ -659,13 +659,14 @@ export default function MatchPage() {
           {parsedArtists.length > 0 && (
             <div className="flex flex-wrap gap-2 p-3 bg-accent/50 rounded-lg">
               {parsedArtists.map((a) => (
-                <button
+                <Button
                   key={a}
+                  variant="outline"
+                  size="sm"
                   onClick={() => handleArtistClick(a)}
-                  className="px-2 py-1 bg-background hover:bg-accent border rounded text-sm cursor-pointer transition-colors"
                 >
                   {a}
-                </button>
+                </Button>
               ))}
             </div>
           )}

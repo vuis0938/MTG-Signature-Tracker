@@ -4,6 +4,7 @@ import * as React from "react";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface DialogProps {
   open: boolean;
@@ -47,12 +48,14 @@ export function Dialog({ open, onOpenChange, children, className }: DialogProps)
           onClick={(e) => e.stopPropagation()}
         >
           {/* 关闭按钮 */}
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => onOpenChange(false)}
-            className="absolute top-4 right-4 z-10 w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+            className="absolute top-4 right-4 z-10"
           >
             <X className="h-4 w-4" />
-          </button>
+          </Button>
           {children}
         </div>
       </div>

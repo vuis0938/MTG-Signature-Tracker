@@ -89,15 +89,16 @@ export default function LoginPage() {
           </form>
           <p className="text-center text-sm text-muted-foreground mt-4">
             {isRegister ? "已有账号？" : "没有账号？"}
-            <button
+            <Button
+              variant="link"
+              size="sm"
               onClick={() => {
                 setIsRegister(!isRegister);
                 setError("");
               }}
-              className="ml-1 text-primary hover:underline"
             >
               {isRegister ? "去登录" : "注册"}
-            </button>
+            </Button>
           </p>
         </CardContent>
       </Card>

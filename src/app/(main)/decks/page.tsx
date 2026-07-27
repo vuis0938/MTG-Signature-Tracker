@@ -902,13 +902,15 @@ function CardThumbnail({ card, deckId, count = 1, allIds, onToggleStatus, onLoad
       </div>
 
       {/* 切换版本按钮 */}
-      <button
+      <Button
+        variant="ghost"
+        size="icon-xs"
         onClick={(e) => { e.stopPropagation(); onLoadPrintings(card); }}
-        className="absolute top-0.5 right-0.5 z-20 w-6 h-6 rounded-full bg-background/80 border shadow-sm flex items-center justify-center hover:bg-accent hover:scale-110 transition-all"
+        className="absolute top-0.5 right-0.5 z-20"
         title="切换印刷版本"
       >
-        <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
-      </button>
+        <RefreshCw className="h-3.5 w-3.5" />
+      </Button>
     </div>
   );
 }

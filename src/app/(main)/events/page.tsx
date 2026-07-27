@@ -15,6 +15,7 @@ import {
   DialogContent,
 } from "@/components/ui/dialog";
 import { Calendar, MapPin, Users, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { ArtistCard } from "@/types";
 
 interface CalendarEvent {
@@ -139,16 +140,17 @@ export default function EventsPage() {
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       {event.artists.map((artist) => (
-                        <button
+                        <Button
                           key={artist}
+                          variant="outline"
+                          size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleArtistClick(artist);
                           }}
-                          className="px-2 py-1 bg-accent hover:bg-accent/70 rounded text-sm cursor-pointer transition-colors"
                         >
                           {artist}
-                        </button>
+                        </Button>
                       ))}
                     </div>
                   )}
