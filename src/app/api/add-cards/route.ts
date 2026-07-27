@@ -41,9 +41,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 全并发查询 Scryfall（令牌桶限速，180s 软截止）
+    // 全并发查询 Scryfall（平滑限速 3/s，180s 软截止）
     // 所有卡牌同时发出请求，每张独立等待令牌，互不阻塞
-    const RATE = 9;
+    // 速率 3/s 确保不触发 Scryfall 累计限流（~80 次/窗口）
+    const RATE = 3;
     const rateLimiter = new RateLimiter(RATE);
     const SOFT_DEADLINE_MS = 180 * 1000; // 180s 软截止，Vercel Hobby 默认 300s 兜底
     const totalCards = rows.reduce((sum, r) => sum + (parseInt(r.count, 10) || 1), 0);
@@ -58,8 +59,8 @@ export async function POST(request: NextRequest) {
           return { card, data: null as ScryfallCard | null, timedOut: true };
         }
         const data = card.setCode
-          ? await quickFetchCard(card.setCode, card.collectorNumber!)
-          : await searchCardByName(card.name);
+          ? await quickFetchCard(card.setCode, card.collectorNumber!, rateLimiter)
+          : await searchCardByName(card.name, rateLimiter);
         return { card, data, timedOut: false };
       })
     );

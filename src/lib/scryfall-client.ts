@@ -21,27 +21,26 @@ function jitter(baseMs: number): number {
   return baseMs + Math.random() * baseMs * 0.5;
 }
 
-// ─── 令牌桶限速器 ──────────────────────────────────────────
+// ─── 平滑限速器 ──────────────────────────────────────────
 
 /**
- * 令牌桶限速器（队列模式）
+ * 平滑限速器（队列模式，无突发）
  *
- * 核心思想：用队列替代"所有人一起等"，消除惊群效应。
- * 每个调用者按顺序获得令牌，精确间隔 1/rate 秒，无浪费唤醒。
- * 支持突发：长时间空闲后，最多 rate 个调用者可立即获得令牌。
+ * 每个调用者按顺序获得令牌，精确间隔 1/rate 秒。
+ * 支持暂停：当收到 429 时，调用 pause() 阻止所有后续令牌发放，
+ * 等待 Retry-After 时长后自动恢复，防止雪崩式 429。
  */
 export class RateLimiter {
   private queue: Array<() => void> = [];
   private processing = false;
   private readonly intervalMs: number;
-  private burstTokens: number;
-  private readonly maxBurst: number;
   private lastTokenTime: number;
+
+  /** 暂停状态：非零表示暂停中，值为暂停结束时间戳 */
+  private pauseUntil = 0;
 
   constructor(requestsPerSecond: number) {
     this.intervalMs = 1000 / requestsPerSecond;
-    this.maxBurst = requestsPerSecond;
-    this.burstTokens = requestsPerSecond;
     this.lastTokenTime = 0;
   }
 
@@ -53,34 +52,35 @@ export class RateLimiter {
     });
   }
 
+  /**
+   * 暂停令牌发放指定毫秒数
+   * 用于收到 429 时等待 Retry-After 时长，避免所有后续请求都触发限流
+   */
+  pause(ms: number): void {
+    this.pauseUntil = Math.max(this.pauseUntil, Date.now() + ms);
+  }
+
   private async _process(): Promise<void> {
     this.processing = true;
     while (this.queue.length > 0) {
-      const now = Date.now();
-      const elapsed = now - this.lastTokenTime;
-
-      // 突发支持：长时间空闲后补充 burstTokens
-      if (elapsed > 1000) {
-        this.burstTokens = Math.min(
-          this.maxBurst,
-          this.burstTokens + Math.floor((elapsed / 1000) * this.maxBurst)
-        );
-      }
-
-      if (this.burstTokens > 0) {
-        // 突发模式：立即发放令牌
-        this.burstTokens -= 1;
-        this.lastTokenTime = now;
-        this.queue.shift()!();
-      } else {
-        // 正常模式：等待 intervalMs 后发放
-        const waitMs = this.intervalMs - (now - this.lastTokenTime);
+      // 暂停检查：收到 429 后等待 Retry-After
+      if (this.pauseUntil > 0) {
+        const waitMs = this.pauseUntil - Date.now();
         if (waitMs > 0) {
           await delay(waitMs);
         }
+        this.pauseUntil = 0;
+        // 暂停后重置计时，避免立即发放令牌
         this.lastTokenTime = Date.now();
-        this.queue.shift()!();
       }
+
+      const now = Date.now();
+      const waitMs = this.intervalMs - (now - this.lastTokenTime);
+      if (waitMs > 0) {
+        await delay(waitMs);
+      }
+      this.lastTokenTime = Date.now();
+      this.queue.shift()!();
     }
     this.processing = false;
   }
@@ -112,11 +112,16 @@ async function fetchWithTimeout(
 // ─── 卡牌查询 ──────────────────────────────────────────────
 
 /**
- * 按卡名模糊搜索（带自动重试）
+ * 按卡名模糊搜索（带自动重试 + 429 限速器暂停）
  * 用于 MTGO/Plain Text 格式导入 — 无 set/code 时按名字查找
+ *
+ * @param cardName 卡牌名称
+ * @param rateLimiter 可选限速器，传入后遇到 429 会暂停整个限速器，防止雪崩
+ * @param attempt 内部重试计数
  */
 export async function searchCardByName(
   cardName: string,
+  rateLimiter?: RateLimiter,
   attempt = 0
 ): Promise<ScryfallCard | null> {
   const url = `${BASE_URL}/cards/named?fuzzy=${encodeURIComponent(cardName)}`;
@@ -125,12 +130,23 @@ export async function searchCardByName(
       headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
     });
 
+    if (res.status === 429 && rateLimiter && attempt < MAX_RETRIES) {
+      // 读取 Scryfall 建议的等待时间，默认 3 秒
+      const retryAfter = parseInt(res.headers.get("Retry-After") || "3", 10) || 3;
+      const waitMs = retryAfter * 1000 + jitter(500);
+      console.warn(`[Scryfall] 搜索 "${cardName}" 429, 暂停限速器 ${retryAfter}s (${attempt + 1}/${MAX_RETRIES})`);
+      // 暂停整个限速器，阻止后续请求也触发 429
+      rateLimiter.pause(waitMs);
+      await delay(waitMs);
+      return searchCardByName(cardName, rateLimiter, attempt + 1);
+    }
+
     if (!res.ok) {
       if (attempt < MAX_RETRIES) {
-        const wait = jitter(res.status === 429 ? 2000 : 800 * (attempt + 1));
+        const wait = jitter(800 * (attempt + 1));
         console.warn(`[Scryfall] 搜索 "${cardName}" HTTP ${res.status}, ${Math.round(wait)}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
         await delay(wait);
-        return searchCardByName(cardName, attempt + 1);
+        return searchCardByName(cardName, rateLimiter, attempt + 1);
       }
       console.error(`[Scryfall] 搜索 "${cardName}" 重试 ${MAX_RETRIES} 次后仍失败`);
       return null;
@@ -142,7 +158,7 @@ export async function searchCardByName(
       const wait = jitter(1000 * (attempt + 1));
       console.warn(`[Scryfall] 搜索 "${cardName}" 网络错误, ${Math.round(wait)}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
       await delay(wait);
-      return searchCardByName(cardName, attempt + 1);
+      return searchCardByName(cardName, rateLimiter, attempt + 1);
     }
     console.error(`[Scryfall] 搜索 "${cardName}" 网络错误，重试耗尽:`, err);
     return null;
@@ -150,12 +166,13 @@ export async function searchCardByName(
 }
 
 /**
- * 按 Set Code + Collector Number 查询单张卡牌（带自动重试）
+ * 按 Set Code + Collector Number 查询单张卡牌（带自动重试 + 429 限速器暂停）
  * 用于导入/添加卡牌流程
  */
 export async function quickFetchCard(
   setCode: string,
   collectorNumber: string,
+  rateLimiter?: RateLimiter,
   attempt = 0
 ): Promise<ScryfallCard | null> {
   const url = `${BASE_URL}/cards/${encodeURIComponent(setCode.toLowerCase())}/${encodeURIComponent(collectorNumber)}`;
@@ -164,12 +181,21 @@ export async function quickFetchCard(
       headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
     });
 
+    if (res.status === 429 && rateLimiter && attempt < MAX_RETRIES) {
+      const retryAfter = parseInt(res.headers.get("Retry-After") || "3", 10) || 3;
+      const waitMs = retryAfter * 1000 + jitter(500);
+      console.warn(`[Scryfall] ${setCode}/${collectorNumber} 429, 暂停限速器 ${retryAfter}s (${attempt + 1}/${MAX_RETRIES})`);
+      rateLimiter.pause(waitMs);
+      await delay(waitMs);
+      return quickFetchCard(setCode, collectorNumber, rateLimiter, attempt + 1);
+    }
+
     if (!res.ok) {
       if (attempt < MAX_RETRIES) {
-        const wait = jitter(res.status === 429 ? 2000 : 800 * (attempt + 1));
+        const wait = jitter(800 * (attempt + 1));
         console.warn(`[Scryfall] ${setCode}/${collectorNumber} HTTP ${res.status}, ${Math.round(wait)}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
         await delay(wait);
-        return quickFetchCard(setCode, collectorNumber, attempt + 1);
+        return quickFetchCard(setCode, collectorNumber, rateLimiter, attempt + 1);
       }
       console.error(`[Scryfall] ${setCode}/${collectorNumber} 重试 ${MAX_RETRIES} 次后仍失败`);
       return null;
@@ -181,7 +207,7 @@ export async function quickFetchCard(
       const wait = jitter(1000 * (attempt + 1));
       console.warn(`[Scryfall] ${setCode}/${collectorNumber} 网络错误, ${Math.round(wait)}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
       await delay(wait);
-      return quickFetchCard(setCode, collectorNumber, attempt + 1);
+      return quickFetchCard(setCode, collectorNumber, rateLimiter, attempt + 1);
     }
     console.error(`[Scryfall] ${setCode}/${collectorNumber} 网络错误，重试耗尽:`, err);
     return null;
