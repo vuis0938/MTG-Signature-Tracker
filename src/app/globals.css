@@ -129,10 +129,3 @@
   }
 }
 
-/* ─── 临时：字体层次检查 ─── */
-.text-base {
-  color: yellow !important;
-}
-.text-xs {
-  color: green !important;
-}
