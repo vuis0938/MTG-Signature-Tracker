@@ -112,14 +112,28 @@ async function fetchWithTimeout(
 // ─── 卡牌查询 ──────────────────────────────────────────────
 
 /**
- * 按卡名模糊搜索（带自动重试 + 429 限速器暂停）
- * 用于 MTGO/Plain Text 格式导入 — 无 set/code 时按名字查找
- *
- * @param cardName 卡牌名称
- * @param rateLimiter 可选限速器，传入后遇到 429 会暂停整个限速器，防止雪崩
- * @param attempt 内部重试计数
+ * 精确卡名查询（无重试，无限速处理）
+ * 速度快（~200ms）、限速宽松，适合大批量导入
  */
-export async function searchCardByName(
+async function fetchExact(cardName: string): Promise<ScryfallCard | null> {
+  const url = `${BASE_URL}/cards/named?exact=${encodeURIComponent(cardName)}`;
+  try {
+    const res = await fetchWithTimeout(url, {
+      headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
+    });
+    if (res.ok) return await res.json();
+    // 404 表示没找到，返回 null 让调用方降级
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 模糊搜索（带自动重试 + 429 限速器暂停）
+ * 仅在 exact 匹配失败时作为降级方案使用
+ */
+async function fetchFuzzy(
   cardName: string,
   rateLimiter?: RateLimiter,
   attempt = 0
@@ -131,24 +145,22 @@ export async function searchCardByName(
     });
 
     if (res.status === 429 && rateLimiter && attempt < MAX_RETRIES) {
-      // 读取 Scryfall 建议的等待时间，默认 3 秒
       const retryAfter = parseInt(res.headers.get("Retry-After") || "3", 10) || 3;
       const waitMs = retryAfter * 1000 + jitter(500);
-      console.warn(`[Scryfall] 搜索 "${cardName}" 429, 暂停限速器 ${retryAfter}s (${attempt + 1}/${MAX_RETRIES})`);
-      // 暂停整个限速器，阻止后续请求也触发 429
+      console.warn(`[Scryfall] fuzzy "${cardName}" 429, 暂停限速器 ${retryAfter}s (${attempt + 1}/${MAX_RETRIES})`);
       rateLimiter.pause(waitMs);
       await delay(waitMs);
-      return searchCardByName(cardName, rateLimiter, attempt + 1);
+      return fetchFuzzy(cardName, rateLimiter, attempt + 1);
     }
 
     if (!res.ok) {
       if (attempt < MAX_RETRIES) {
         const wait = jitter(800 * (attempt + 1));
-        console.warn(`[Scryfall] 搜索 "${cardName}" HTTP ${res.status}, ${Math.round(wait)}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
+        console.warn(`[Scryfall] fuzzy "${cardName}" HTTP ${res.status}, ${Math.round(wait)}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
         await delay(wait);
-        return searchCardByName(cardName, rateLimiter, attempt + 1);
+        return fetchFuzzy(cardName, rateLimiter, attempt + 1);
       }
-      console.error(`[Scryfall] 搜索 "${cardName}" 重试 ${MAX_RETRIES} 次后仍失败`);
+      console.error(`[Scryfall] fuzzy "${cardName}" 重试 ${MAX_RETRIES} 次后仍失败`);
       return null;
     }
 
@@ -156,13 +168,37 @@ export async function searchCardByName(
   } catch (err) {
     if (attempt < MAX_RETRIES) {
       const wait = jitter(1000 * (attempt + 1));
-      console.warn(`[Scryfall] 搜索 "${cardName}" 网络错误, ${Math.round(wait)}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
+      console.warn(`[Scryfall] fuzzy "${cardName}" 网络错误, ${Math.round(wait)}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
       await delay(wait);
-      return searchCardByName(cardName, rateLimiter, attempt + 1);
+      return fetchFuzzy(cardName, rateLimiter, attempt + 1);
     }
-    console.error(`[Scryfall] 搜索 "${cardName}" 网络错误，重试耗尽:`, err);
+    console.error(`[Scryfall] fuzzy "${cardName}" 网络错误，重试耗尽:`, err);
     return null;
   }
+}
+
+/**
+ * 按卡名搜索（exact 优先，失败降级 fuzzy）
+ * 用于 MTGO/Plain Text 格式导入 — 无 set/code 时按名字查找
+ *
+ * 策略：先调用 exact 端点（快、限速宽松，~200ms），
+ * 若卡名完全匹配则直接返回；若 404 则降级到 fuzzy 模糊搜索。
+ * 大部分网站导出的卡名就是 Scryfall 官方名，exact 命中率 90%+。
+ *
+ * @param cardName 卡牌名称
+ * @param rateLimiter 可选限速器，传入后遇到 429 会暂停整个限速器，防止雪崩
+ */
+export async function searchCardByName(
+  cardName: string,
+  rateLimiter?: RateLimiter,
+): Promise<ScryfallCard | null> {
+  // 1. 先尝试 exact 精确匹配（快速）
+  const exactResult = await fetchExact(cardName);
+  if (exactResult) return exactResult;
+
+  // 2. exact 失败，降级到 fuzzy 模糊搜索
+  console.warn(`[Scryfall] exact 未找到 "${cardName}"，降级 fuzzy`);
+  return fetchFuzzy(cardName, rateLimiter);
 }
 
 /**

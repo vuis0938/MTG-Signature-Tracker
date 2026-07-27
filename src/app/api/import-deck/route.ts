@@ -54,10 +54,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `创建套牌失败: ${deckError?.message}` }, { status: 500 });
     }
 
-    // ── 全并发查询 Scryfall（平滑限速 3/s，180s 软截止）──
+    // ── 全并发查询 Scryfall（平滑限速 9/s，exact 优先，180s 软截止）──
     // 所有卡牌同时发出请求，每张独立等待令牌，互不阻塞
-    // 速率 3/s 确保不触发 Scryfall 累计限流（~80 次/窗口）
-    const RATE = 3;
+    // exact 端点限速宽松（~10+/s），fuzzy 降级时 429 pause 兜底
+    const RATE = 9;
     const rateLimiter = new RateLimiter(RATE);
     const SOFT_DEADLINE_MS = 180 * 1000; // 180s 软截止，Vercel Hobby 默认 300s 兜底
     const tScryfall = Date.now();
