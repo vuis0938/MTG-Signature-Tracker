@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useToast } from "@/lib/toast-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,7 +54,7 @@ export default function DecksPage() {
   const [importing, setImporting] = useState(false);
 
   // Toast 通知
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const { toast: showToast } = useToast();
 
   // 导入失败卡牌的手动重试
   const [failedCards, setFailedCards] = useState<
@@ -171,11 +172,11 @@ export default function DecksPage() {
 
   const handleImport = useCallback(async () => {
     if (!deckName.trim()) {
-      setToast({ message: "请输入套牌名称", type: "error" });
+      showToast("请输入套牌名称", "error");
       return;
     }
     if (!deckText.trim()) {
-      setToast({ message: "请粘贴套牌列表内容", type: "error" });
+      showToast("请粘贴套牌列表内容", "error");
       return;
     }
 
@@ -200,7 +201,7 @@ export default function DecksPage() {
         if (timedOut) msg += `（超时保护，已导入的已保存）`;
         msg += ` | ${t.total}`;
 
-        setToast({ message: msg, type: hasFailures ? "error" : "success" });
+        showToast(msg, hasFailures ? "error" : "success");
 
         // 合并失败和超时卡牌，供手动重试
         const allFailed = [
@@ -220,10 +221,10 @@ export default function DecksPage() {
         setShowImport(false);
         await loadDecks();
       } else {
-        setToast({ message: data.error, type: "error" });
+        showToast(data.error, "error");
       }
     } catch {
-      setToast({ message: "网络错误，请重试", type: "error" });
+      showToast("网络错误，请重试", "error");
     } finally {
       setImporting(false);
     }
@@ -245,10 +246,7 @@ export default function DecksPage() {
 
       if (data.success) {
         setFailedCards((prev) => prev.filter((c) => c.name !== cardName));
-        setToast({
-          message: `✅ 「${cardName}」通过模糊搜索成功录入`,
-          type: "success",
-        });
+        showToast(`✅ 「${cardName}」通过模糊搜索成功录入`, "success");
         await loadDecks();
         if (expandedDeck === retryingDeckId) {
           const { data: freshCards } = await supabase
@@ -261,10 +259,10 @@ export default function DecksPage() {
           }
         }
       } else {
-        setToast({ message: `❌ ${cardName}: ${data.error}`, type: "error" });
+        showToast(`❌ ${cardName}: ${data.error}`, "error");
       }
     } catch {
-      setToast({ message: `❌ ${cardName}: 网络错误`, type: "error" });
+      showToast(`❌ ${cardName}: 网络错误`, "error");
     } finally {
       setRetryingCard(null);
     }
@@ -315,7 +313,7 @@ export default function DecksPage() {
 
   const handleAddCards = useCallback(async () => {
     if (!addCardsOpen || !addCardsText.trim()) {
-      setToast({ message: "请粘贴套牌列表内容", type: "error" });
+      showToast("请粘贴套牌列表内容", "error");
       return;
     }
 
@@ -335,10 +333,7 @@ export default function DecksPage() {
         let msg = `✅ 添加 ${data.successCount}/${data.total} 张成功`;
         if (hasFailures) msg += `，${data.failCount} 张未处理`;
         if (timedOut) msg += `（超时保护，剩余卡牌可重新添加）`;
-        setToast({
-          message: msg,
-          type: hasFailures ? "error" : "success",
-        });
+        showToast(msg, hasFailures ? "error" : "success");
         setAddCardsOpen(null);
         setAddCardsText("");
         await loadDecks();
@@ -353,10 +348,10 @@ export default function DecksPage() {
           }
         }
       } else {
-        setToast({ message: data.error, type: "error" });
+        showToast(data.error, "error");
       }
     } catch {
-      setToast({ message: "网络错误，请重试", type: "error" });
+      showToast("网络错误，请重试", "error");
     } finally {
       setAddCardsLoading(false);
     }
@@ -376,11 +371,11 @@ export default function DecksPage() {
       if (data.success) {
         setPrintings(data.printings);
       } else {
-        setToast({ message: `加载印刷版本失败: ${data.error}`, type: "error" });
+        showToast(`加载印刷版本失败: ${data.error}`, "error");
         setSwitchCard(null);
       }
     } catch {
-      setToast({ message: "网络错误", type: "error" });
+      showToast("网络错误", "error");
       setSwitchCard(null);
     } finally {
       setPrintingsLoading(false);
@@ -401,10 +396,10 @@ export default function DecksPage() {
       const data = await res.json();
 
       if (data.success) {
-        setToast({
-          message: `✅ 已切换为 ${data.newSet} #${data.newCollectorNumber}`,
-          type: "success",
-        });
+        showToast(
+          `✅ 已切换为 ${data.newSet} #${data.newCollectorNumber}`,
+          "success",
+        );
 
         const deckId = switchCard?.deck_id;
         if (deckId) {
@@ -429,10 +424,10 @@ export default function DecksPage() {
         setSwitchCard(null);
         setPrintings([]);
       } else {
-        setToast({ message: `切换失败: ${data.error}`, type: "error" });
+        showToast(`切换失败: ${data.error}`, "error");
       }
     } catch {
-      setToast({ message: "网络错误", type: "error" });
+      showToast("网络错误", "error");
     } finally {
       setSwitchPrintingLoading(null);
     }
@@ -446,11 +441,11 @@ export default function DecksPage() {
       const { error } = await supabase.from("cards").delete().eq("id", cardId);
 
       if (error) {
-        setToast({ message: `删除失败: ${error.message}`, type: "error" });
+        showToast(`删除失败: ${error.message}`, "error");
         return;
       }
 
-      setToast({ message: "✅ 卡牌已删除", type: "success" });
+      showToast("✅ 卡牌已删除", "success");
 
       const deckId = switchCard?.deck_id;
       if (deckId) {
@@ -467,7 +462,7 @@ export default function DecksPage() {
       setPrintings([]);
       await loadDecks();
     } catch {
-      setToast({ message: "网络错误", type: "error" });
+      showToast("网络错误", "error");
     } finally {
       setDeletingCard(null);
     }
@@ -477,27 +472,6 @@ export default function DecksPage() {
 
   return (
     <div className="space-y-6">
-      {/* Toast 通知 */}
-      {toast && (
-        <div
-          className={`p-3 rounded-lg text-sm ${
-            toast.type === "success"
-              ? "bg-green-50 text-green-800 border border-green-200"
-              : "bg-red-50 text-red-800 border border-red-200"
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span>{toast.message}</span>
-            <button
-              onClick={() => setToast(null)}
-              className="ml-3 text-current opacity-50 hover:opacity-100"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">管理套牌</h1>

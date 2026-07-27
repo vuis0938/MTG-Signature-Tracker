@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/lib/toast-context";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -21,7 +22,7 @@ export default function SettingsPage() {
   const [exporting, setExporting] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const { toast: showToast } = useToast();
 
   // ─── 退出登录 ───
   async function handleLogout() {
@@ -33,7 +34,7 @@ export default function SettingsPage() {
         router.refresh();
       }
     } catch {
-      setToast({ message: "退出失败，请重试", type: "error" });
+      showToast("退出失败，请重试", "error");
     } finally {
       setLoggingOut(false);
     }
@@ -54,15 +55,15 @@ export default function SettingsPage() {
         a.download = `mtg-backup-${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
         URL.revokeObjectURL(url);
-        setToast({
-          message: `✅ 导出成功：${data.deckCount} 个套牌，${data.cardCount} 张卡牌`,
-          type: "success",
-        });
+        showToast(
+          `✅ 导出成功：${data.deckCount} 个套牌，${data.cardCount} 张卡牌`,
+          "success",
+        );
       } else {
-        setToast({ message: "导出失败", type: "error" });
+        showToast("导出失败", "error");
       }
     } catch {
-      setToast({ message: "导出失败", type: "error" });
+      showToast("导出失败", "error");
     } finally {
       setExporting(false);
     }
@@ -84,7 +85,7 @@ export default function SettingsPage() {
         const res = await fetch("/api/backfill-cache", { method: "POST" });
         const data = await res.json();
         if (!data.success) {
-          setToast({ message: data.error || "补全失败", type: "error" });
+          showToast(data.error || "补全失败", "error");
           setBackfilling(false);
           return;
         }
@@ -98,16 +99,16 @@ export default function SettingsPage() {
       }
 
       if (totalFailed === 0 && totalCached === 0) {
-        setToast({ message: `✅ 所有 ${finalTotal} 张卡牌已缓存，无需补全`, type: "success" });
+        showToast(`✅ 所有 ${finalTotal} 张卡牌已缓存，无需补全`, "success");
       } else {
-        setToast({
-          message: `✅ 补全完成：${totalCached} 张新增，${totalSkipped} 张已存在` +
+        showToast(
+          `✅ 补全完成：${totalCached} 张新增，${totalSkipped} 张已存在` +
             (totalFailed > 0 ? `，${totalFailed} 张失败` : ""),
-          type: "success",
-        });
+          "success",
+        );
       }
     } catch {
-      setToast({ message: "补全失败", type: "error" });
+      showToast("补全失败", "error");
     } finally {
       setBackfilling(false);
     }
@@ -124,12 +125,12 @@ export default function SettingsPage() {
       const data = await res.json();
 
       if (data.success) {
-        setToast({ message: "✅ 所有数据已清除", type: "success" });
+        showToast("✅ 所有数据已清除", "success");
       } else {
-        setToast({ message: data.error || "清除失败", type: "error" });
+        showToast(data.error || "清除失败", "error");
       }
     } catch {
-      setToast({ message: "清除失败", type: "error" });
+      showToast("清除失败", "error");
     } finally {
       setClearing(false);
     }
@@ -141,27 +142,6 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-semibold tracking-tight">设置</h1>
         <p className="text-muted-foreground">数据管理与偏好配置</p>
       </div>
-
-      {/* Toast */}
-      {toast && (
-        <div
-          className={`p-3 rounded-lg text-sm ${
-            toast.type === "success"
-              ? "bg-green-50 text-green-800 border border-green-200"
-              : "bg-red-50 text-red-800 border border-red-200"
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span>{toast.message}</span>
-            <button
-              onClick={() => setToast(null)}
-              className="ml-3 text-current opacity-50 hover:opacity-100"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* 账户信息 */}
       <Card>
