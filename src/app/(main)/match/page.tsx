@@ -663,6 +663,7 @@ export default function MatchPage() {
                   key={a}
                   variant="outline"
                   size="sm"
+                  className="bg-accent border-black hover:bg-accent/70"
                   onClick={() => handleArtistClick(a)}
                 >
                   {a}
