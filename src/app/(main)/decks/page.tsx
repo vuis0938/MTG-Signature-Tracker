@@ -538,9 +538,8 @@ export default function DecksPage() {
                 placeholder={`粘贴牌表内容，自动识别格式，例如：
 1 Sol Ring (CMM) 345
 4x Lightning Bolt
-4 Card (MM2)
-4 Card / MM2
-1 Card`}
+1 Counterspell
+`}
                 rows={8}
                 value={deckText}
                 onChange={(e) => setDeckText(e.target.value)}
