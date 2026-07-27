@@ -293,6 +293,102 @@ export async function quickFetchCard(
   }
 }
 
+// ─── 批量查询 ─────────────────────────────────────────────
+
+/**
+ * 批量按卡名查询（用于 Plain Text/Arena 格式导入）
+ * 使用 /cards/collection 接口，一次最多查 75 张，
+ * 大大减少请求次数，从根本上消除限速问题。
+ *
+ * 返回结果按输入顺序对应，找不到返回 null。
+ */
+export async function batchSearchByName(
+  cardNames: string[],
+  rateLimiter?: RateLimiter,
+  attempt = 0
+): Promise<(ScryfallCard | null)[]> {
+  // Scryfall Collection 接口上限 75
+  const BATCH_SIZE = 75;
+  const batches: string[][] = [];
+  for (let i = 0; i < cardNames.length; i += BATCH_SIZE) {
+    batches.push(cardNames.slice(i, i + BATCH_SIZE));
+  }
+
+  const results: (ScryfallCard | null)[] = new Array(cardNames.length).fill(null);
+  let batchIndex = 0;
+
+  for (const batch of batches) {
+    if (rateLimiter) {
+      await rateLimiter.acquire();
+    }
+
+    const identifiers = batch.map(name => ({ name }));
+    const url = `${BASE_URL}/cards/collection`;
+    const body = JSON.stringify({ identifiers });
+
+    try {
+      const res = await fetchWithTimeout(url, {
+        method: "POST",
+        headers: {
+          "User-Agent": SCRYFALL_UA,
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+        },
+        body,
+      });
+
+      if (res.status === 429 && rateLimiter && attempt < MAX_RETRIES) {
+        const retryAfter = parseInt(res.headers.get("Retry-After") || "30", 10) || 30;
+        const waitMs = retryAfter * 1000 + jitter(500);
+        console.warn(`[Scryfall] batch ${batchIndex + 1} 429, 暂停限速器 ${retryAfter}s (${attempt + 1}/${MAX_RETRIES})`);
+        rateLimiter?.pause(waitMs);
+        await delay(waitMs);
+        return batchSearchByName(cardNames, rateLimiter, attempt + 1);
+      }
+
+      if (!res.ok) {
+        console.error(`[Scryfall] batch ${batchIndex + 1} HTTP ${res.status}, fallback to individual queries`);
+        // 批量失败，逐个回退
+        const fallbackResults = await Promise.all(
+          batch.map(async (name) => searchCardByName(name, rateLimiter))
+        );
+        for (let i = 0; i < fallbackResults.length; i++) {
+          results[batchIndex * BATCH_SIZE + i] = fallbackResults[i];
+        }
+      } else {
+        const data = await res.json();
+        // 按输入顺序填充结果
+        for (let i = 0; i < batch.length; i++) {
+          results[batchIndex * BATCH_SIZE + i] = data.data[i] || null;
+        }
+        // 处理 not_found — 降级 fuzzy
+        const notFound = data.not_found || [];
+        if (notFound.length > 0 && rateLimiter) {
+          console.warn(`[Scryfall] batch ${batchIndex + 1}: ${notFound.length} not found, fallback fuzzy`);
+          for (const nf of notFound) {
+            const originalIndex = batchIndex * BATCH_SIZE + nf.identifier_index;
+            const name = cardNames[originalIndex];
+            results[originalIndex] = await fetchFuzzy(name, rateLimiter);
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`[Scryfall] batch ${batchIndex + 1} network error:`, err);
+      // 网络错误也降级
+      const fallbackResults = await Promise.all(
+        batch.map(async (name) => searchCardByName(name, rateLimiter))
+      );
+      for (let i = 0; i < fallbackResults.length; i++) {
+        results[batchIndex * BATCH_SIZE + i] = fallbackResults[i];
+      }
+    }
+
+    batchIndex++;
+  }
+
+  return results;
+}
+
 // ─── 印刷版本查询 ──────────────────────────────────────────
 
 /**
