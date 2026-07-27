@@ -24,50 +24,65 @@ function jitter(baseMs: number): number {
 // ─── 令牌桶限速器 ──────────────────────────────────────────
 
 /**
- * 令牌桶限速器
+ * 令牌桶限速器（队列模式）
  *
- * 核心思想：桶中初始有 N 个令牌，每秒匀速补充 N 个。
- * 每次请求消耗一个令牌，令牌不足时等待补充。
- * 相比固定批次延迟，优势是：
- *   - 无浪费等待：快请求不放慢，慢请求不拖累
- *   - 天然平滑：不会出现「批次边界」的突发流量
- *   - 可预测时间：N 张卡 ÷ R req/s ≈ 理论最短时间
+ * 核心思想：用队列替代"所有人一起等"，消除惊群效应。
+ * 每个调用者按顺序获得令牌，精确间隔 1/rate 秒，无浪费唤醒。
+ * 支持突发：长时间空闲后，最多 rate 个调用者可立即获得令牌。
  */
 export class RateLimiter {
-  private tokens: number;
-  private lastRefill: number;
-  private readonly maxTokens: number;
-  private readonly refillPerMs: number;
+  private queue: Array<() => void> = [];
+  private processing = false;
+  private readonly intervalMs: number;
+  private burstTokens: number;
+  private readonly maxBurst: number;
+  private lastTokenTime: number;
 
   constructor(requestsPerSecond: number) {
-    this.maxTokens = requestsPerSecond;
-    this.tokens = requestsPerSecond;
-    this.lastRefill = Date.now();
-    this.refillPerMs = requestsPerSecond / 1000;
+    this.intervalMs = 1000 / requestsPerSecond;
+    this.maxBurst = requestsPerSecond;
+    this.burstTokens = requestsPerSecond;
+    this.lastTokenTime = 0;
   }
 
-  /** 获取一个令牌，若不足则等待 */
+  /** 获取一个令牌，若不足则排队等待 */
   async acquire(): Promise<void> {
-    this._refill();
-
-    if (this.tokens >= 1) {
-      this.tokens -= 1;
-      return;
-    }
-
-    // 计算等待时间（精确到所需令牌数）
-    const waitMs = Math.ceil((1 - this.tokens) / this.refillPerMs);
-    await delay(waitMs);
-    this._refill();
-    this.tokens -= 1;
+    return new Promise((resolve) => {
+      this.queue.push(resolve);
+      if (!this.processing) this._process();
+    });
   }
 
-  /** 补充令牌 */
-  private _refill(): void {
-    const now = Date.now();
-    const elapsed = now - this.lastRefill;
-    this.tokens = Math.min(this.maxTokens, this.tokens + elapsed * this.refillPerMs);
-    this.lastRefill = now;
+  private async _process(): Promise<void> {
+    this.processing = true;
+    while (this.queue.length > 0) {
+      const now = Date.now();
+      const elapsed = now - this.lastTokenTime;
+
+      // 突发支持：长时间空闲后补充 burstTokens
+      if (elapsed > 1000) {
+        this.burstTokens = Math.min(
+          this.maxBurst,
+          this.burstTokens + Math.floor((elapsed / 1000) * this.maxBurst)
+        );
+      }
+
+      if (this.burstTokens > 0) {
+        // 突发模式：立即发放令牌
+        this.burstTokens -= 1;
+        this.lastTokenTime = now;
+        this.queue.shift()!();
+      } else {
+        // 正常模式：等待 intervalMs 后发放
+        const waitMs = this.intervalMs - (now - this.lastTokenTime);
+        if (waitMs > 0) {
+          await delay(waitMs);
+        }
+        this.lastTokenTime = Date.now();
+        this.queue.shift()!();
+      }
+    }
+    this.processing = false;
   }
 }
 
