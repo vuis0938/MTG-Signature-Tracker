@@ -12,7 +12,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/user";
-import { LogOut, Download, Trash2, User, Info, Database } from "lucide-react";
+import { useDisplayMode } from "@/lib/display-mode";
+import { LogOut, Download, Trash2, User, Info, Database, Layout } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -23,6 +24,7 @@ export default function SettingsPage() {
   const [clearing, setClearing] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const { toast: showToast } = useToast();
+  const { mode: displayMode, toggle: toggleDisplayMode } = useDisplayMode();
 
   // ─── 退出登录 ───
   async function handleLogout() {
@@ -166,6 +168,37 @@ export default function SettingsPage() {
             >
               <LogOut className="h-4 w-4 mr-2" />
               {loggingOut ? "退出中..." : "退出登录"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 显示偏好 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Layout className="h-4 w-4" />
+            显示偏好
+          </CardTitle>
+          <CardDescription>自定义卡牌在套牌中的展示方式</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">卡片显示模式</p>
+              <p className="text-xs text-muted-foreground">
+                {displayMode === "individual"
+                  ? "当前：独立展示 — 每张卡牌单独显示"
+                  : "当前：合并展示 — 相同卡牌合并为 ×N 样式"}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleDisplayMode}
+            >
+              <Layout className="h-4 w-4 mr-2" />
+              切换为{displayMode === "individual" ? "合并" : "独立"}展示
             </Button>
           </div>
         </CardContent>

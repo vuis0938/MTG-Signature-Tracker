@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/lib/toast-context";
+import { useDisplayMode } from "@/lib/display-mode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +41,27 @@ function groupCardsByArtist(cardList: CardEntry[]): Map<string, CardEntry[]> {
   return map;
 }
 
+/** 合并相同卡牌（同名+同系列+同编号），返回 { card, count, ids } */
+function mergeIdenticalCards(
+  cardList: CardEntry[]
+): Array<{ card: CardEntry; count: number; ids: string[] }> {
+  const key = (c: CardEntry) => `${c.card_name}|${c.set_code}|${c.collector_number}`;
+  const groups = new Map<string, { card: CardEntry; count: number; ids: string[] }>();
+
+  for (const card of cardList) {
+    const k = key(card);
+    const existing = groups.get(k);
+    if (existing) {
+      existing.count++;
+      existing.ids.push(card.id);
+    } else {
+      groups.set(k, { card, count: 1, ids: [card.id] });
+    }
+  }
+
+  return Array.from(groups.values());
+}
+
 // ─── 页面组件 ──────────────────────────────────────────────
 
 export default function DecksPage() {
@@ -55,6 +77,7 @@ export default function DecksPage() {
 
   // Toast 通知
   const { toast: showToast } = useToast();
+  const { mode: displayMode } = useDisplayMode();
 
   // 导入失败卡牌的手动重试
   const [failedCards, setFailedCards] = useState<
@@ -613,6 +636,7 @@ export default function DecksPage() {
               isExpanded={expandedDeck === deck.id}
               cards={cards[deck.id]}
               cardsLoading={cardsLoading}
+              displayMode={displayMode}
               onToggle={toggleDeck}
               onAddCards={(deckId) => { setAddCardsOpen(deckId); setAddCardsText(""); }}
               onDelete={deleteDeck}
@@ -686,6 +710,7 @@ interface DeckListItemProps {
   isExpanded: boolean;
   cards: CardEntry[] | undefined;
   cardsLoading: boolean;
+  displayMode: "individual" | "grouped";
   onToggle: (deckId: string) => void;
   onAddCards: (deckId: string) => void;
   onDelete: (deckId: string) => void;
@@ -694,7 +719,7 @@ interface DeckListItemProps {
 }
 
 function DeckListItem({
-  deck, stats, isExpanded, cards, cardsLoading,
+  deck, stats, isExpanded, cards, cardsLoading, displayMode,
   onToggle, onAddCards, onDelete, onToggleStatus, onLoadPrintings,
 }: DeckListItemProps) {
   return (
@@ -758,24 +783,34 @@ function DeckListItem({
             <p className="text-muted-foreground text-sm">暂无卡牌</p>
           ) : (
             <div className="space-y-4">
-              {Array.from(groupCardsByArtist(cards || [])).map(([artist, artistCards]) => (
-                <div key={artist}>
-                  <h4 className="text-sm font-medium mb-2">
-                    🎨 {artist} ({artistCards.length})
-                  </h4>
-                  <div className="flex flex-wrap gap-3">
-                    {artistCards.map((card) => (
-                      <CardThumbnail
-                        key={card.id}
-                        card={card}
-                        deckId={deck.id}
-                        onToggleStatus={onToggleStatus}
-                        onLoadPrintings={onLoadPrintings}
-                      />
-                    ))}
+              {Array.from(groupCardsByArtist(cards || [])).map(([artist, artistCards]) => {
+                // 合并模式：相同卡牌（同名+同系列+同编号）合并为一条
+                const displayCards =
+                  displayMode === "grouped"
+                    ? mergeIdenticalCards(artistCards)
+                    : artistCards.map((c) => ({ card: c, count: 1, ids: [c.id] }));
+
+                return (
+                  <div key={artist}>
+                    <h4 className="text-sm font-medium mb-2">
+                      🎨 {artist} ({artistCards.length})
+                    </h4>
+                    <div className="flex flex-wrap gap-3">
+                      {displayCards.map((group) => (
+                        <CardThumbnail
+                          key={group.ids[0]}
+                          card={group.card}
+                          count={group.count}
+                          allIds={group.ids}
+                          deckId={deck.id}
+                          onToggleStatus={onToggleStatus}
+                          onLoadPrintings={onLoadPrintings}
+                        />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -789,11 +824,15 @@ function DeckListItem({
 interface CardThumbnailProps {
   card: CardEntry;
   deckId: string;
+  /** 同款卡牌数量（合并模式下 >1） */
+  count?: number;
+  /** 合并模式下所有卡牌 ID，用于批量切换状态 */
+  allIds?: string[];
   onToggleStatus: (cardId: string, currentStatus: number, deckId: string) => void;
   onLoadPrintings: (card: CardEntry) => void;
 }
 
-function CardThumbnail({ card, deckId, onToggleStatus, onLoadPrintings }: CardThumbnailProps) {
+function CardThumbnail({ card, deckId, count = 1, allIds, onToggleStatus, onLoadPrintings }: CardThumbnailProps) {
   const status = card.status ?? (card.is_signed ? 2 : 0);
   const statusLabels: Record<number, string> = {
     0: "未签（点击切换为送签中）",
@@ -805,10 +844,18 @@ function CardThumbnail({ card, deckId, onToggleStatus, onLoadPrintings }: CardTh
   const overlayColor: Record<number, string> = { 1: "bg-blue-500", 2: "bg-green-500", 3: "bg-pink-500" };
   const overlayIcon: Record<number, string> = { 1: "…", 2: "✓", 3: "♥" };
 
+  /** 点击切换状态：合并模式下批量切换所有同款卡牌 */
+  function handleToggle() {
+    const ids = allIds && allIds.length > 0 ? allIds : [card.id];
+    for (const id of ids) {
+      onToggleStatus(id, status, deckId);
+    }
+  }
+
   return (
     <div className="group relative w-24">
       <div
-        onClick={() => onToggleStatus(card.id, status, deckId)}
+        onClick={handleToggle}
         className={`relative rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 ${
           hasOverlay
             ? status === 3 ? "border-pink-400" : status === 1 ? "border-blue-400" : "border-green-500"
@@ -816,6 +863,13 @@ function CardThumbnail({ card, deckId, onToggleStatus, onLoadPrintings }: CardTh
         }`}
         title={statusLabels[status]}
       >
+        {/* 数量角标（合并模式） */}
+        {count > 1 && (
+          <div className="absolute top-0.5 left-0.5 z-10 bg-black/80 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-tight">
+            ×{count}
+          </div>
+        )}
+
         {/* 心动活动标签 */}
         {status === 3 && card.event_name && (
           <div className="absolute top-0 left-0 right-0 z-10 bg-pink-500/90 text-white text-[9px] px-1 py-0.5 text-center leading-tight">
