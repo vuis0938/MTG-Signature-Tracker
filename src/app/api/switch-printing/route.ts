@@ -7,24 +7,24 @@ const SCRYFALL_UA = "MTG-Signature-Tracker/1.0";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { cardId, setCode, collectorNumber } = body as {
-      cardId?: string;
+    const { cardIds, setCode, collectorNumber } = body as {
+      cardIds?: string[];
       setCode?: string;
       collectorNumber?: string;
     };
 
-    if (!cardId?.trim()) {
+    if (!cardIds || cardIds.length === 0) {
       return NextResponse.json({ error: "缺少卡牌 ID" }, { status: 400 });
     }
     if (!setCode?.trim() || !collectorNumber?.trim()) {
       return NextResponse.json({ error: "缺少 set_code 或 collector_number" }, { status: 400 });
     }
 
-    // 查询当前卡牌数据
+    // 查询第一张卡牌数据（用于验证存在性）
     const { data: existingCard, error: cardError } = await supabase
       .from("cards")
       .select("*")
-      .eq("id", cardId)
+      .eq("id", cardIds[0])
       .single();
 
     if (cardError || !existingCard) {
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     const scryfallCard = (await res.json()) as ScryfallCard;
 
-    // 更新数据库
+    // 批量更新所有同款卡牌
     const updates: Record<string, unknown> = {
       scryfall_id: scryfallCard.id,
       set_name: scryfallCard.set_name,
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     const { error: updateError } = await supabase
       .from("cards")
       .update(updates)
-      .eq("id", cardId);
+      .in("id", cardIds);
 
     if (updateError) {
       return NextResponse.json(
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      cardId,
+      cardIds,
       cardName: scryfallCard.name,
       newSet: scryfallCard.set_name,
       newSetCode: setCode,

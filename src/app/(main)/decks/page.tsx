@@ -98,6 +98,7 @@ export default function DecksPage() {
 
   // 切换印刷版本弹窗
   const [switchCard, setSwitchCard] = useState<CardEntry | null>(null);
+  const [switchCardAllIds, setSwitchCardAllIds] = useState<string[]>([]);
   const [printings, setPrintings] = useState<Printing[]>([]);
   const [printingsLoading, setPrintingsLoading] = useState(false);
   const [switchPrintingLoading, setSwitchPrintingLoading] = useState<string | null>(null);
@@ -382,8 +383,9 @@ export default function DecksPage() {
 
   // ─── 加载卡牌所有印刷版本 ──────────────────────────────
 
-  async function loadPrintings(card: CardEntry) {
+  async function loadPrintings(card: CardEntry, allIds?: string[]) {
     setSwitchCard(card);
+    setSwitchCardAllIds(allIds && allIds.length > 0 ? allIds : [card.id]);
     setPrintings([]);
     setPrintingsLoading(true);
 
@@ -396,10 +398,12 @@ export default function DecksPage() {
       } else {
         showToast(`加载印刷版本失败: ${data.error}`, "error");
         setSwitchCard(null);
+        setSwitchCardAllIds([]);
       }
     } catch {
       showToast("网络错误，请重试", "error");
       setSwitchCard(null);
+      setSwitchCardAllIds([]);
     } finally {
       setPrintingsLoading(false);
     }
@@ -408,19 +412,21 @@ export default function DecksPage() {
   // ─── 切换印刷版本 ──────────────────────────────────────
 
   async function handleSwitchPrinting(cardId: string, setCode: string, collectorNumber: string) {
+    const allIds = switchCardAllIds.length > 0 ? switchCardAllIds : [cardId];
     setSwitchPrintingLoading(cardId);
     try {
       const res = await fetch("/api/switch-printing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cardId, setCode, collectorNumber }),
+        body: JSON.stringify({ cardIds: allIds, setCode, collectorNumber }),
       });
 
       const data = await res.json();
 
       if (data.success) {
+        const countSuffix = allIds.length > 1 ? `（共 ${allIds.length} 张）` : "";
         showToast(
-          `✅ 已切换为 ${data.newSet} #${data.newCollectorNumber}`,
+          `✅ 已切换为 ${data.newSet} #${data.newCollectorNumber}${countSuffix}`,
           "success",
         );
 
@@ -429,8 +435,9 @@ export default function DecksPage() {
           setCards((prev) => {
             const updated = { ...prev };
             if (updated[deckId]) {
+              const idSet = new Set(allIds);
               updated[deckId] = updated[deckId].map((c) =>
-                c.id === cardId
+                idSet.has(c.id)
                   ? {
                       ...c,
                       set_code: data.newSetCode,
@@ -445,6 +452,7 @@ export default function DecksPage() {
           });
         }
         setSwitchCard(null);
+        setSwitchCardAllIds([]);
         setPrintings([]);
       } else {
         showToast(`切换失败: ${data.error}`, "error");
@@ -482,6 +490,7 @@ export default function DecksPage() {
       }
 
       setSwitchCard(null);
+      setSwitchCardAllIds([]);
       setPrintings([]);
       await loadDecks();
     } catch {
@@ -674,7 +683,7 @@ export default function DecksPage() {
         printingsLoading={printingsLoading}
         switchPrintingLoading={switchPrintingLoading}
         deletingCard={deletingCard}
-        onClose={() => { setSwitchCard(null); setPrintings([]); }}
+        onClose={() => { setSwitchCard(null); setSwitchCardAllIds([]); setPrintings([]); }}
         onSwitchPrinting={handleSwitchPrinting}
         onDeleteCard={handleDeleteCard}
       />
@@ -695,7 +704,7 @@ interface DeckListItemProps {
   onAddCards: (deckId: string) => void;
   onDelete: (deckId: string) => void;
   onToggleStatus: (cardId: string, currentStatus: number, deckId: string) => void;
-  onLoadPrintings: (card: CardEntry) => void;
+  onLoadPrintings: (card: CardEntry, allIds?: string[]) => void;
 }
 
 function DeckListItem({
@@ -809,7 +818,7 @@ interface CardThumbnailProps {
   /** 合并模式下所有卡牌 ID，用于批量切换状态 */
   allIds?: string[];
   onToggleStatus: (cardId: string, currentStatus: number, deckId: string) => void;
-  onLoadPrintings: (card: CardEntry) => void;
+  onLoadPrintings: (card: CardEntry, allIds?: string[]) => void;
 }
 
 function CardThumbnail({ card, deckId, count = 1, allIds, onToggleStatus, onLoadPrintings }: CardThumbnailProps) {
@@ -883,7 +892,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, onToggleStatus, onLoad
 
       {/* 切换版本按钮 */}
       <button
-        onClick={(e) => { e.stopPropagation(); onLoadPrintings(card); }}
+        onClick={(e) => { e.stopPropagation(); onLoadPrintings(card, allIds); }}
         className="absolute top-0.5 right-0.5 z-20 w-6 h-6 rounded-full bg-background/80 border shadow-sm flex items-center justify-center hover:bg-accent hover:scale-110 transition-all"
         title="切换印刷版本"
       >
