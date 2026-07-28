@@ -542,11 +542,9 @@ export default function DecksPage() {
                 className="font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground">
-                💡 操作步骤：<br />
-                1. 在 Moxfield 牌表页面，点击每张卡牌 → <b>Switch Printing</b> 切换为实际持有的印刷版本<br />
-                2. 点击 <b>Export</b> → 选择 <b>Copy for Moxfield</b>（推荐）等格式<br />
-                3. 粘贴到上方文本框 → 点击「开始导入」<br />
-                注意：无系列/编号信息的格式，导入时会自动按卡名匹配最接近的印刷版本。
+                💡 操作提示：<br />
+                推荐使用 Moxfield 的 Copy for Moxfield 格式，保留系列与编号信息<br />
+                无系列/编号的格式，导入时将随机选取卡牌版本，可在套牌管理中点击卡牌右上角切换版本
               </p>
             </div>
             <div className="flex items-center gap-3">
