@@ -199,7 +199,7 @@ export default function DecksPage() {
       return;
     }
     if (!deckText.trim()) {
-      showToast("请粘贴套牌列表内容", "error");
+      showToast("请粘贴牌表内容", "error");
       return;
     }
 
@@ -336,7 +336,7 @@ export default function DecksPage() {
 
   const handleAddCards = useCallback(async () => {
     if (!addCardsOpen || !addCardsText.trim()) {
-      showToast("请粘贴套牌列表内容", "error");
+      showToast("请粘贴牌表内容", "error");
       return;
     }
 
@@ -639,9 +639,9 @@ export default function DecksPage() {
       {/* ─── 添加卡牌弹窗 ─── */}
       <Dialog open={addCardsOpen !== null} onOpenChange={() => setAddCardsOpen(null)}>
         <DialogHeader>
-          <DialogTitle>添加卡牌到套牌</DialogTitle>
+          <DialogTitle>添加卡牌</DialogTitle>
           <DialogDescription>
-            粘贴套牌列表内容，支持 Moxfield / Arena / MTGO / Plain Text 四种格式，将卡牌添加到当前套牌
+            向当前套牌添加卡牌，自动识别画家信息
           </DialogDescription>
         </DialogHeader>
         <DialogContent className="space-y-4">
@@ -649,16 +649,7 @@ export default function DecksPage() {
             <Label htmlFor="addCardsText">牌表内容</Label>
             <Textarea
               id="addCardsText"
-              placeholder={`粘贴套牌列表内容，自动识别以下格式：
-◆ 1 Sol Ring (CMM) 345   — Moxfield 完整格式
-◆ 4x Lightning Bolt    — 4x 格式
-◆ 4 [ZNR:45] Card      — 方括号格式
-◆ 4 Card (MM2)         — 括号 SET-only
-◆ 4 Card / MM2         — 斜杠格式
-◆ SB: 1 Card           — Cockatrice 备牌
-◆ Deck\\n1 Card          — Arena 分区头
-◆ 1 Card               — 简单格式
-◆ // 注释、# 注释、分类头 — 自动跳过`}
+              placeholder={`粘贴纯文本套牌，支持多种格式，例如：\n1 Sol Ring (SLD) 1494\n1 Arcane Signet\n\n`}
               rows={6}
               value={addCardsText}
               onChange={(e) => setAddCardsText(e.target.value)}
