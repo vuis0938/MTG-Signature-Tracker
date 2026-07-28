@@ -17,6 +17,7 @@ export interface MountainMageArtist {
 
 interface MountainMageCache {
   data: MountainMageArtist[];
+  rawText: string;
   fetchedAt: number;
 }
 
@@ -92,6 +93,8 @@ export interface MountainMageResult {
   artists: MountainMageArtist[];
   cached: boolean;
   stale?: boolean;
+  /** 调试用：原始文本内容 */
+  rawText?: string;
   error?: string;
 }
 
@@ -101,7 +104,7 @@ export interface MountainMageResult {
 export async function fetchMountainMageArtists(): Promise<MountainMageResult> {
   // 检查缓存
   if (cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) {
-    return { success: true, artists: cache.data, cached: true };
+    return { success: true, artists: cache.data, cached: true, rawText: cache.rawText };
   }
 
   try {
@@ -113,7 +116,7 @@ export async function fetchMountainMageArtists(): Promise<MountainMageResult> {
     if (!res.ok) {
       console.warn(`[MountainMage] Google Docs HTTP ${res.status}`);
       if (cache) {
-        return { success: true, artists: cache.data, cached: true, stale: true };
+        return { success: true, artists: cache.data, cached: true, stale: true, rawText: cache.rawText };
       }
       return { success: false, artists: [], cached: false, error: "无法获取签名时间表" };
     }
@@ -123,22 +126,20 @@ export async function fetchMountainMageArtists(): Promise<MountainMageResult> {
     if (!text || text.length < 10) {
       console.warn("[MountainMage] Google Docs 返回空内容");
       if (cache) {
-        return { success: true, artists: cache.data, cached: true, stale: true };
+        return { success: true, artists: cache.data, cached: true, stale: true, rawText: cache.rawText };
       }
       return { success: false, artists: [], cached: false, error: "签名时间表为空" };
     }
 
     const artists = parseDocContent(text);
-    cache = { data: artists, fetchedAt: Date.now() };
+    cache = { data: artists, rawText: text, fetchedAt: Date.now() };
 
     console.log(`[MountainMage] 解析到 ${artists.length} 位艺术家`);
-    // 首次部署时输出前 500 字符用于调试解析器
-    console.log(`[MountainMage] 原始内容预览: ${text.slice(0, 500)}`);
-    return { success: true, artists, cached: false };
+    return { success: true, artists, cached: false, rawText: text };
   } catch (error) {
     console.error("[MountainMage]", error);
     if (cache) {
-      return { success: true, artists: cache.data, cached: true, stale: true };
+      return { success: true, artists: cache.data, cached: true, stale: true, rawText: cache.rawText };
     }
     return { success: false, artists: [], cached: false, error: "获取数据失败" };
   }
