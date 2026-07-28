@@ -543,7 +543,7 @@ export default function DecksPage() {
               />
               <p className="text-xs text-muted-foreground">
                 💡 操作提示：<br />
-                1. 推荐使用 Moxfield 网站，将牌表修改至与实际持有版本相同，选择 Copy for Moxfield 格式导入套牌<br />
+                1. 推荐使用 Moxfield 网站，将牌表修改为实际持有的版本，选择 Copy for Moxfield 格式导入套牌<br />
                 2. 无系列/编号信息的格式，导入时将随机选取卡牌版本，导入后点击卡牌右上角图标可随时切换版本
               </p>
             </div>
