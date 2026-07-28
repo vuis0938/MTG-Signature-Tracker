@@ -488,6 +488,10 @@ export default function DecksPage() {
                     }
                   : c
               );
+              // 切换版本后画家可能变化，重新按 artist_names 字母序排序
+              updated[deckId] = [...updated[deckId]].sort((a, b) =>
+                (a.artist_names[0] || "").localeCompare(b.artist_names[0] || "")
+              );
             }
             return updated;
           });
