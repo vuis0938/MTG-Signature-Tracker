@@ -726,7 +726,7 @@ function DeckListItem({
                     {stats.total - stats.unsigned - stats.pending > 0 &&
                       ` · ${stats.total - stats.unsigned - stats.pending} 已签`}
                     <br />
-                    上次更新时间：{new Date(deck.created_at!).toLocaleDateString("zh-CN")}
+                    签绘进度 {Math.round(((stats.total - stats.unsigned - stats.pending) / stats.total) * 100)}% · 上次更新 {new Date(deck.created_at!).toLocaleDateString("zh-CN")}
                   </>
                 )}
               </CardDescription>
