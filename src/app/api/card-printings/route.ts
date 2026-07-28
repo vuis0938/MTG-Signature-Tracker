@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { delay, SCRYFALL_UA } from "@/lib/scryfall-client";
 import type { Printing } from "@/types";
 
-/** 检查卡牌名称是否匹配目标（处理 "X // Y" 双面卡） */
+/** 检查卡牌名称是否精确匹配目标（排除双面卡/裂片卡中仅一面同名的情况） */
 function matchesCardName(card: Record<string, unknown>, target: string): boolean {
-  const cardName = (card.name as string) || "";
-  const faces = cardName.split(" // ").map((s: string) => s.trim());
-  return faces.includes(target);
+  return (card.name as string || "") === target;
 }
 
 export async function GET(request: NextRequest) {
