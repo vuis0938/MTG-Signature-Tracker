@@ -518,7 +518,7 @@ export default function DecksPage() {
           <CardHeader>
             <CardTitle>导入套牌</CardTitle>
             <CardDescription>
-              导入你的套牌，自动识别每张卡牌的画家信息
+              导入你的套牌，自动识别画家信息
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
