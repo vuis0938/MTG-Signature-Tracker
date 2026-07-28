@@ -972,7 +972,7 @@ function BatchConfirmDialog({ confirmCard, onConfirm, onCancel }: BatchConfirmDi
       <DialogHeader>
         <DialogTitle>批量修改卡牌版本？</DialogTitle>
         <DialogDescription>
-          该卡牌在套牌中有 {duplicateCount} 张，是否将全部 {duplicateCount} 张都切换为同一版本？
+          此卡牌在套牌中有 {duplicateCount} 张，是否批量切换为同一版本？
         </DialogDescription>
       </DialogHeader>
       <DialogContent>
