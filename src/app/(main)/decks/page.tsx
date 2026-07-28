@@ -104,6 +104,13 @@ export default function DecksPage() {
   const [switchPrintingLoading, setSwitchPrintingLoading] = useState<string | null>(null);
   const [deletingCard, setDeletingCard] = useState<string | null>(null);
 
+  // 批量修改确认弹窗（独立模式下，卡牌有副本时弹出）
+  const [batchConfirmCard, setBatchConfirmCard] = useState<{
+    card: CardEntry;
+    allIds: string[];
+    singleId: string;
+  } | null>(null);
+
   // ─── 加载套牌列表 ──────────────────────────────────────
 
   const loadDecks = useCallback(async () => {
@@ -384,8 +391,34 @@ export default function DecksPage() {
   // ─── 加载卡牌所有印刷版本 ──────────────────────────────
 
   async function loadPrintings(card: CardEntry, allIds?: string[]) {
+    const ids = allIds && allIds.length > 0 ? allIds : [card.id];
+
+    // 独立模式下（只有 1 张），检查套牌中是否有同款卡牌副本
+    if (ids.length === 1) {
+      const deckId = card.deck_id;
+      const deckCards = cards[deckId];
+      if (deckCards) {
+        const duplicates = deckCards.filter(
+          (c) => c.card_name === card.card_name && c.id !== card.id
+        );
+        if (duplicates.length > 0) {
+          setBatchConfirmCard({
+            card,
+            allIds: [card.id, ...duplicates.map((c) => c.id)],
+            singleId: card.id,
+          });
+          return;
+        }
+      }
+    }
+
+    // 无副本或合并模式，直接加载
+    proceedLoadPrintings(card, ids);
+  }
+
+  async function proceedLoadPrintings(card: CardEntry, allIds: string[]) {
     setSwitchCard(card);
-    setSwitchCardAllIds(allIds && allIds.length > 0 ? allIds : [card.id]);
+    setSwitchCardAllIds(allIds);
     setPrintings([]);
     setPrintingsLoading(true);
 
@@ -407,6 +440,14 @@ export default function DecksPage() {
     } finally {
       setPrintingsLoading(false);
     }
+  }
+
+  // 批量修改确认回调
+  function handleBatchConfirm(batch: boolean) {
+    if (!batchConfirmCard) return;
+    const { card, allIds, singleId } = batchConfirmCard;
+    setBatchConfirmCard(null);
+    proceedLoadPrintings(card, batch ? allIds : [singleId]);
   }
 
   // ─── 切换印刷版本 ──────────────────────────────────────
@@ -687,6 +728,13 @@ export default function DecksPage() {
         onSwitchPrinting={handleSwitchPrinting}
         onDeleteCard={handleDeleteCard}
       />
+
+      {/* ─── 批量修改确认弹窗 ─── */}
+      <BatchConfirmDialog
+        confirmCard={batchConfirmCard}
+        onConfirm={(batch) => handleBatchConfirm(batch)}
+        onCancel={() => setBatchConfirmCard(null)}
+      />
     </div>
   );
 }
@@ -899,6 +947,45 @@ function CardThumbnail({ card, deckId, count = 1, allIds, onToggleStatus, onLoad
         <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
       </button>
     </div>
+  );
+}
+
+// ─── 批量修改确认弹窗 ────────────────────────────────────
+
+interface BatchConfirmDialogProps {
+  confirmCard: {
+    card: CardEntry;
+    allIds: string[];
+    singleId: string;
+  } | null;
+  onConfirm: (batch: boolean) => void;
+  onCancel: () => void;
+}
+
+function BatchConfirmDialog({ confirmCard, onConfirm, onCancel }: BatchConfirmDialogProps) {
+  if (!confirmCard) return null;
+  const { allIds } = confirmCard;
+  const duplicateCount = allIds.length;
+
+  return (
+    <Dialog open onOpenChange={onCancel}>
+      <DialogHeader>
+        <DialogTitle>批量修改卡牌版本？</DialogTitle>
+        <DialogDescription>
+          该卡牌在套牌中有 {duplicateCount} 张，是否将全部 {duplicateCount} 张都切换为同一版本？
+        </DialogDescription>
+      </DialogHeader>
+      <DialogContent>
+        <div className="flex items-center gap-3">
+          <Button variant="default" onClick={() => onConfirm(true)}>
+            全部修改（{duplicateCount} 张）
+          </Button>
+          <Button variant="outline" onClick={() => onConfirm(false)}>
+            仅改这一张
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
