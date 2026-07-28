@@ -518,7 +518,7 @@ export default function DecksPage() {
           <CardHeader>
             <CardTitle>导入套牌</CardTitle>
             <CardDescription>
-              从 Moxfield 导入套牌，自动匹配每张卡牌的画家信息。支持多种牌表格式，自动识别。
+              导入你的套牌，自动识别每张卡牌的画家信息。
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
