@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { delay, SCRYFALL_UA } from "@/lib/scryfall-client";
 import type { Printing } from "@/types";
 
+/** 检查卡牌名称是否匹配目标（处理 "X // Y" 双面卡） */
+function matchesCardName(card: Record<string, unknown>, target: string): boolean {
+  const cardName = (card.name as string) || "";
+  const faces = cardName.split(" // ").map((s: string) => s.trim());
+  return faces.includes(target);
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -11,8 +18,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "缺少卡牌名称" }, { status: 400 });
     }
 
+    const target = cardName.trim();
     const allPrintings: Printing[] = [];
-    let pageUrl = `https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(cardName.trim())}"+unique:prints&order=released`;
+    let pageUrl = `https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(target)}"+unique:prints&order=released`;
 
     while (pageUrl) {
       await delay(100);
@@ -34,6 +42,8 @@ export async function GET(request: NextRequest) {
 
       const data = await res.json();
       for (const card of data.data || []) {
+        // 过滤双面卡/裂片卡：只有名称精确匹配的才加入
+        if (!matchesCardName(card, target)) continue;
         allPrintings.push({
           set: card.set,
           set_name: card.set_name,
@@ -49,7 +59,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      cardName: cardName.trim(),
+      cardName: target,
       printings: allPrintings,
       count: allPrintings.length,
     });

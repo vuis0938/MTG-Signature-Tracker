@@ -450,6 +450,13 @@ async function executeBatch(
 
 // ─── 印刷版本查询 ──────────────────────────────────────────
 
+/** 检查卡牌名称是否匹配目标（处理 "X // Y" 双面卡/裂片卡） */
+function matchesCardName(card: Record<string, unknown>, target: string): boolean {
+  const cardName = (card.name as string) || "";
+  const faces = cardName.split(" // ").map((s: string) => s.trim());
+  return faces.includes(target);
+}
+
 /**
  * 获取卡牌的所有印刷版本（分页 + 重试）
  * 用于模糊匹配缓存、补全缓存、切换印刷版本
@@ -459,7 +466,8 @@ export async function fetchAllPrintings(
   attempt = 0
 ): Promise<Printing[]> {
   const printings: Printing[] = [];
-  let pageUrl = `${BASE_URL}/cards/search?q=!"${encodeURIComponent(cardName)}"+unique:prints&order=released`;
+  const target = cardName.trim();
+  let pageUrl = `${BASE_URL}/cards/search?q=!"${encodeURIComponent(target)}"+unique:prints&order=released`;
 
   while (pageUrl) {
     await delay(MIN_DELAY_MS);
@@ -484,6 +492,9 @@ export async function fetchAllPrintings(
 
       const data = await res.json();
       for (const card of data.data || []) {
+        // 过滤双面卡/裂片卡：只有名称精确匹配的才加入
+        if (!matchesCardName(card, target)) continue;
+
         const artist =
           card.artist ||
           card.card_faces?.[0]?.artist ||
