@@ -627,7 +627,7 @@ export default function MatchPage() {
             </option>
             {events.map((e) => (
               <option key={e.id} value={e.id}>
-                {new Date(e.startDate).toLocaleDateString("zh-CN")} | {e.name} ({e.city}) — {e.artists.length} 位画家
+                {e.source === "mountain_mage" ? "📦 " : ""}{new Date(e.startDate).toLocaleDateString("zh-CN")} | {e.name} ({e.city}) — {e.artists.length} 位画家
               </option>
             ))}
           </select>
