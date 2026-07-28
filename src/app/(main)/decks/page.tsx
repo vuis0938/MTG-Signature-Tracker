@@ -543,8 +543,8 @@ export default function DecksPage() {
               />
               <p className="text-xs text-muted-foreground">
                 💡 操作提示：<br />
-                推荐使用 Moxfield 的 Copy for Moxfield 格式，保留系列与编号信息<br />
-                无系列/编号的格式，导入时将随机选取卡牌版本，可在套牌管理中点击卡牌右上角切换版本
+                1. 推荐使用 Moxfield 网站，将牌表修改至与实际持有版本相同，选择 Copy for Moxfield 格式导入套牌<br />
+                2. 无系列/编号信息的格式，导入时将随机选取卡牌版本，导入后点击卡牌右上角图标可随时切换版本
               </p>
             </div>
             <div className="flex items-center gap-3">
