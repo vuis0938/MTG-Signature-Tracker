@@ -538,9 +538,7 @@ export default function DecksPage() {
                 placeholder={`粘贴纯文本套牌，支持多种格式，例如：
 1 Sol Ring (SLD) 1494
 1 Arcane Signet
-4x Force of Will
-
-`}
+4x Force of Will`}
                 rows={8}
                 value={deckText}
                 onChange={(e) => setDeckText(e.target.value)}
