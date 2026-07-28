@@ -535,10 +535,7 @@ export default function DecksPage() {
               <Label htmlFor="text">牌表内容</Label>
               <Textarea
                 id="text"
-                placeholder={`粘贴纯文本套牌，支持多种格式，例如：
-1 Sol Ring (SLD) 1494
-1 Arcane Signet
-`}
+                placeholder={`粘贴纯文本套牌，支持多种格式，例如：\n1 Sol Ring (SLD) 1494\n1 Arcane Signet\n\n`}
                 rows={8}
                 value={deckText}
                 onChange={(e) => setDeckText(e.target.value)}
