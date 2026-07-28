@@ -4,9 +4,10 @@ import { fetchMountainMageArtists } from "@/lib/mountain-mage";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const debug = searchParams.get("debug") === "1";
+  const refresh = searchParams.get("refresh") === "1";
 
   try {
-    const result = await fetchMountainMageArtists();
+    const result = await fetchMountainMageArtists(refresh);
 
     if (!result.success) {
       return NextResponse.json(

@@ -26,58 +26,77 @@ const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 小时
 
 /**
  * 解析 Google Docs 导出的文本内容
+ *
+ * 文档格式规则：
+ * - 艺术家行以 "* " 开头（可能前面有缩进空格）
+ * - 艺术家名后可能跟 "(价格信息)" 括号
+ * - 章节标题如 "Q3 2026 signings"、"DragonCon 2026"、"IN-PROGRESS SIGNINGS"
+ * - 子项（如 Tokyo MTG 下的艺术家）前面有额外缩进
  */
 function parseDocContent(text: string): MountainMageArtist[] {
-  const lines = text.split("\n");
+  const lines = text.split(/\r?\n/);
   const artists: MountainMageArtist[] = [];
   const seen = new Set<string>();
 
-  const artistPattern = /^[A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+)+/;
+  let currentSection = "";
+
+  // 排除词：如果艺术家名包含这些词，当作非艺术家行跳过
+  const excludePatterns = [
+    "shipping", "please use the following", "please note",
+    "signing schedule", "signing in", "signing window",
+    "next date", "thank you", "return", "contact", "email",
+    "cards must", "all cards", "the following", "artists will",
+    "mountainmage", "important", "upcoming signings",
+    "and info/rules", "info/rules",
+  ];
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
     if (!line || line.length < 3) continue;
 
-    // 跳过标题行
+    // ── 检测章节标题 ──
+    // 匹配: "Q3 2026 signings", "DragonCon 2026", "Commander Sealed 2026",
+    //       "IN-PROGRESS SIGNINGS", "Tokyo MTG/Kazuki signings" 等
     if (
-      /^(Q[1-4]|SIGNING|SCHEDULE|UPDATE|UPCOMING|CURRENT|STATUS|DEADLINE|WINDOW)/i.test(line) ||
-      /^\d+[\.\)]\s/.test(line)
+      /^(Q[1-4]\s+\d{4}|DragonCon|Commander\s+Sealed|IN[\s-]PROGRESS|Tokyo\s+MTG)/i.test(line)
     ) {
+      currentSection = line.toLowerCase();
       continue;
     }
 
-    const match = line.match(artistPattern);
-    if (!match) continue;
+    // ── 匹配艺术家行（以 "* " 开头）──
+    const artistMatch = line.match(/^\s*\*\s+(.+)$/);
+    if (!artistMatch) continue;
 
-    const name = match[0].trim();
+    const rawName = artistMatch[1].trim();
 
-    const excludeWords = [
-      "Next Date", "Signing In", "Signing Window", "Signing Schedule",
-      "Deadline", "Status", "MountainMage", "Please Note", "Important",
-      "Thank You", "Shipping", "Return", "Contact", "Email",
-      "The Following", "Artists Will", "Cards Must", "All Cards",
-    ];
-    if (excludeWords.some((w) => name.startsWith(w))) continue;
+    // 提取括号前的纯名称（括号内是价格/备注）
+    let name = rawName;
+    const parenIdx = rawName.indexOf("(");
+    if (parenIdx > 0) {
+      name = rawName.slice(0, parenIdx).trim();
+    }
 
+    // 名称太短，跳过
+    if (name.length < 3) continue;
+
+    // 排除非艺术家行
+    const lowerName = name.toLowerCase();
+    if (excludePatterns.some((w) => lowerName.includes(w))) continue;
+
+    // 去重
     if (seen.has(name.toLowerCase())) continue;
     seen.add(name.toLowerCase());
 
+    // ── 根据章节判断状态 ──
     let status: MountainMageArtist["status"] = "unknown";
-    const lowerLine = line.toLowerCase();
-
-    if (
-      lowerLine.includes("in progress") ||
-      lowerLine.includes("in-progress") ||
-      lowerLine.includes("signing now") ||
-      lowerLine.includes("currently signing")
-    ) {
+    if (currentSection.includes("in-progress") || currentSection.includes("in progress")) {
       status = "in_progress";
     } else if (
-      lowerLine.includes("next date") ||
-      lowerLine.includes("tba") ||
-      lowerLine.includes("tbd") ||
-      lowerLine.includes("to be announced") ||
-      lowerLine.includes("upcoming")
+      currentSection.includes("q3") ||
+      currentSection.includes("q4") ||
+      currentSection.includes("dragoncon") ||
+      currentSection.includes("commander sealed")
     ) {
       status = "upcoming";
     }
@@ -101,9 +120,9 @@ export interface MountainMageResult {
 /**
  * 获取 Mountain Mage 签名时间表（带缓存）
  */
-export async function fetchMountainMageArtists(): Promise<MountainMageResult> {
-  // 检查缓存
-  if (cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) {
+export async function fetchMountainMageArtists(forceRefresh = false): Promise<MountainMageResult> {
+  // 检查缓存（forceRefresh 时跳过缓存）
+  if (!forceRefresh && cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) {
     return { success: true, artists: cache.data, cached: true, rawText: cache.rawText };
   }
 
