@@ -535,7 +535,7 @@ export default function DecksPage() {
               <Label htmlFor="text">牌表内容</Label>
               <Textarea
                 id="text"
-                placeholder={`粘贴牌表内容，自动识别格式，例如：
+                placeholder={`粘贴纯文本套牌，支持多种格式，例如：
 1 Sol Ring (SLD) 1494
 1 Arcane Signet
 4x Force of Will
