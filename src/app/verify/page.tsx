@@ -49,6 +49,7 @@ function extractArtistName(line: string): string {
 }
 
 // ─── 预分类逻辑 ────────────────────────────────────────────
+// 所有非空行全部展示，AI 仅做预标记作为起点，用户手动修正
 
 function preClassify(rawText: string): TaggedLine[] {
   const lines = rawText.split(/\r?\n/);
@@ -65,32 +66,42 @@ function preClassify(rawText: string): TaggedLine[] {
     const line = lines[i].trim();
     if (!line || line.length < 3) continue;
 
-    // 含 deadline 的行 → 活动标题
+    let tag: LineTag = "ignore";
+    let artistName = "";
+
+    // 含 deadline 的行 → 预标记为活动标题
     if (sectionRegex.test(line)) {
-      result.push({ index: i, text: line, tag: "section", artistName: "" });
-      continue;
+      tag = "section";
     }
-
-    // Q1/Q2 → 忽略
-    if (/^Q[1-2]\s+\d{4}/i.test(line)) {
-      continue; // 完全跳过
+    // Q1/Q2 → 预标记为忽略（但保留在列表中）
+    else if (/^Q[1-2]\s+\d{4}/i.test(line)) {
+      tag = "ignore";
     }
-
-    // IN-PROGRESS → 忽略
-    if (/^IN[\s-]PROGRESS/i.test(line)) continue;
-
-    // * 开头的行 → 艺术家
-    if (/^\s*\*\s+/.test(line)) {
+    // IN-PROGRESS → 预标记为忽略
+    else if (/^IN[\s-]PROGRESS/i.test(line)) {
+      tag = "ignore";
+    }
+    // UPCOMING SIGNINGS 标题 → 忽略
+    else if (/^UPCOMING\s+SIGNINGS/i.test(line)) {
+      tag = "ignore";
+    }
+    // 子章节（Tokyo MTG / Kazuki）→ 预标记为忽略，用户可手动改为活动
+    else if (/^(Tokyo\s+MTG|Kazuki)/i.test(line)) {
+      tag = "ignore";
+    }
+    // * 开头的行 → 预标记为艺术家
+    else if (/^\s*\*\s+/.test(line)) {
       const name = extractArtistName(line);
       const lower = name.toLowerCase();
-      if (excludePatterns.some((w) => lower.includes(w))) continue;
-      if (name.length < 3) continue;
-      result.push({ index: i, text: line, tag: "artist", artistName: name });
-      continue;
+      if (excludePatterns.some((w) => lower.includes(w)) || name.length < 3) {
+        tag = "ignore";
+      } else {
+        tag = "artist";
+        artistName = name;
+      }
     }
 
-    // 其他行 → 忽略
-    // 跳过，不添加到结果中
+    result.push({ index: i, text: line, tag, artistName });
   }
 
   return result;
@@ -104,9 +115,15 @@ export default function VerifyPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [taggedLines, setTaggedLines] = useState<TaggedLine[]>([]);
+  const [hideIgnored, setHideIgnored] = useState(false);
 
   // 编辑中的章节名称覆盖
   const [sectionNameOverrides, setSectionNameOverrides] = useState<Record<number, string>>({});
+
+  // 过滤后的行
+  const visibleLines = hideIgnored
+    ? taggedLines.filter((l) => l.tag !== "ignore")
+    : taggedLines;
 
   // 加载原始文本
   useEffect(() => {
@@ -228,7 +245,11 @@ export default function VerifyPage() {
       </div>
 
       {/* 统计 */}
-      <div className="grid grid-cols-4 gap-2 mb-4">
+      <div className="grid grid-cols-5 gap-2 mb-4">
+        <div className="rounded border px-3 py-2 text-center">
+          <div className="text-lg font-bold">{taggedLines.length}</div>
+          <div className="text-xs text-muted-foreground">总行数</div>
+        </div>
         <div className="rounded border px-3 py-2 text-center">
           <div className="text-lg font-bold">{sections.length}</div>
           <div className="text-xs text-muted-foreground">活动</div>
@@ -264,8 +285,25 @@ export default function VerifyPage() {
               蓝=活动 · 绿=画家 · 灰=忽略
             </span>
           </div>
-          <div className="p-3 max-h-[70vh] overflow-y-auto font-mono text-xs leading-relaxed select-none">
-            {taggedLines.map((line) => {
+          <div className="px-3 py-1.5 border-b bg-background flex items-center gap-2">
+            <button
+              onClick={() => setHideIgnored(!hideIgnored)}
+              className={`text-xs px-2 py-0.5 rounded border transition-colors ${
+                hideIgnored
+                  ? "bg-primary/10 border-primary/30 text-primary"
+                  : "border-border text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {hideIgnored ? "显示全部" : "隐藏已忽略"}
+            </button>
+            <span className="text-xs text-muted-foreground">
+              {hideIgnored
+                ? `显示 ${visibleLines.length} / ${taggedLines.length} 行`
+                : `共 ${taggedLines.length} 行`}
+            </span>
+          </div>
+          <div className="p-3 max-h-[65vh] overflow-y-auto font-mono text-xs leading-relaxed select-none">
+            {visibleLines.map((line) => {
               const tag = tagLabel[line.tag];
               const displayName = line.tag === "artist" ? line.artistName : line.text;
 
@@ -289,6 +327,11 @@ export default function VerifyPage() {
             })}
             {taggedLines.length === 0 && (
               <p className="text-muted-foreground text-center py-8">无数据</p>
+            )}
+            {taggedLines.length > 0 && visibleLines.length === 0 && (
+              <p className="text-muted-foreground text-center py-8">
+                所有行均已忽略，点击「显示全部」查看
+              </p>
             )}
           </div>
         </div>
