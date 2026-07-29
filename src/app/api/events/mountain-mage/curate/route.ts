@@ -19,6 +19,7 @@ export async function POST(request: Request) {
     const body: {
       sections: CuratedSection[];
       taggedLines?: TaggedLine[];
+      deadlineOverrides?: Record<number, string>;
     } = await request.json();
 
     if (!body.sections || !Array.isArray(body.sections)) {
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
           id: "mountain_mage",
           sections: body.sections,
           tagged_lines: body.taggedLines || [],
+          deadline_overrides: body.deadlineOverrides || {},
           updated_at: new Date().toISOString(),
         },
         { onConflict: "id" }
@@ -60,7 +62,7 @@ export async function GET() {
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from("mountain_mage_curated")
-      .select("sections, tagged_lines, updated_at")
+      .select("sections, tagged_lines, deadline_overrides, updated_at")
       .eq("id", "mountain_mage")
       .single();
 
@@ -72,6 +74,7 @@ export async function GET() {
       success: true,
       sections: data.sections,
       taggedLines: data.tagged_lines,
+      deadlineOverrides: data.deadline_overrides,
       updatedAt: data.updated_at,
     });
   } catch (error) {

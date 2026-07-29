@@ -119,6 +119,8 @@ export default function VerifyPage() {
 
   // 编辑中的章节名称覆盖
   const [sectionNameOverrides, setSectionNameOverrides] = useState<Record<number, string>>({});
+  // 编辑中的截止日期覆盖
+  const [deadlineOverrides, setDeadlineOverrides] = useState<Record<number, string>>({});
 
   // 找到第一个终止标签的位置，之后所有行视为忽略
   const terminateIndex = useMemo(() => {
@@ -146,6 +148,9 @@ export default function VerifyPage() {
           // 恢复已保存的标签状态
           const restored = curData.taggedLines as TaggedLine[];
           setTaggedLines(restored);
+          if (curData.deadlineOverrides) {
+            setDeadlineOverrides(curData.deadlineOverrides);
+          }
           setSaved(true);
           setLoading(false);
           return;
@@ -202,7 +207,9 @@ export default function VerifyPage() {
         const year = parseYear(line.text);
         currentSection = {
           name: sectionNameOverrides[line.index] || line.text.replace(/\s*\(.*/, "").trim(),
-          deadline: parseDeadline(line.text, year),
+          deadline: deadlineOverrides[line.index] !== undefined
+            ? deadlineOverrides[line.index]
+            : parseDeadline(line.text, year),
           artists: [],
         };
       } else if (line.tag === "artist" && currentSection) {
@@ -215,7 +222,7 @@ export default function VerifyPage() {
     }
 
     return result;
-  }, [taggedLines, sectionNameOverrides]);
+  }, [taggedLines, sectionNameOverrides, deadlineOverrides]);
 
   // 保存
   async function handleSave() {
@@ -224,7 +231,7 @@ export default function VerifyPage() {
       const res = await fetch("/api/events/mountain-mage/curate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sections, taggedLines }),
+        body: JSON.stringify({ sections, taggedLines, deadlineOverrides }),
       });
       const data = await res.json();
       if (data.success) {
@@ -396,15 +403,36 @@ export default function VerifyPage() {
               </p>
             ) : (
               <div className="space-y-4">
-                {sections.map((section, si) => (
+                {sections.map((section, si) => {
+                  // 找到对应 section 行的 index
+                  const sectionLine = taggedLines.find(
+                    (l) => l.tag === "section" && l.text.includes(section.name)
+                  );
+                  const sectionIndex = sectionLine?.index;
+
+                  return (
                   <div key={section.name + si}>
                     <div className="flex items-center gap-2 mb-2">
                       <h3 className="font-semibold text-sm">{section.name}</h3>
-                      {section.deadline && (
-                        <span className="text-xs text-muted-foreground">
-                          截止 {section.deadline}
-                        </span>
-                      )}
+                      <input
+                        type="text"
+                        placeholder="YYYY-MM-DD"
+                        value={
+                          sectionIndex !== undefined
+                            ? (deadlineOverrides[sectionIndex] ?? section.deadline ?? "")
+                            : (section.deadline ?? "")
+                        }
+                        onChange={(e) => {
+                          if (sectionIndex !== undefined) {
+                            setDeadlineOverrides((prev) => ({
+                              ...prev,
+                              [sectionIndex]: e.target.value,
+                            }));
+                            setSaved(false);
+                          }
+                        }}
+                        className="text-xs w-28 px-1.5 py-0.5 border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
                       <span className="text-xs bg-accent px-1.5 py-0.5 rounded">
                         {section.artists.length} 位
                       </span>
