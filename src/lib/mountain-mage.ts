@@ -97,6 +97,9 @@ const SUBSECTION = /^(Tokyo\s+MTG|Kazuki)/i;
 /** 进行中章节 */
 const IN_PROGRESS_SECTION = /^IN[\s-]PROGRESS/i;
 
+/** 当前年份 */
+const CURRENT_YEAR = new Date().getFullYear();
+
 /**
  * 解析 Google Docs 导出的文本内容，按章节分组
  */
@@ -111,6 +114,7 @@ function parseDocContent(text: string): { sections: MountainMageSection[]; artis
   let currentDeadline: string | null = null;
   let currentStatus: "in_progress" | "upcoming" = "upcoming";
   let currentArtists: string[] = [];
+  let skipCurrentSection = false; // 往年章节跳过
 
   function flushSection() {
     if (currentSectionName && currentArtists.length > 0) {
@@ -131,10 +135,17 @@ function parseDocContent(text: string): { sections: MountainMageSection[]; artis
     // ── 检测章节标题 ──
     if (SECTION_WITH_DEADLINE.test(line)) {
       flushSection();
+      const year = parseYear(line);
+      // 往年（2023/2024/2025 等）跳过，不收集艺术家
+      if (year < CURRENT_YEAR) {
+        skipCurrentSection = true;
+        currentSectionName = "";
+        continue;
+      }
+      skipCurrentSection = false;
       // 提取纯名称（去掉 signings、括号内容等）
       const nameMatch = line.match(/^([A-Z][A-Za-z0-9\s]+?)(?:\s+signings?|\s*\(|$)/i);
       currentSectionName = nameMatch ? nameMatch[1].trim() : line;
-      const year = parseYear(line);
       currentDeadline = parseDeadline(line, year);
       currentStatus = "upcoming";
       continue;
@@ -142,6 +153,7 @@ function parseDocContent(text: string): { sections: MountainMageSection[]; artis
 
     if (IN_PROGRESS_SECTION.test(line)) {
       flushSection();
+      skipCurrentSection = false;
       currentSectionName = "进行中签名";
       currentDeadline = null;
       currentStatus = "in_progress";
@@ -149,12 +161,12 @@ function parseDocContent(text: string): { sections: MountainMageSection[]; artis
     }
 
     if (SUBSECTION.test(line)) {
-      // 子章节：继承父章节的截止日期，但归入父章节
-      // 不 flush，继续往 currentArtists 追加
+      // 子章节：继承父章节标志，如果父章节已跳过则子章节也跳过
       continue;
     }
 
     // ── 匹配艺术家行（以 "* " 开头）──
+    if (skipCurrentSection) continue;
     const artistMatch = line.match(/^\s*\*\s+(.+)$/);
     if (!artistMatch) continue;
 
