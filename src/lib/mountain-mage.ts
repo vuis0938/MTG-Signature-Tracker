@@ -89,6 +89,9 @@ const excludePatterns = [
 /** 有明确截止日期的章节：匹配包含 deadline 关键字的行（不依赖硬编码活动名） */
 const SECTION_WITH_DEADLINE = /deadline/i;
 
+/** 无截止日期的 Q1/Q2 章节（已过期，跳过） */
+const EXPIRED_SECTION = /^Q[1-2]\s+\d{4}/i;
+
 /** 子章节（如 Tokyo MTG），继承父章节截止日期 */
 const SUBSECTION = /^(Tokyo\s+MTG|Kazuki)/i;
 
@@ -129,6 +132,14 @@ function parseDocContent(text: string): { sections: MountainMageSection[]; artis
     if (!line || line.length < 3) continue;
 
     // ── 检测章节标题 ──
+    // Q1/Q2 无截止日期，已过期，跳过该章节及艺术家
+    if (EXPIRED_SECTION.test(line)) {
+      flushSection();
+      skipCurrentSection = true;
+      currentSectionName = "";
+      continue;
+    }
+
     if (SECTION_WITH_DEADLINE.test(line)) {
       flushSection();
       const year = parseYear(line);

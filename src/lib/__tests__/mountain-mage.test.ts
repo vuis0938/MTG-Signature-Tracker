@@ -137,6 +137,18 @@ describe("Mountain Mage 章节解析", () => {
     expect(SECTION_WITH_DEADLINE.test("Q3 results are great")).toBe(false);
     expect(SECTION_WITH_DEADLINE.test("DragonCon is fun")).toBe(false);
   });
+
+  it("识别 Q1 2026 为过期章节", () => {
+    const EXPIRED = /^Q[1-2]\s+\d{4}/i;
+    expect(EXPIRED.test("Q1 2026 signings")).toBe(true);
+    expect(EXPIRED.test("Q2 2026 signings")).toBe(true);
+  });
+
+  it("Q3/Q4 不是过期章节", () => {
+    const EXPIRED = /^Q[1-2]\s+\d{4}/i;
+    expect(EXPIRED.test("Q3 2026 signings")).toBe(false);
+    expect(EXPIRED.test("Q4 2026 signings")).toBe(false);
+  });
 });
 
 // ═════════════════════════════════════════════════════════════
