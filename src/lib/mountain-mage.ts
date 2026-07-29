@@ -136,17 +136,29 @@ function parseDocContent(text: string): { sections: MountainMageSection[]; artis
     if (SECTION_WITH_DEADLINE.test(line)) {
       flushSection();
       const year = parseYear(line);
-      // 往年（2023/2024/2025 等）跳过，不收集艺术家
+      const deadline = parseDeadline(line, year);
+
+      // 往年或截止日期已过，跳过
       if (year < CURRENT_YEAR) {
         skipCurrentSection = true;
         currentSectionName = "";
         continue;
       }
+      if (deadline) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const deadlineDate = new Date(deadline + "T00:00:00Z");
+        if (deadlineDate < today) {
+          skipCurrentSection = true;
+          currentSectionName = "";
+          continue;
+        }
+      }
       skipCurrentSection = false;
       // 提取纯名称（去掉 signings、括号内容等）
       const nameMatch = line.match(/^([A-Z][A-Za-z0-9\s]+?)(?:\s+signings?|\s*\(|$)/i);
       currentSectionName = nameMatch ? nameMatch[1].trim() : line;
-      currentDeadline = parseDeadline(line, year);
+      currentDeadline = deadline;
       currentStatus = "upcoming";
       continue;
     }

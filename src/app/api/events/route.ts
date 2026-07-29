@@ -113,11 +113,10 @@ export async function GET() {
         if (section.artists.length === 0) continue;
 
         const today = new Date().toISOString().split("T")[0];
-        const label = section.status === "in_progress" ? "进行中" : "即将截止";
 
         results.push({
           id: `mountain-mage-${section.name.toLowerCase().replace(/[\s.]+/g, "-")}`,
-          name: `Mountain Mage · ${section.name}（${label}）`,
+          name: `Mountain Mage · ${section.name}`,
           city: "代理平台（邮寄）",
           startDate: today,
           endDate: section.deadline || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
