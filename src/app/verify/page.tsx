@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Loader2, Save, Tag, Edit3 } from "lucide-react";
 
-type LineTag = "section" | "artist" | "ignore";
+type LineTag = "section" | "artist" | "ignore" | "terminate";
 
 interface TaggedLine {
   index: number;
@@ -120,10 +120,19 @@ export default function VerifyPage() {
   // 编辑中的章节名称覆盖
   const [sectionNameOverrides, setSectionNameOverrides] = useState<Record<number, string>>({});
 
-  // 过滤后的行
-  const visibleLines = hideIgnored
-    ? taggedLines.filter((l) => l.tag !== "ignore")
-    : taggedLines;
+  // 找到第一个终止标签的位置，之后所有行视为忽略
+  const terminateIndex = useMemo(() => {
+    const idx = taggedLines.findIndex((l) => l.tag === "terminate");
+    return idx === -1 ? taggedLines.length : idx;
+  }, [taggedLines]);
+
+  // 过滤后的行（终止标签之后的全隐藏，除非用户要求显示全部）
+  const visibleLines = useMemo(() => {
+    const beforeTerminate = hideIgnored
+      ? taggedLines.slice(0, terminateIndex + 1).filter((l) => l.tag !== "ignore")
+      : taggedLines.slice(0, terminateIndex + 1);
+    return beforeTerminate;
+  }, [taggedLines, hideIgnored, terminateIndex]);
 
   // 加载原始文本
   useEffect(() => {
@@ -140,13 +149,14 @@ export default function VerifyPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // 切换标签
+  // 切换标签（4 路循环：section → artist → ignore → terminate → section）
   function toggleTag(lineIdx: number) {
     setTaggedLines((prev) =>
       prev.map((l) => {
         if (l.index !== lineIdx) return l;
-        const next: LineTag =
-          l.tag === "section" ? "artist" : l.tag === "artist" ? "ignore" : "section";
+        const cycle: LineTag[] = ["section", "artist", "ignore", "terminate"];
+        const curIdx = cycle.indexOf(l.tag);
+        const next = cycle[(curIdx + 1) % cycle.length];
         return { ...l, tag: next };
       })
     );
@@ -154,12 +164,16 @@ export default function VerifyPage() {
   }
 
   // ── 从 taggedLines 构建章节结构 ──
+  // 遇到终止标签后停止处理
   const sections = useMemo(() => {
     const result: Section[] = [];
     let currentSection: Section | null = null;
 
     for (let i = 0; i < taggedLines.length; i++) {
       const line = taggedLines[i];
+
+      // 终止标签：停止处理后续内容
+      if (line.tag === "terminate") break;
 
       if (line.tag === "section") {
         // 保存前一章节
@@ -225,6 +239,7 @@ export default function VerifyPage() {
     section: { label: "活动", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
     artist: { label: "画家", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
     ignore: { label: "忽略", color: "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500" },
+    terminate: { label: "终止", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
   };
 
   return (
@@ -245,7 +260,7 @@ export default function VerifyPage() {
       </div>
 
       {/* 统计 */}
-      <div className="grid grid-cols-5 gap-2 mb-4">
+      <div className="grid grid-cols-6 gap-2 mb-4">
         <div className="rounded border px-3 py-2 text-center">
           <div className="text-lg font-bold">{taggedLines.length}</div>
           <div className="text-xs text-muted-foreground">总行数</div>
@@ -272,6 +287,12 @@ export default function VerifyPage() {
           </div>
           <div className="text-xs text-muted-foreground">活动标题</div>
         </div>
+        <div className="rounded border px-3 py-2 text-center">
+          <div className="text-lg font-bold text-red-500">
+            {taggedLines.length - terminateIndex - 1}
+          </div>
+          <div className="text-xs text-muted-foreground">终止后</div>
+        </div>
       </div>
 
       {/* 双栏对比 */}
@@ -282,7 +303,7 @@ export default function VerifyPage() {
             <Tag className="h-3.5 w-3.5" />
             原始文本（点击行切换标签）
             <span className="text-xs text-muted-foreground font-normal ml-auto">
-              蓝=活动 · 绿=画家 · 灰=忽略
+              蓝=活动 · 绿=画家 · 灰=忽略 · 红=终止
             </span>
           </div>
           <div className="px-3 py-1.5 border-b bg-background flex items-center gap-2">
@@ -299,29 +320,36 @@ export default function VerifyPage() {
             <span className="text-xs text-muted-foreground">
               {hideIgnored
                 ? `显示 ${visibleLines.length} / ${taggedLines.length} 行`
-                : `共 ${taggedLines.length} 行`}
+                : terminateIndex < taggedLines.length - 1
+                  ? `共 ${taggedLines.length} 行，终止后隐藏 ${taggedLines.length - terminateIndex - 1} 行`
+                  : `共 ${taggedLines.length} 行`}
             </span>
           </div>
           <div className="p-3 max-h-[65vh] overflow-y-auto font-mono text-xs leading-relaxed select-none">
             {visibleLines.map((line) => {
               const tag = tagLabel[line.tag];
               const displayName = line.tag === "artist" ? line.artistName : line.text;
+              const isTerminate = line.tag === "terminate";
 
               return (
-                <div
-                  key={line.index}
-                  onClick={() => toggleTag(line.index)}
-                  className={`flex items-center gap-2 px-1 py-0.5 rounded my-0.5 cursor-pointer hover:ring-1 hover:ring-ring transition-all ${tag.color}`}
-                >
-                  <span className="shrink-0 text-[10px] font-medium px-1 py-0 rounded bg-background/50">
-                    {tag.label}
-                  </span>
-                  {line.tag === "section" && (
-                    <span className="shrink-0 opacity-50" title="活动标题">
-                      <Edit3 className="h-3 w-3" />
+                <div key={line.index}>
+                  <div
+                    onClick={() => toggleTag(line.index)}
+                    className={`flex items-center gap-2 px-1 py-0.5 rounded my-0.5 cursor-pointer hover:ring-1 hover:ring-ring transition-all ${tag.color}`}
+                  >
+                    <span className="shrink-0 text-[10px] font-medium px-1 py-0 rounded bg-background/50">
+                      {tag.label}
                     </span>
+                    {line.tag === "section" && (
+                      <span className="shrink-0 opacity-50" title="活动标题">
+                        <Edit3 className="h-3 w-3" />
+                      </span>
+                    )}
+                    <span className="truncate">{displayName}</span>
+                  </div>
+                  {isTerminate && (
+                    <div className="border-t-2 border-dashed border-red-300 dark:border-red-700 my-1 mx-2" />
                   )}
-                  <span className="truncate">{displayName}</span>
                 </div>
               );
             })}
