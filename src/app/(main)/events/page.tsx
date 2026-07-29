@@ -139,6 +139,10 @@ export default function EventsPage() {
                             <Package className="h-3 w-3" />
                             {event.city}
                           </span>
+                          <span className="inline-flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            邮寄截止：{formatDate(event.endDate, event.endDate)}
+                          </span>
                         </>
                       )}
                       <span className="inline-flex items-center gap-1">

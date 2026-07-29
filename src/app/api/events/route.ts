@@ -104,72 +104,31 @@ export async function GET() {
     // 不中断，继续尝试 Mountain Mage
   }
 
-  // ─── Mountain Mage 数据 ──────────────────────────────────
+  // ─── Mountain Mage 数据（按章节+截止日期分组）─────────────
   try {
     const mmData = await fetchMountainMageArtists();
 
-    if (mmData.success && mmData.artists?.length > 0) {
-        // 按状态分组
-        const inProgress = mmData.artists.filter(
-          (a: { status: string }) => a.status === "in_progress"
-        );
-        const upcoming = mmData.artists.filter(
-          (a: { status: string }) => a.status === "upcoming"
-        );
+    if (mmData.success && mmData.sections?.length > 0) {
+      for (const section of mmData.sections) {
+        if (section.artists.length === 0) continue;
 
-        // 进行中的签名作为一个事件
-        if (inProgress.length > 0) {
-          results.push({
-            id: "mountain-mage-in-progress",
-            name: "Mountain Mage — 签名进行中",
-            city: "代理平台（邮寄）",
-            startDate: new Date().toISOString().split("T")[0],
-            endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
-              .toISOString()
-              .split("T")[0],
-            artists: inProgress.map((a: { name: string }) => a.name),
-            source: "mountain_mage",
-            status: "in_progress",
-          });
-        }
+        const today = new Date().toISOString().split("T")[0];
+        const label = section.status === "in_progress" ? "进行中" : "即将截止";
 
-        // 即将开始的签名
-        if (upcoming.length > 0) {
-          results.push({
-            id: "mountain-mage-upcoming",
-            name: "Mountain Mage — 即将开始",
-            city: "代理平台（邮寄）",
-            startDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-              .toISOString()
-              .split("T")[0],
-            endDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000)
-              .toISOString()
-              .split("T")[0],
-            artists: upcoming.map((a: { name: string }) => a.name),
-            source: "mountain_mage",
-            status: "upcoming",
-          });
-        }
-
-        // 未知状态的单独列出
-        const unknown = mmData.artists.filter(
-          (a: { status: string }) => a.status === "unknown"
-        );
-        if (unknown.length > 0) {
-          results.push({
-            id: "mountain-mage-unknown",
-            name: "Mountain Mage — 其他艺术家",
-            city: "代理平台（邮寄）",
-            startDate: new Date().toISOString().split("T")[0],
-            endDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000)
-              .toISOString()
-              .split("T")[0],
-            artists: unknown.map((a: { name: string }) => a.name),
-            source: "mountain_mage",
-            status: "unknown",
-          });
-        }
+        results.push({
+          id: `mountain-mage-${section.name.toLowerCase().replace(/[\s.]+/g, "-")}`,
+          name: `Mountain Mage · ${section.name}（${label}）`,
+          city: "代理平台（邮寄）",
+          startDate: today,
+          endDate: section.deadline || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .split("T")[0],
+          artists: section.artists,
+          source: "mountain_mage",
+          status: section.status,
+        });
       }
+    }
   } catch (error) {
     console.error("[Events API] Mountain Mage 获取失败:", error);
   }

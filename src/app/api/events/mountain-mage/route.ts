@@ -18,6 +18,7 @@ export async function GET(request: Request) {
 
     const response: Record<string, unknown> = {
       success: true,
+      sections: result.sections,
       artists: result.artists,
       cached: result.cached,
       stale: result.stale,
@@ -28,8 +29,9 @@ export async function GET(request: Request) {
       response.debug = {
         rawTextPreview: result.rawText?.slice(0, 3000) || null,
         rawTextLength: result.rawText?.length || 0,
+        sectionCount: result.sections.length,
         parsedCount: result.artists.length,
-        hint: "对比 rawTextPreview 和 artists，如果解析不准确，把 rawTextPreview 内容发给开发者修正解析器",
+        hint: "对比 rawTextPreview 和 sections/artists，如果解析不准确，把 rawTextPreview 内容发给开发者修正解析器",
       };
     }
 
