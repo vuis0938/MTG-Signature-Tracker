@@ -24,14 +24,14 @@ export async function GET(request: Request) {
       stale: result.stale,
     };
 
-    // 调试模式：返回原始文本前 3000 字符，方便比对解析器准确性
+    // 调试模式：返回完整原始文本
     if (debug) {
       response.debug = {
-        rawTextPreview: result.rawText?.slice(0, 3000) || null,
+        rawText: result.rawText || null,
         rawTextLength: result.rawText?.length || 0,
         sectionCount: result.sections.length,
         parsedCount: result.artists.length,
-        hint: "对比 rawTextPreview 和 sections/artists，如果解析不准确，把 rawTextPreview 内容发给开发者修正解析器",
+        sections: result.sections,
       };
     }
 
