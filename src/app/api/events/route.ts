@@ -1,5 +1,31 @@
 import { NextResponse } from "next/server";
 import { fetchMountainMageArtists } from "@/lib/mountain-mage";
+import { readFile } from "fs/promises";
+import path from "path";
+
+interface CuratedSection {
+  name: string;
+  deadline: string | null;
+  artists: string[];
+}
+
+interface CuratedData {
+  updatedAt: string;
+  sections: CuratedSection[];
+}
+
+/** 尝试读取人工策展数据，不存在则返回 null */
+async function loadCurated(): Promise<CuratedData | null> {
+  try {
+    const filePath = path.join(process.cwd(), "src/data/mountain-mage-curated.json");
+    const raw = await readFile(filePath, "utf-8");
+    const data = JSON.parse(raw) as CuratedData;
+    if (data.sections && data.sections.length > 0) return data;
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 const GRAPHQL_URL =
   "https://mtgartistconnectionwebservice-production.up.railway.app/graphql";
@@ -103,16 +129,16 @@ export async function GET() {
     // 不中断，继续尝试 Mountain Mage
   }
 
-  // ─── Mountain Mage 数据（按章节+截止日期分组）─────────────
+  // ─── Mountain Mage 数据 ──────────────────────────────────
+  // 优先读取人工策展数据，不存在则回退到自动解析
   try {
-    const mmData = await fetchMountainMageArtists();
+    const curated = await loadCurated();
+    const today = new Date().toISOString().split("T")[0];
 
-    if (mmData.success && mmData.sections?.length > 0) {
-      for (const section of mmData.sections) {
+    if (curated && curated.sections.length > 0) {
+      // 使用人工策展数据
+      for (const section of curated.sections) {
         if (section.artists.length === 0) continue;
-
-        const today = new Date().toISOString().split("T")[0];
-
         results.push({
           id: `mountain-mage-${section.name.toLowerCase().replace(/[\s.]+/g, "-")}`,
           name: `Mountain Mage · ${section.name}`,
@@ -124,6 +150,25 @@ export async function GET() {
           artists: section.artists,
           source: "mountain_mage",
         });
+      }
+    } else {
+      // 回退到自动解析
+      const mmData = await fetchMountainMageArtists();
+      if (mmData.success && mmData.sections?.length > 0) {
+        for (const section of mmData.sections) {
+          if (section.artists.length === 0) continue;
+          results.push({
+            id: `mountain-mage-${section.name.toLowerCase().replace(/[\s.]+/g, "-")}`,
+            name: `Mountain Mage · ${section.name}`,
+            city: "代理平台（邮寄）",
+            startDate: today,
+            endDate: section.deadline || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
+              .toISOString()
+              .split("T")[0],
+            artists: section.artists,
+            source: "mountain_mage",
+          });
+        }
       }
     }
   } catch (error) {
