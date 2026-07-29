@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { writeFile } from "fs/promises";
-import path from "path";
+import { getSupabase } from "@/lib/supabase";
 
 interface CuratedSection {
   name: string;
@@ -8,35 +7,35 @@ interface CuratedSection {
   artists: string[];
 }
 
-interface CuratedData {
-  updatedAt: string;
-  sections: CuratedSection[];
-}
-
 export async function POST(request: Request) {
   try {
-    const body: CuratedData = await request.json();
+    const body: { sections: CuratedSection[] } = await request.json();
 
     if (!body.sections || !Array.isArray(body.sections)) {
       return NextResponse.json({ error: "无效数据格式" }, { status: 400 });
     }
 
-    const filePath = path.join(
-      process.cwd(),
-      "src/data/mountain-mage-curated.json"
-    );
+    const supabase = getSupabase();
+    const { error } = await supabase
+      .from("mountain_mage_curated")
+      .upsert(
+        {
+          id: "mountain_mage",
+          sections: body.sections,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      );
 
-    const data: CuratedData = {
-      updatedAt: new Date().toISOString(),
-      sections: body.sections,
-    };
-
-    await writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
+    if (error) {
+      console.error("[Curate API] Supabase 写入失败:", error);
+      return NextResponse.json({ error: "保存失败" }, { status: 500 });
+    }
 
     return NextResponse.json({
       success: true,
-      sections: data.sections.length,
-      artists: data.sections.reduce((sum, s) => sum + s.artists.length, 0),
+      sections: body.sections.length,
+      artists: body.sections.reduce((sum, s) => sum + s.artists.length, 0),
     });
   } catch (error) {
     console.error("[Curate API]", error);

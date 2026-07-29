@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchMountainMageArtists } from "@/lib/mountain-mage";
-import { readFile } from "fs/promises";
-import path from "path";
+import { getSupabase } from "@/lib/supabase";
 
 interface CuratedSection {
   name: string;
@@ -9,18 +8,19 @@ interface CuratedSection {
   artists: string[];
 }
 
-interface CuratedData {
-  updatedAt: string;
-  sections: CuratedSection[];
-}
-
-/** 尝试读取人工策展数据，不存在则返回 null */
-async function loadCurated(): Promise<CuratedData | null> {
+/** 从 Supabase 读取人工策展数据，不存在则返回 null */
+async function loadCurated(): Promise<CuratedSection[] | null> {
   try {
-    const filePath = path.join(process.cwd(), "src/data/mountain-mage-curated.json");
-    const raw = await readFile(filePath, "utf-8");
-    const data = JSON.parse(raw) as CuratedData;
-    if (data.sections && data.sections.length > 0) return data;
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from("mountain_mage_curated")
+      .select("sections")
+      .eq("id", "mountain_mage")
+      .single();
+
+    if (error || !data?.sections) return null;
+    const sections = data.sections as CuratedSection[];
+    if (sections.length > 0) return sections;
     return null;
   } catch {
     return null;
@@ -135,9 +135,9 @@ export async function GET() {
     const curated = await loadCurated();
     const today = new Date().toISOString().split("T")[0];
 
-    if (curated && curated.sections.length > 0) {
+    if (curated && curated.length > 0) {
       // 使用人工策展数据
-      for (const section of curated.sections) {
+      for (const section of curated) {
         if (section.artists.length === 0) continue;
         results.push({
           id: `mountain-mage-${section.name.toLowerCase().replace(/[\s.]+/g, "-")}`,
