@@ -136,17 +136,36 @@ export default function VerifyPage() {
 
   // 加载原始文本
   useEffect(() => {
-    fetch("/api/events/mountain-mage?debug=1&refresh=1")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.success && d.debug?.rawText) {
-          setTaggedLines(preClassify(d.debug.rawText));
-        } else {
-          setError(d.error || "加载失败");
+    async function load() {
+      try {
+        // 1. 先尝试读取已保存的策展数据
+        const curRes = await fetch("/api/events/mountain-mage/curate");
+        const curData = await curRes.json();
+
+        if (curData.success && curData.taggedLines && curData.taggedLines.length > 0) {
+          // 恢复已保存的标签状态
+          const restored = curData.taggedLines as TaggedLine[];
+          setTaggedLines(restored);
+          setSaved(true);
+          setLoading(false);
+          return;
         }
-      })
-      .catch(() => setError("网络错误"))
-      .finally(() => setLoading(false));
+
+        // 2. 无已保存数据，从 Google Docs 重新抓取并 AI 预分类
+        const rawRes = await fetch("/api/events/mountain-mage?debug=1&refresh=1");
+        const rawData = await rawRes.json();
+        if (rawData.success && rawData.debug?.rawText) {
+          setTaggedLines(preClassify(rawData.debug.rawText));
+        } else {
+          setError(rawData.error || "加载失败");
+        }
+      } catch {
+        setError("网络错误");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
 
   // 切换标签（4 路循环：section → artist → ignore → terminate → section）
@@ -205,7 +224,7 @@ export default function VerifyPage() {
       const res = await fetch("/api/events/mountain-mage/curate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sections }),
+        body: JSON.stringify({ sections, taggedLines }),
       });
       const data = await res.json();
       if (data.success) {

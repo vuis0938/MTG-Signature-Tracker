@@ -7,9 +7,19 @@ interface CuratedSection {
   artists: string[];
 }
 
+interface TaggedLine {
+  index: number;
+  text: string;
+  tag: string;
+  artistName: string;
+}
+
 export async function POST(request: Request) {
   try {
-    const body: { sections: CuratedSection[] } = await request.json();
+    const body: {
+      sections: CuratedSection[];
+      taggedLines?: TaggedLine[];
+    } = await request.json();
 
     if (!body.sections || !Array.isArray(body.sections)) {
       return NextResponse.json({ error: "无效数据格式" }, { status: 400 });
@@ -22,6 +32,7 @@ export async function POST(request: Request) {
         {
           id: "mountain_mage",
           sections: body.sections,
+          tagged_lines: body.taggedLines || [],
           updated_at: new Date().toISOString(),
         },
         { onConflict: "id" }
@@ -40,5 +51,31 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("[Curate API]", error);
     return NextResponse.json({ error: "保存失败" }, { status: 500 });
+  }
+}
+
+/** GET: 读取已保存的策展数据（含 taggedLines 用于恢复页面状态） */
+export async function GET() {
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from("mountain_mage_curated")
+      .select("sections, tagged_lines, updated_at")
+      .eq("id", "mountain_mage")
+      .single();
+
+    if (error || !data) {
+      return NextResponse.json({ success: false, message: "无已保存数据" });
+    }
+
+    return NextResponse.json({
+      success: true,
+      sections: data.sections,
+      taggedLines: data.tagged_lines,
+      updatedAt: data.updated_at,
+    });
+  } catch (error) {
+    console.error("[Curate API GET]", error);
+    return NextResponse.json({ error: "读取失败" }, { status: 500 });
   }
 }
