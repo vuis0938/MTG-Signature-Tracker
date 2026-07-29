@@ -141,7 +141,7 @@ export default function EventsPage() {
                           </span>
                           <span className="inline-flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            邮寄截止：{formatDate(event.endDate, event.endDate)}
+                            邮寄截止：{formatDate(event.endDate || event.startDate, event.endDate || event.startDate)}
                           </span>
                         </>
                       )}
