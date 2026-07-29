@@ -22,8 +22,6 @@ export interface MountainMageSection {
   name: string;
   /** 截止日期 ISO 字符串，如 "2026-08-28"；无截止日期则为 null */
   deadline: string | null;
-  /** 状态 */
-  status: "in_progress" | "upcoming";
   /** 该章节下的艺术家名单 */
   artists: string[];
 }
@@ -112,16 +110,14 @@ function parseDocContent(text: string): { sections: MountainMageSection[]; artis
   // 当前章节上下文
   let currentSectionName = "";
   let currentDeadline: string | null = null;
-  let currentStatus: "in_progress" | "upcoming" = "upcoming";
   let currentArtists: string[] = [];
-  let skipCurrentSection = false; // 往年章节跳过
+  let skipCurrentSection = false; // 往年/过期章节跳过
 
   function flushSection() {
     if (currentSectionName && currentArtists.length > 0) {
       sections.push({
         name: currentSectionName,
         deadline: currentDeadline,
-        status: currentStatus,
         artists: [...currentArtists],
       });
     }
@@ -169,16 +165,15 @@ function parseDocContent(text: string): { sections: MountainMageSection[]; artis
       const nameMatch = line.match(/^([A-Z][A-Za-z0-9\s]+?)(?:\s+signings?|\s*\(|$)/i);
       currentSectionName = nameMatch ? nameMatch[1].trim() : line;
       currentDeadline = deadline;
-      currentStatus = "upcoming";
       continue;
     }
 
     if (IN_PROGRESS_SECTION.test(line)) {
       flushSection();
-      skipCurrentSection = false;
-      currentSectionName = "进行中签名";
+      // 无明确截止日期，无法判断是否还能邮寄，跳过
+      skipCurrentSection = true;
+      currentSectionName = "";
       currentDeadline = null;
-      currentStatus = "in_progress";
       continue;
     }
 
@@ -210,7 +205,7 @@ function parseDocContent(text: string): { sections: MountainMageSection[]; artis
     seen.add(name.toLowerCase());
 
     currentArtists.push(name);
-    allArtists.push({ name, status: currentStatus });
+    allArtists.push({ name, status: "unknown" });
   }
 
   // 最后刷出当前章节

@@ -67,8 +67,6 @@ export interface CalendarEvent {
   artists: string[];
   /** 数据来源：mtgac = MTG Artist Connection, mountain_mage = Mountain Mage Signatures */
   source?: "mtgac" | "mountain_mage";
-  /** 代理平台签绘窗口状态 */
-  status?: "in_progress" | "upcoming" | "unknown";
 }
 
 /** 套牌统计 */

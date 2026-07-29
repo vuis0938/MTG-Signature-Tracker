@@ -26,7 +26,6 @@ export interface EventWithArtists {
   endDate: string;
   artists: string[];
   source: "mtgac" | "mountain_mage";
-  status?: "in_progress" | "upcoming" | "unknown";
 }
 
 interface GraphqlResponse {
@@ -124,7 +123,6 @@ export async function GET() {
             .split("T")[0],
           artists: section.artists,
           source: "mountain_mage",
-          status: section.status,
         });
       }
     }
