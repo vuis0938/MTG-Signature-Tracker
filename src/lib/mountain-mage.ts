@@ -144,15 +144,25 @@ function parseDocContent(text: string): { sections: MountainMageSection[]; artis
         currentSectionName = "";
         continue;
       }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      // 六个月后
+      const sixMonthsLater = new Date(today);
+      sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+
       if (deadline) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
         const deadlineDate = new Date(deadline + "T00:00:00Z");
-        if (deadlineDate < today) {
+        // 已过期或超出未来六个月，跳过
+        if (deadlineDate < today || deadlineDate > sixMonthsLater) {
           skipCurrentSection = true;
           currentSectionName = "";
           continue;
         }
+      } else if (year > CURRENT_YEAR) {
+        // 无明确截止日期且年份在明年之后，跳过
+        skipCurrentSection = true;
+        currentSectionName = "";
+        continue;
       }
       skipCurrentSection = false;
       // 提取纯名称（去掉 signings、括号内容等）
