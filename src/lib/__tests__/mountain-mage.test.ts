@@ -97,7 +97,7 @@ describe("Mountain Mage 章节解析", () => {
   // 这里我们测试一个轻量级的解析函数，避免依赖网络请求
   // 测试逻辑直接复用 parseDocContent 的核心正则
 
-  const SECTION_WITH_DEADLINE = /^(Q[1-4]\s+\d{4}|DragonCon\s+\d{4}|Commander\s+Sealed\s+\d{4})/i;
+  const SECTION_WITH_DEADLINE = /deadline/i;
   const SUBSECTION = /^(Tokyo\s+MTG|Kazuki)/i;
   const IN_PROGRESS_SECTION = /^IN[\s-]PROGRESS/i;
 
@@ -111,6 +111,18 @@ describe("Mountain Mage 章节解析", () => {
 
   it("识别 Commander Sealed 2026 章节标题", () => {
     expect(SECTION_WITH_DEADLINE.test("Commander Sealed 2026 (hard deadline of September 15th)")).toBe(true);
+  });
+
+  it("识别 Illuxcon 2026 章节标题", () => {
+    expect(SECTION_WITH_DEADLINE.test("Illuxcon 2026 (hard deadline of October 16th due to travel)")).toBe(true);
+  });
+
+  it("识别 CoolStuffCon Orlando 2026 章节标题", () => {
+    expect(SECTION_WITH_DEADLINE.test("CoolStuffCon Orlando 2026 (hard deadline of October 26th due to travel, a little leeway since I will be driving home each night)")).toBe(true);
+  });
+
+  it("识别 MagicCon Atlanta 章节标题（无年份）", () => {
+    expect(SECTION_WITH_DEADLINE.test("MagicCon Atlanta (hard deadline of November 6th due to travel)")).toBe(true);
   });
 
   it("识别 Tokyo MTG 子章节", () => {

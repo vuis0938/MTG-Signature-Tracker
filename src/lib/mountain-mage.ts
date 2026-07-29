@@ -86,8 +86,8 @@ const excludePatterns = [
 
 // ─── 章节标题识别 ──────────────────────────────────────────
 
-/** 有明确截止日期的章节（如 Q3 2026 signings） */
-const SECTION_WITH_DEADLINE =  /^(Q[1-4]\s+\d{4}|DragonCon\s+\d{4}|Commander\s+Sealed\s+\d{4})/i;
+/** 有明确截止日期的章节：匹配包含 deadline 关键字的行（不依赖硬编码活动名） */
+const SECTION_WITH_DEADLINE = /deadline/i;
 
 /** 子章节（如 Tokyo MTG），继承父章节截止日期 */
 const SUBSECTION = /^(Tokyo\s+MTG|Kazuki)/i;
