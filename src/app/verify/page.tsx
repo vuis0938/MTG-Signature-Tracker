@@ -27,11 +27,21 @@ const MONTH_MAP: Record<string, number> = {
 };
 
 function parseDeadline(line: string, defaultYear: number): string | null {
-  const m = line.match(/deadline\s+(?:of\s+)?([A-Z][a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?/i);
-  if (!m) return null;
-  const month = MONTH_MAP[m[1].toLowerCase()];
-  if (!month) return null;
-  return `${defaultYear}-${String(month).padStart(2, "0")}-${String(parseInt(m[2], 10)).padStart(2, "0")}`;
+  // 先尝试匹配带具体日期的格式
+  const withDay = line.match(/deadline\s+(?:of\s+)?([A-Z][a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?/i);
+  if (withDay) {
+    const month = MONTH_MAP[withDay[1].toLowerCase()];
+    if (month) return `${defaultYear}-${String(month).padStart(2, "0")}-${String(parseInt(withDay[2], 10)).padStart(2, "0")}`;
+  }
+
+  // 再尝试匹配模糊日期 "some(?:time)? in Month"
+  const vague = line.match(/deadline\s+some(?:time)?\s+in\s+([A-Z][a-z]+)/i);
+  if (vague) {
+    const month = MONTH_MAP[vague[1].toLowerCase()];
+    if (month) return `${defaultYear}-${String(month).padStart(2, "0")}`;
+  }
+
+  return null;
 }
 
 function parseYear(line: string): number {

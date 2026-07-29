@@ -47,21 +47,30 @@ const MONTH_MAP: Record<string, number> = {
 /**
  * 从章节标题中提取截止日期
  * 匹配模式:
- *   "deadline August 28th"
- *   "hard deadline of August 31st"
- *   "deadline September 15th"
+ *   "deadline August 28th"          → 2026-08-28
+ *   "hard deadline of August 31st"  → 2026-08-31
+ *   "deadline some in November"     → 2026-11 (无具体日期，仅月份)
+ *   "deadline sometime in November" → 2026-11
  */
 function parseDeadline(line: string, defaultYear: number): string | null {
-  const m = line.match(/deadline\s+(?:of\s+)?([A-Z][a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?/i);
-  if (!m) return null;
+  // 先尝试匹配带具体日期的格式
+  const withDay = line.match(/deadline\s+(?:of\s+)?([A-Z][a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?/i);
+  if (withDay) {
+    const monthName = withDay[1].toLowerCase();
+    const day = parseInt(withDay[2], 10);
+    const month = MONTH_MAP[monthName];
+    if (month) return `${defaultYear}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
 
-  const monthName = m[1].toLowerCase();
-  const day = parseInt(m[2], 10);
-  const month = MONTH_MAP[monthName];
+  // 再尝试匹配模糊日期 "some(?:time)? in Month"
+  const vague = line.match(/deadline\s+some(?:time)?\s+in\s+([A-Z][a-z]+)/i);
+  if (vague) {
+    const monthName = vague[1].toLowerCase();
+    const month = MONTH_MAP[monthName];
+    if (month) return `${defaultYear}-${String(month).padStart(2, "0")}`;
+  }
 
-  if (!month) return null;
-
-  return `${defaultYear}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return null;
 }
 
 /**

@@ -161,11 +161,21 @@ const MONTH_MAP: Record<string, number> = {
 };
 
 function parseDeadline(line: string, defaultYear: number): string | null {
-  const m = line.match(/deadline\s+(?:of\s+)?([A-Z][a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?/i);
-  if (!m) return null;
-  const month = MONTH_MAP[m[1].toLowerCase()];
-  if (!month) return null;
-  return `${defaultYear}-${String(month).padStart(2, "0")}-${String(parseInt(m[2], 10)).padStart(2, "0")}`;
+  // 先尝试匹配带具体日期的格式
+  const withDay = line.match(/deadline\s+(?:of\s+)?([A-Z][a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?/i);
+  if (withDay) {
+    const month = MONTH_MAP[withDay[1].toLowerCase()];
+    if (month) return `${defaultYear}-${String(month).padStart(2, "0")}-${String(parseInt(withDay[2], 10)).padStart(2, "0")}`;
+  }
+
+  // 再尝试匹配模糊日期 "some(?:time)? in Month"
+  const vague = line.match(/deadline\s+some(?:time)?\s+in\s+([A-Z][a-z]+)/i);
+  if (vague) {
+    const month = MONTH_MAP[vague[1].toLowerCase()];
+    if (month) return `${defaultYear}-${String(month).padStart(2, "0")}`;
+  }
+
+  return null;
 }
 
 describe("截止日期解析", () => {
@@ -183,6 +193,14 @@ describe("截止日期解析", () => {
 
   it("无 deadline 的行返回 null", () => {
     expect(parseDeadline("Some event without date", 2026)).toBeNull();
+  });
+
+  it("解析模糊日期 deadline some in November", () => {
+    expect(parseDeadline("MagicCon Atlanta (hard deadline some in November due to travel)", 2026)).toBe("2026-11");
+  });
+
+  it("解析模糊日期 deadline sometime in December", () => {
+    expect(parseDeadline("Some event (deadline sometime in December)", 2026)).toBe("2026-12");
   });
 });
 
