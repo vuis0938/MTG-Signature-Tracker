@@ -1028,7 +1028,7 @@ function VersionSwitchDialog({
         </DialogContent>
       ) : (
         <DialogContent>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto p-1 pr-2 items-start">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto p-1 pr-2">
             {printings.map((printing) => {
               const isCurrent =
                 printing.set === switchCard?.set_code &&
@@ -1068,7 +1068,6 @@ function VersionSwitchDialog({
                     <p className="text-muted-foreground truncate">
                       #{printing.collector_number} · {printing.artist}
                     </p>
-                    {isCurrent && <p className="text-primary font-medium mt-0.5">当前版本</p>}
                   </div>
                 </button>
               );
