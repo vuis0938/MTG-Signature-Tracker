@@ -144,9 +144,7 @@ export async function GET() {
           name: `Mountain Mage · ${section.name}`,
           city: "代理平台（邮寄）",
           startDate: today,
-          endDate: section.deadline || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .split("T")[0],
+          endDate: section.deadline || null,
           artists: section.artists,
           source: "mountain_mage",
         });
@@ -162,9 +160,7 @@ export async function GET() {
             name: `Mountain Mage · ${section.name}`,
             city: "代理平台（邮寄）",
             startDate: today,
-            endDate: section.deadline || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
-              .toISOString()
-              .split("T")[0],
+            endDate: section.deadline || null,
             artists: section.artists,
             source: "mountain_mage",
           });
