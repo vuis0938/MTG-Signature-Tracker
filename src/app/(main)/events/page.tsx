@@ -122,12 +122,6 @@ export default function EventsPage() {
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <CardTitle className="text-base">{event.name}</CardTitle>
-                      {event.source === "mountain_mage" && (
-                        <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                          <Package className="h-3 w-3" />
-                          代理签绘
-                        </span>
-                      )}
                     </div>
                     <CardDescription className="flex items-center gap-3">
                       {event.source === "mtgac" ? (
@@ -144,12 +138,12 @@ export default function EventsPage() {
                       ) : (
                         <>
                           <span className="inline-flex items-center gap-1">
-                            <Package className="h-3 w-3" />
-                            {event.city}
+                            <Calendar className="h-3 w-3" />
+                            {formatDeadline(event.endDate)}
                           </span>
                           <span className="inline-flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            邮寄截止：{formatDeadline(event.endDate)}
+                            <Package className="h-3 w-3" />
+                            平台代理（邮寄）
                           </span>
                         </>
                       )}
