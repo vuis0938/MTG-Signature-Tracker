@@ -144,7 +144,7 @@ export async function GET() {
         if (section.deadline) lastDeadline = section.deadline;
         results.push({
           id: `mountain-mage-${section.name.toLowerCase().replace(/[\s.]+/g, "-")}`,
-          name: `Mountain Mage · ${section.name}`,
+          name: `Mountain Mage · ${section.name.replace(/\*+/g, "").trim()}`,
           city: "代理平台（邮寄）",
           startDate: sortDate,
           endDate: section.deadline || null,
@@ -163,7 +163,7 @@ export async function GET() {
           if (section.deadline) lastDeadline = section.deadline;
           results.push({
             id: `mountain-mage-${section.name.toLowerCase().replace(/[\s.]+/g, "-")}`,
-            name: `Mountain Mage · ${section.name}`,
+            name: `Mountain Mage · ${section.name.replace(/\*+/g, "").trim()}`,
             city: "代理平台（邮寄）",
             startDate: sortDate,
             endDate: section.deadline || null,
