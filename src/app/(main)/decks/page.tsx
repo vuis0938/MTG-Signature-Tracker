@@ -1046,7 +1046,7 @@ function VersionSwitchDialog({
                   disabled={isCurrent || isSwitching}
                   className={`text-left rounded-lg border overflow-hidden transition-all ${
                     isCurrent
-                      ? "border-primary ring-2 ring-primary/30 cursor-default"
+                      ? "border-primary ring-4 ring-primary/50 shadow-md shadow-primary/20 scale-[1.02] cursor-default"
                       : "border-border hover:border-primary/50 hover:shadow cursor-pointer"
                   } ${isSwitching ? "opacity-50" : ""}`}
                   title={printing.artist}
