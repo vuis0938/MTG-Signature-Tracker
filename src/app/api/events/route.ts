@@ -171,5 +171,16 @@ export async function GET() {
     console.error("[Events API] Mountain Mage 获取失败:", error);
   }
 
+  // ─── 统一排序：按时间升序，同日期会场优先于平台 ──────────
+  results.sort((a, b) => {
+    const dateA = new Date(a.source === "mtgac" ? a.startDate : (a.endDate || a.startDate)).getTime();
+    const dateB = new Date(b.source === "mtgac" ? b.startDate : (b.endDate || b.startDate)).getTime();
+    if (dateA !== dateB) return dateA - dateB;
+    // 同日期：mtgac（会场）优先于 mountain_mage（平台）
+    if (a.source === "mtgac" && b.source === "mountain_mage") return -1;
+    if (a.source === "mountain_mage" && b.source === "mtgac") return 1;
+    return 0;
+  });
+
   return NextResponse.json({ success: true, events: results });
 }
