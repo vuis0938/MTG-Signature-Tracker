@@ -181,8 +181,8 @@ function parseDocContent(text: string): { sections: MountainMageSection[]; artis
       }
       skipCurrentSection = false;
       // 提取纯名称（去掉 signings、括号内容等）
-      const nameMatch = line.match(/^([A-Z][A-Za-z0-9\s]+?)(?:\s+signings?|\s*\(|$)/i);
-      currentSectionName = nameMatch ? nameMatch[1].trim() : line;
+      const nameMatch = line.match(/^\*?\s*([A-Z][A-Za-z0-9\s]+?)(?:\s+signings?|\s*\(|$)/i);
+      currentSectionName = nameMatch ? nameMatch[1].trim() : line.replace(/\*+/g, "").trim();
       currentDeadline = deadline;
       continue;
     }

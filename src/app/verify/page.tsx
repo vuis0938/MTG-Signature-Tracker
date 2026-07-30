@@ -251,7 +251,7 @@ export default function VerifyPage() {
         }
         const year = parseYear(line.text);
         currentSection = {
-          name: sectionNameOverrides[line.index] || line.text.replace(/\s*\(.*/, "").trim(),
+          name: sectionNameOverrides[line.index] || line.text.replace(/\*+/g, "").replace(/\s*\(.*/, "").trim(),
           deadline: deadlineOverrides[line.index] !== undefined
             ? deadlineOverrides[line.index]
             : parseDeadline(line.text, year),
