@@ -1044,9 +1044,9 @@ function VersionSwitchDialog({
                     }
                   }}
                   disabled={isCurrent || isSwitching}
-                  className={`text-left rounded-lg border overflow-hidden transition-all ${
+                  className={`text-left rounded-lg border-2 overflow-hidden transition-all ${
                     isCurrent
-                      ? "border-primary ring-4 ring-primary/50 shadow-md shadow-primary/20 scale-[1.02] cursor-default"
+                      ? "border-blue-400 ring-2 ring-blue-400/40 cursor-default"
                       : "border-border hover:border-primary/50 hover:shadow cursor-pointer"
                   } ${isSwitching ? "opacity-50" : ""}`}
                   title={printing.artist}
