@@ -137,14 +137,17 @@ export async function GET() {
 
     if (curated && curated.length > 0) {
       // 使用人工策展数据
+      let lastDeadline: string | null = null;
       for (const section of curated) {
         if (section.artists.length === 0) continue;
+        const endDate = section.deadline || lastDeadline;
+        if (section.deadline) lastDeadline = section.deadline;
         results.push({
           id: `mountain-mage-${section.name.toLowerCase().replace(/[\s.]+/g, "-")}`,
           name: `Mountain Mage · ${section.name}`,
           city: "代理平台（邮寄）",
           startDate: today,
-          endDate: section.deadline || null,
+          endDate,
           artists: section.artists,
           source: "mountain_mage",
         });
@@ -153,14 +156,17 @@ export async function GET() {
       // 回退到自动解析
       const mmData = await fetchMountainMageArtists();
       if (mmData.success && mmData.sections?.length > 0) {
+        let lastDeadline: string | null = null;
         for (const section of mmData.sections) {
           if (section.artists.length === 0) continue;
+          const endDate = section.deadline || lastDeadline;
+          if (section.deadline) lastDeadline = section.deadline;
           results.push({
             id: `mountain-mage-${section.name.toLowerCase().replace(/[\s.]+/g, "-")}`,
             name: `Mountain Mage · ${section.name}`,
             city: "代理平台（邮寄）",
             startDate: today,
-            endDate: section.deadline || null,
+            endDate,
             artists: section.artists,
             source: "mountain_mage",
           });
