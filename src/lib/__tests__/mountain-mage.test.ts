@@ -168,8 +168,8 @@ function parseDeadline(line: string, defaultYear: number): string | null {
     if (month) return `${defaultYear}-${String(month).padStart(2, "0")}-${String(parseInt(withDay[2], 10)).padStart(2, "0")}`;
   }
 
-  // 再尝试匹配模糊日期 "some(?:time)? in Month"
-  const vague = line.match(/deadline\s+some(?:time)?\s+in\s+([A-Z][a-z]+)/i);
+  // 再尝试匹配模糊日期 "sometime in Month"
+  const vague = line.match(/deadline\s+sometime\s+in\s+([A-Z][a-z]+)/i);
   if (vague) {
     const month = MONTH_MAP[vague[1].toLowerCase()];
     if (month) return `${defaultYear}-${String(month).padStart(2, "0")}`;
@@ -195,8 +195,8 @@ describe("截止日期解析", () => {
     expect(parseDeadline("Some event without date", 2026)).toBeNull();
   });
 
-  it("解析模糊日期 deadline some in November", () => {
-    expect(parseDeadline("MagicCon Atlanta (hard deadline some in November due to travel)", 2026)).toBe("2026-11");
+  it("解析模糊日期 deadline sometime in November", () => {
+    expect(parseDeadline("MagicCon Atlanta (hard deadline sometime in November due to travel)", 2026)).toBe("2026-11");
   });
 
   it("解析模糊日期 deadline sometime in December", () => {

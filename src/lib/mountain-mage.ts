@@ -49,8 +49,7 @@ const MONTH_MAP: Record<string, number> = {
  * 匹配模式:
  *   "deadline August 28th"          → 2026-08-28
  *   "hard deadline of August 31st"  → 2026-08-31
- *   "deadline some in November"     → 2026-11 (无具体日期，仅月份)
- *   "deadline sometime in November" → 2026-11
+ *   "deadline sometime in November" → 2026-11 (无具体日期，仅月份)
  */
 function parseDeadline(line: string, defaultYear: number): string | null {
   // 先尝试匹配带具体日期的格式
@@ -62,8 +61,8 @@ function parseDeadline(line: string, defaultYear: number): string | null {
     if (month) return `${defaultYear}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   }
 
-  // 再尝试匹配模糊日期 "some(?:time)? in Month"
-  const vague = line.match(/deadline\s+some(?:time)?\s+in\s+([A-Z][a-z]+)/i);
+  // 再尝试匹配模糊日期 "sometime in Month"
+  const vague = line.match(/deadline\s+sometime\s+in\s+([A-Z][a-z]+)/i);
   if (vague) {
     const monthName = vague[1].toLowerCase();
     const month = MONTH_MAP[monthName];

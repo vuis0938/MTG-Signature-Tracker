@@ -34,8 +34,8 @@ function parseDeadline(line: string, defaultYear: number): string | null {
     if (month) return `${defaultYear}-${String(month).padStart(2, "0")}-${String(parseInt(withDay[2], 10)).padStart(2, "0")}`;
   }
 
-  // 再尝试匹配模糊日期 "some(?:time)? in Month"
-  const vague = line.match(/deadline\s+some(?:time)?\s+in\s+([A-Z][a-z]+)/i);
+  // 再尝试匹配模糊日期 "sometime in Month"
+  const vague = line.match(/deadline\s+sometime\s+in\s+([A-Z][a-z]+)/i);
   if (vague) {
     const month = MONTH_MAP[vague[1].toLowerCase()];
     if (month) return `${defaultYear}-${String(month).padStart(2, "0")}`;
