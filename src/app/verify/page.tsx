@@ -79,8 +79,16 @@ function preClassify(rawText: string): TaggedLine[] {
     let tag: LineTag = "ignore";
     let artistName = "";
 
+    // 终止标签：长下划线分隔符
+    if (/^_{5,}$/.test(line)) {
+      tag = "terminate";
+    }
+    // 终止标签：Status on In-Progress Signings
+    else if (/status\s+on\s+in[-]?progress\s+signings/i.test(line)) {
+      tag = "terminate";
+    }
     // 含 deadline 的行 → 预标记为活动标题
-    if (sectionRegex.test(line)) {
+    else if (sectionRegex.test(line)) {
       tag = "section";
     }
     // Q1/Q2 → 预标记为忽略（但保留在列表中）
