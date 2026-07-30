@@ -498,8 +498,8 @@ export async function fetchAllPrintings(
           card.card_faces?.[0]?.artist ||
           "Unknown";
         const imageUrl =
-          card.image_uris?.small ||
-          card.card_faces?.[0]?.image_uris?.small ||
+          card.image_uris?.normal ||
+          card.card_faces?.[0]?.image_uris?.normal ||
           null;
 
         printings.push({
