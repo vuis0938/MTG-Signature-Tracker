@@ -1028,7 +1028,7 @@ function VersionSwitchDialog({
         </DialogContent>
       ) : (
         <DialogContent>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto pr-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto p-1 pr-2">
             {printings.map((printing) => {
               const isCurrent =
                 printing.set === switchCard?.set_code &&
@@ -1044,10 +1044,10 @@ function VersionSwitchDialog({
                     }
                   }}
                   disabled={isCurrent || isSwitching}
-                  className={`text-left rounded-lg border-2 overflow-hidden transition-all ${
+                  className={`text-left rounded-lg border-2 transition-all ${
                     isCurrent
-                      ? "border-blue-400 ring-2 ring-blue-400/40 cursor-default"
-                      : "border-border hover:border-primary/50 hover:shadow cursor-pointer"
+                      ? "overflow-visible border-blue-400 ring-2 ring-blue-400/40 cursor-default"
+                      : "overflow-hidden border-border hover:border-primary/50 hover:shadow cursor-pointer"
                   } ${isSwitching ? "opacity-50" : ""}`}
                   title={printing.artist}
                 >
@@ -1055,7 +1055,7 @@ function VersionSwitchDialog({
                     <img
                       src={printing.image_url}
                       alt={`${printing.set_name} #${printing.collector_number}`}
-                      className="w-full"
+                      className="w-full rounded-t-lg"
                       loading="lazy"
                     />
                   ) : (
