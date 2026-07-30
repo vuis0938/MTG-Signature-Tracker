@@ -87,6 +87,10 @@ function preClassify(rawText: string): TaggedLine[] {
     else if (/status\s+on\s+in[-]?progress\s+signings/i.test(line)) {
       tag = "terminate";
     }
+    // 终止标签：整行仅为 "deadline sometime in Xxx:" 的模糊截止日期
+    else if (/^deadline\s+sometime\s+in\s+[A-Z][a-z]+:?\s*$/i.test(line)) {
+      tag = "terminate";
+    }
     // 含 deadline 的行 → 预标记为活动标题
     else if (sectionRegex.test(line)) {
       tag = "section";
