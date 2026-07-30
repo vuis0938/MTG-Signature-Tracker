@@ -187,7 +187,7 @@ export default function DecksPage() {
   // ─── 删除套牌 ──────────────────────────────────────────
 
   const deleteDeck = useCallback(async (deckId: string, deckName: string) => {
-    if (!confirm(`确定删除套牌「${deckName}」吗？此操作不可撤销。`)) return;
+    if (!confirm(`确定删除套牌「${deckName}」吗？此操作不可撤销`)) return;
 
     await supabase.from("decks").delete().eq("id", deckId);
     setDecks((prev) => prev.filter((d) => d.id !== deckId));
@@ -1088,7 +1088,7 @@ function VersionSwitchDialog({
                 className="w-full"
                 disabled={deletingCard === switchCard.id}
                 onClick={() => {
-                  if (confirm(`确定从套牌中删除「${switchCard.card_name}」吗？此操作不可撤销。`)) {
+                  if (confirm(`确定从套牌中删除「${switchCard.card_name}」吗？此操作不可撤销`)) {
                     onDeleteCard(switchCard.id);
                   }
                 }}

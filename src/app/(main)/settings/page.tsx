@@ -72,8 +72,7 @@ export default function SettingsPage() {
 
   // ─── 清除所有数据 ───
   async function handleClearData() {
-    if (!confirm("确定要清除所有套牌和卡牌数据吗？此操作不可撤销！")) return;
-    if (!confirm("再次确认：所有数据将被永久删除。")) return;
+    if (!confirm("确定清除所有数据吗？此操作不可撤销")) return;
 
     setClearing(true);
     try {
