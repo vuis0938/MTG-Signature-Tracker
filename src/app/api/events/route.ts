@@ -137,11 +137,19 @@ export async function GET() {
 
     if (curated && curated.length > 0) {
       // 使用人工策展数据
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
       let lastDeadline: string | null = null;
       for (const section of curated) {
         if (section.artists.length === 0) continue;
-        const sortDate = section.deadline || lastDeadline || today;
+        const effectiveDeadline = section.deadline || lastDeadline;
         if (section.deadline) lastDeadline = section.deadline;
+        // 过期过滤：截止日期已过则跳过
+        if (effectiveDeadline) {
+          const deadlineDate = new Date(effectiveDeadline + "T00:00:00Z");
+          if (deadlineDate < now) continue;
+        }
+        const sortDate = effectiveDeadline || today;
         results.push({
           id: `mountain-mage-${section.name.toLowerCase().replace(/[\s.]+/g, "-")}`,
           name: `Mountain Mage · ${section.name.replace(/\*+/g, "").trim()}`,
