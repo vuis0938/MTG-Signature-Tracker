@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Loader2, Save, Tag, Edit3 } from "lucide-react";
+import { Loader2, Save, Tag, Edit3, RefreshCw } from "lucide-react";
 
 type LineTag = "section" | "artist" | "ignore" | "terminate";
 
@@ -126,6 +126,29 @@ export default function VerifyPage() {
   const [saved, setSaved] = useState(false);
   const [taggedLines, setTaggedLines] = useState<TaggedLine[]>([]);
   const [hideIgnored, setHideIgnored] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // 从 Google Docs 重新抓取原始文本并 AI 预分类（覆盖当前标签）
+  async function handleRefresh() {
+    if (!window.confirm("将从 Google Docs 重新抓取最新数据，当前未保存的标签将丢失。确定继续？")) return;
+    setRefreshing(true);
+    setSaved(false);
+    try {
+      const rawRes = await fetch("/api/events/mountain-mage?debug=1&refresh=1");
+      const rawData = await rawRes.json();
+      if (rawData.success && rawData.debug?.rawText) {
+        setTaggedLines(preClassify(rawData.debug.rawText));
+        setSectionNameOverrides({});
+        setDeadlineOverrides({});
+      } else {
+        setError(rawData.error || "抓取失败");
+      }
+    } catch {
+      setError("网络错误");
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   // 编辑中的章节名称覆盖
   const [sectionNameOverrides, setSectionNameOverrides] = useState<Record<number, string>>({});
@@ -284,6 +307,15 @@ export default function VerifyPage() {
         <h1 className="text-xl font-semibold">Mountain Mage 策展</h1>
         <div className="flex items-center gap-2">
           {saved && <span className="text-xs text-emerald-600">已保存</span>}
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-accent disabled:opacity-50"
+            title="从 Google Docs 重新抓取最新数据，覆盖当前标签"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "抓取中..." : "刷新"}
+          </button>
           <button
             onClick={handleSave}
             disabled={saving}
