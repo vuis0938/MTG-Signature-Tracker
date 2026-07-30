@@ -49,8 +49,7 @@ export default function EventsPage() {
     });
   };
 
-  const formatDate = (start: string | undefined, end: string | undefined) => {
-    if (!start || !end) return start || end || "";
+  const formatDate = (start: string, end: string) => {
     const s = new Date(start);
     const e = new Date(end);
     const fmt = (d: Date) =>
