@@ -1028,7 +1028,7 @@ function VersionSwitchDialog({
         </DialogContent>
       ) : (
         <DialogContent>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto p-1 pr-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto p-1 pr-2 items-start">
             {printings.map((printing) => {
               const isCurrent =
                 printing.set === switchCard?.set_code &&
