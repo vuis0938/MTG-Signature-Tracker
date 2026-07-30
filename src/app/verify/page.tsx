@@ -490,7 +490,7 @@ export default function VerifyPage() {
                       ))}
                     </div>
                   </div>
-                ))}
+                )})
               </div>
             )}
           </div>
