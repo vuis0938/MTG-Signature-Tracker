@@ -58,6 +58,20 @@ export default function EventsPage() {
     return `${fmt(s)} — ${fmt(e)}`;
   };
 
+  /** 格式化 Mountain Mage 截止日期：完整日期 → YYYY/M/D，仅月份 → YYYY/M，无 → 暂无 */
+  const formatDeadline = (deadline: string | null | undefined): string => {
+    if (!deadline) return "暂无";
+    const parts = deadline.split("-");
+    if (parts.length === 2) {
+      // 仅月份格式 "2026-11" → "2026/11"
+      return `${parts[0]}/${parseInt(parts[1], 10)}`;
+    }
+    if (parts.length === 3) {
+      return `${parts[0]}/${parseInt(parts[1], 10)}/${parseInt(parts[2], 10)}`;
+    }
+    return "暂无";
+  };
+
   // 点击画家名，加载其所有卡牌
   async function handleArtistClick(artist: string) {
     setSelectedArtist(artist);
@@ -135,7 +149,7 @@ export default function EventsPage() {
                           </span>
                           <span className="inline-flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            邮寄截止：{formatDate(event.endDate || event.startDate, event.endDate || event.startDate)}
+                            邮寄截止：{formatDeadline(event.endDate)}
                           </span>
                         </>
                       )}
