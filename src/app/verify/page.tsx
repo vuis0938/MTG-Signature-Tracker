@@ -83,8 +83,8 @@ function preClassify(rawText: string): TaggedLine[] {
     if (/^_{5,}$/.test(line)) {
       tag = "terminate";
     }
-    // 终止标签：Status on In-Progress Signings
-    else if (/status\s+on\s+in[-]?progress\s+signings/i.test(line)) {
+    // 终止标签：Status on In-Progress Signings（排除文档标题中同时含 Upcoming 的行）
+    else if (/status\s+on\s+in[-]?progress\s+signings/i.test(line) && !/upcoming/i.test(line)) {
       tag = "terminate";
     }
     // 终止标签：整行仅为 "deadline sometime in Xxx:" 的模糊截止日期
