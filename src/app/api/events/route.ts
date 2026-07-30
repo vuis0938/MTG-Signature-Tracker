@@ -49,7 +49,7 @@ export interface EventWithArtists {
   name: string;
   city: string;
   startDate: string;
-  endDate: string;
+  endDate: string | null;
   artists: string[];
   source: "mtgac" | "mountain_mage";
 }
