@@ -186,8 +186,8 @@ export default function DecksPage() {
 
   // ─── 删除套牌 ──────────────────────────────────────────
 
-  const deleteDeck = useCallback(async (deckId: string) => {
-    if (!confirm("确定要删除这套牌吗？所有卡牌数据将被永久删除。")) return;
+  const deleteDeck = useCallback(async (deckId: string, deckName: string) => {
+    if (!confirm(`确定删除套牌「${deckName}」吗？此操作不可撤销。`)) return;
 
     await supabase.from("decks").delete().eq("id", deckId);
     setDecks((prev) => prev.filter((d) => d.id !== deckId));
@@ -754,7 +754,7 @@ interface DeckListItemProps {
   displayMode: "individual" | "grouped";
   onToggle: (deckId: string) => void;
   onAddCards: (deckId: string) => void;
-  onDelete: (deckId: string) => void;
+  onDelete: (deckId: string, deckName: string) => void;
   onToggleStatus: (cardId: string, currentStatus: number, deckId: string) => void;
   onLoadPrintings: (card: CardEntry, allIds?: string[]) => void;
 }
@@ -805,7 +805,7 @@ function DeckListItem({
             <Button
               variant="ghost"
               size="icon"
-              onClick={(e) => { e.stopPropagation(); onDelete(deck.id); }}
+              onClick={(e) => { e.stopPropagation(); onDelete(deck.id, deck.name); }}
             >
               <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
             </Button>
@@ -1088,7 +1088,7 @@ function VersionSwitchDialog({
                 className="w-full"
                 disabled={deletingCard === switchCard.id}
                 onClick={() => {
-                  if (confirm(`确定要从套牌中删除「${switchCard.card_name}」吗？`)) {
+                  if (confirm(`确定从套牌中删除「${switchCard.card_name}」吗？此操作不可撤销。`)) {
                     onDeleteCard(switchCard.id);
                   }
                 }}
