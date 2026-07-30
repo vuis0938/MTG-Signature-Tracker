@@ -60,7 +60,7 @@ export default function EventsPage() {
 
   /** 格式化 Mountain Mage 截止日期：完整日期 → YYYY/M/D，仅月份 → YYYY/M，无 → 暂无 */
   const formatDeadline = (deadline: string | null | undefined): string => {
-    if (!deadline) return "暂无";
+    if (!deadline) return "时间待定";
     const parts = deadline.split("-");
     if (parts.length === 2) {
       // 仅月份格式 "2026-11" → "2026/11"
@@ -69,7 +69,7 @@ export default function EventsPage() {
     if (parts.length === 3) {
       return `${parts[0]}/${parseInt(parts[1], 10)}/${parseInt(parts[2], 10)}`;
     }
-    return "暂无";
+    return "时间待定";
   };
 
   // 点击画家名，加载其所有卡牌
