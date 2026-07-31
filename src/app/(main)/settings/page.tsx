@@ -135,16 +135,16 @@ export default function SettingsPage() {
             <Layout className="h-4 w-4" />
             显示偏好
           </CardTitle>
-          <CardDescription>自定义卡牌展示方式</CardDescription>
+          <CardDescription>套牌管理界面卡牌显示方式</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium">卡牌显示模式</p>
+              <p className="text-sm font-medium">复数卡牌显示</p>
               <p className="text-xs text-muted-foreground">
                 {displayMode === "individual"
-                  ? "当前：独立展示 — 每张卡牌单独显示"
-                  : "当前：合并展示 — 相同卡牌合并为 ×N 样式"}
+                  ? "当前：独立显示 — 每张卡牌单独显示"
+                  : "当前：合并显示 — 相同卡牌合并为 ×N 样式"}
               </p>
             </div>
             <Button
@@ -153,13 +153,13 @@ export default function SettingsPage() {
               onClick={toggleDisplayMode}
             >
               {displayMode === "individual" ? <Grid3X3 className="h-4 w-4 mr-2" /> : <Layers className="h-4 w-4 mr-2" />}
-              {displayMode === "individual" ? "独立展示" : "合并展示"}
+              {displayMode === "individual" ? "独立显示" : "合并显示"}
             </Button>
           </div>
 
           <div className="flex items-center justify-between border-t pt-3">
             <div>
-              <p className="text-sm font-medium">卡牌排版</p>
+              <p className="text-sm font-medium">套牌排版方式</p>
               <p className="text-xs text-muted-foreground">
                 {deckLayout === "default"
                   ? "当前：默认 — 宽松网格"
