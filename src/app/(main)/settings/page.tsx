@@ -135,7 +135,7 @@ export default function SettingsPage() {
             <Layout className="h-4 w-4" />
             显示偏好
           </CardTitle>
-          <CardDescription>套牌管理界面卡牌显示方式</CardDescription>
+          <CardDescription>自定义卡牌展示方式</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between">
