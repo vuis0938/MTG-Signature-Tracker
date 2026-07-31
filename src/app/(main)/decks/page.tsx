@@ -981,19 +981,24 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
 
         {hasOverlay && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className={`${isCompact ? "w-6 h-6 sm:w-7 sm:h-7" : "w-7 h-7"} rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg ${overlayColor[status] || "bg-blue-500"}`}>
+            <div className={`${isCompact ? "w-5 h-5 sm:w-6 sm:h-6 text-[10px] sm:text-xs" : "w-6 h-6 text-xs"} rounded-full flex items-center justify-center text-white font-bold shadow-md ${overlayColor[status] || "bg-blue-500"}`}>
               {overlayIcon[status] || "…"}
             </div>
           </div>
         )}
 
-        {/* 底部信息条 — 两种排版统一显示活动名称，无活动名称时显示卡牌名 */}
+        {/* 底部信息条 — 有活动时双行（活动名 + 卡牌名），无活动时单行卡牌名 */}
         {card.event_name ? (
-          <div className={`absolute bottom-0 left-0 right-0 ${status === 3 ? "bg-pink-500/90" : "bg-black/70"} text-white text-xs px-1 py-0.5 text-center leading-tight truncate z-10`}>
-            {status === 3 ? `♥ ${card.event_name}` : card.event_name}
+          <div className="absolute bottom-0 left-0 right-0 z-10">
+            <div className={`${status === 3 ? "bg-pink-500/90" : "bg-black/75"} text-white ${isCompact ? "text-[9px] sm:text-[10px]" : "text-[10px]"} px-1 py-0.5 text-center leading-tight truncate`}>
+              {status === 3 ? `♥ ${card.event_name}` : card.event_name}
+            </div>
+            <div className={`bg-black/80 text-white ${isCompact ? "text-[10px] sm:text-[11px]" : "text-[11px]"} px-1 py-0.5 text-center leading-tight truncate`}>
+              {card.card_name}
+            </div>
           </div>
         ) : (
-          <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate">
+          <div className={`absolute bottom-0 left-0 right-0 bg-black/70 text-white ${isCompact ? "text-[10px] sm:text-[11px]" : "text-[11px]"} px-1 py-0.5 text-center leading-tight truncate`}>
             {card.card_name}
           </div>
         )}
@@ -1002,13 +1007,13 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
       {/* 合并按钮：数量 + 切换版本 — 右上角 */}
       <button
         onClick={(e) => { e.stopPropagation(); onLoadPrintings(card, allIds); }}
-        className={`absolute top-0.5 right-0.5 z-20 ${isCompact ? "h-5 sm:h-6" : "h-6"} bg-background/80 border border-border shadow-sm flex items-center justify-center gap-1 px-1.5 rounded-md hover:bg-accent hover:scale-105 transition-all`}
+        className={`absolute top-0.5 right-0.5 z-20 ${isCompact ? "h-4 sm:h-5" : "h-5"} bg-background/80 border border-border shadow-sm flex items-center justify-center gap-0.5 px-1 rounded hover:bg-accent hover:scale-105 transition-all`}
         title="切换印刷版本"
       >
         {count > 1 && (
-          <span className="text-xs font-bold text-foreground leading-tight">×{count}</span>
+          <span className={`${isCompact ? "text-[9px] sm:text-[10px]" : "text-[10px]"} font-bold text-foreground leading-tight`}>×{count}</span>
         )}
-        <RefreshCw className={`${isCompact ? "h-3 w-3 sm:h-3.5 sm:w-3.5" : "h-3.5 w-3.5"} text-muted-foreground`} />
+        <RefreshCw className={`${isCompact ? "h-2.5 w-2.5 sm:h-3 sm:w-3" : "h-3 w-3"} text-muted-foreground`} />
       </button>
     </div>
   );
