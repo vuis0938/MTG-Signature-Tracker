@@ -839,43 +839,47 @@ function DeckListItem({
                 if (deckLayout === "list") {
                   return (
                     <div key={artist}>
-                      <h4 className="text-xs font-medium mb-1.5 text-muted-foreground">
-                        {artist} ({artistCards.length})
+                      <h4 className="text-xs font-semibold mb-1.5 text-foreground/80 tracking-wide">
+                        {artist}
+                        <span className="text-muted-foreground font-normal ml-1">({artistCards.length})</span>
                       </h4>
-                      <div className="space-y-0.5">
-                        {displayCards.map((group) => {
+                      <div className="rounded-lg border border-border/60 overflow-hidden">
+                        {displayCards.map((group, idx) => {
                           const s = group.card.status ?? (group.card.is_signed ? 2 : 0);
-                          const statusColors: Record<number, string> = { 0: "bg-gray-300", 1: "bg-blue-500", 2: "bg-green-500", 3: "bg-pink-500" };
-                          const statusHover: Record<number, string> = { 0: "hover:bg-gray-400", 1: "hover:bg-blue-600", 2: "hover:bg-green-600", 3: "hover:bg-pink-600" };
+                          const statusConfig: Record<number, { label: string; bg: string; text: string; dot: string }> = {
+                            0: { label: "未签", bg: "bg-gray-100 dark:bg-gray-800", text: "text-gray-600 dark:text-gray-400", dot: "bg-gray-400" },
+                            1: { label: "送签中", bg: "bg-blue-50 dark:bg-blue-950", text: "text-blue-600 dark:text-blue-400", dot: "bg-blue-500" },
+                            2: { label: "已签", bg: "bg-green-50 dark:bg-green-950", text: "text-green-600 dark:text-green-400", dot: "bg-green-500" },
+                            3: { label: "心动", bg: "bg-pink-50 dark:bg-pink-950", text: "text-pink-600 dark:text-pink-400", dot: "bg-pink-500" },
+                          };
+                          const cfg = statusConfig[s] || statusConfig[0];
                           return (
                             <div
                               key={group.ids[0]}
-                              className="flex items-center gap-2 py-1 px-2 rounded-md hover:bg-accent/50 transition-colors group/list"
+                              className={`flex items-center gap-3 px-3 py-1.5 hover:bg-accent/60 transition-colors cursor-pointer group/list ${
+                                idx !== displayCards.length - 1 ? "border-b border-border/40" : ""
+                              }`}
+                              onClick={() => {
+                                const ids = group.ids.length > 0 ? group.ids : [group.card.id];
+                                for (const id of ids) onToggleStatus(id, s, deck.id);
+                              }}
                             >
-                              <div
-                                onClick={() => {
-                                  const ids = group.ids.length > 0 ? group.ids : [group.card.id];
-                                  for (const id of ids) onToggleStatus(id, s, deck.id);
-                                }}
-                                className={`w-2.5 h-2.5 rounded-full cursor-pointer ${statusColors[s]} ${statusHover[s]} shrink-0 transition-colors`}
-                                title="点击切换状态"
-                              />
+                              <span className={`inline-flex items-center gap-1.5 shrink-0 px-1.5 py-0.5 rounded text-xs font-medium ${cfg.bg} ${cfg.text}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                                {cfg.label}
+                              </span>
                               {group.count > 1 && (
-                                <span className="text-xs text-muted-foreground shrink-0 w-7 text-right">×{group.count}</span>
+                                <span className="text-xs text-muted-foreground shrink-0 font-mono">×{group.count}</span>
                               )}
-                              <span
-                                className="text-sm truncate cursor-pointer hover:text-primary transition-colors"
-                                onClick={() => onLoadPrintings(group.card, group.ids)}
-                                title="点击切换版本"
-                              >
+                              <span className="text-sm truncate">
                                 {group.card.card_name}
                               </span>
-                              <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
+                              <span className="text-xs text-muted-foreground shrink-0 font-mono ml-auto hidden sm:inline">
                                 {group.card.set_code.toUpperCase()} #{group.card.collector_number}
                               </span>
                               <button
                                 onClick={(e) => { e.stopPropagation(); onLoadPrintings(group.card, group.ids); }}
-                                className="ml-auto w-5 h-5 rounded-full bg-background/80 border shrink-0 flex items-center justify-center hover:bg-accent hover:scale-110 transition-all opacity-0 group-hover/list:opacity-100"
+                                className="w-5 h-5 rounded-md bg-background/80 border shrink-0 flex items-center justify-center hover:bg-accent hover:scale-110 transition-all opacity-0 group-hover/list:opacity-100"
                                 title="切换版本"
                               >
                                 <RefreshCw className="h-3 w-3 text-muted-foreground" />
