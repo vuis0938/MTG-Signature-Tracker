@@ -866,12 +866,12 @@ function DeckListItem({
                                 <span className={"w-1.5 h-1.5 rounded-full " + cfg.dot} />
                                 {cfg.label}
                               </span>
-                              {group.count > 1 && (
-                                <span className="text-xs text-muted-foreground shrink-0 font-mono">×{group.count}</span>
-                              )}
                               <span className="text-sm truncate">
                                 {group.card.card_name}
                               </span>
+                              {group.count > 1 && (
+                                <span className="text-sm text-muted-foreground shrink-0">×{group.count}</span>
+                              )}
                               <span className="text-xs text-muted-foreground shrink-0 font-mono ml-auto hidden sm:inline">
                                 {group.card.set_code.toUpperCase()} #{group.card.collector_number}
                               </span>
