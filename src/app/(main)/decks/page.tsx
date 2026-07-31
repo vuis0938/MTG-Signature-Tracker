@@ -1088,10 +1088,30 @@ function VersionSwitchDialog({
       ) : (
         <DialogContent>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto p-1 pr-2">
-            {printings.map((printing) => {
+            {(() => {
+              // 确保当前版本始终在列表中（Scryfall 搜索可能遗漏部分 promo/特殊版本）
+              const currentSet = (switchCard?.set_code || "").toLowerCase().trim();
+              const currentNum = String(switchCard?.collector_number || "").trim();
+              const hasCurrent = printings.some(
+                (p) => p.set.toLowerCase().trim() === currentSet &&
+                       String(p.collector_number).trim() === currentNum
+              );
+              const displayPrintings = hasCurrent ? printings : [
+                 {
+                   set: switchCard?.set_code || "",
+                   set_name: "当前版本",
+                   collector_number: switchCard?.collector_number || "",
+                   artist: switchCard?.artist_names?.join(", ") || "Unknown",
+                   image_url: switchCard?.image_url || null,
+                   released_at: undefined,
+                 },
+                 ...printings,
+               ];
+
+              return displayPrintings.map((printing) => {
               const isCurrent =
-                printing.set === switchCard?.set_code &&
-                printing.collector_number === switchCard?.collector_number;
+                printing.set.toLowerCase().trim() === (switchCard?.set_code || "").toLowerCase().trim() &&
+                String(printing.collector_number).trim() === String(switchCard?.collector_number || "").trim();
               const isSwitching = switchPrintingLoading === switchCard?.id;
 
               return (
@@ -1126,7 +1146,8 @@ function VersionSwitchDialog({
                   </div>
                 </button>
               );
-            })}
+            });
+            })()}
           </div>
           {printings.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-8">
