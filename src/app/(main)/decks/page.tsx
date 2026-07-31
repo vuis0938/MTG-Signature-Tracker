@@ -991,7 +991,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
         {card.event_name ? (
           <div className="absolute bottom-0 left-0 right-0 z-10">
             <div className={`${status === 3 ? "bg-pink-500/90" : "bg-black/75"} text-white ${isCompact ? "text-[9px] sm:text-[10px]" : "text-[10px]"} px-1 py-0.5 text-center leading-tight truncate`}>
-              {status === 3 ? `♥ ${card.event_name}` : card.event_name}
+              {card.event_name}
             </div>
             <div className={`bg-black/80 text-white ${isCompact ? "text-[10px] sm:text-[11px]" : "text-[11px]"} px-1 py-0.5 text-center leading-tight truncate`}>
               {card.card_name}
