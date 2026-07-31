@@ -773,7 +773,7 @@ export default function MatchPage() {
             {artistCards.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">未找到该画家的卡牌</p>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[65vh] overflow-y-auto pr-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 max-h-[65vh] overflow-y-auto pr-2">
                 {artistCards.map((card) => (
                   <div
                     key={card.set + "-" + card.collector_number}
@@ -941,7 +941,7 @@ function ExactMatchResults({ matched, displayMode, toggleStatus }: {
               return (
                 <div key={deckName} className="mb-3">
                   <p className="text-sm text-muted-foreground mb-2">📦 {deckName}</p>
-                  <div className="flex flex-wrap gap-3">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
                     {displayCards.map((group) => (
                       <CardThumbnail
                         key={group.ids[0]}
@@ -991,7 +991,7 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
             {Array.from(byCardName).map(([cardName, versions]) => (
               <div key={cardName} className="mb-3">
                 <p className="text-sm text-muted-foreground mb-2">📦 {cardName}</p>
-                <div className="flex flex-wrap gap-3">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
                   {versions.map((v, idx) => {
                     const isInDeck = !!v.deckCard;
                     const cardId = v.deckCard?.id;
@@ -1001,7 +1001,7 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
                       <div
                         key={v.set_code + "-" + v.collector_number + "-" + idx}
                         onClick={() => { if (cardId) toggleStatus(cardId); }}
-                        className={"relative w-24 rounded-lg overflow-hidden border transition-all hover:scale-105 " + (isInDeck ? "cursor-pointer hover:shadow-md" : "cursor-default opacity-60") + " " + statusBorderClass(isInDeck, status)}
+                        className={"relative w-full rounded-lg overflow-hidden border transition-all hover:scale-105 " + (isInDeck ? "cursor-pointer hover:shadow-md" : "cursor-default opacity-60") + " " + statusBorderClass(isInDeck, status)}
                         title={isInDeck ? { 0: "待签", 1: "送签中", 2: "已签", 3: "心动" }[status] : "非套牌版本"}
                       >
                         <div className={isInDeck && status >= 1 ? "opacity-75" : ""}>
@@ -1077,7 +1077,7 @@ function CardThumbnail({
   }
 
   return (
-    <div className="group relative w-24">
+    <div className="group relative w-full">
       <div
         onClick={handleToggle}
         className={"relative rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 " + (status >= 1 ? (status === 3 ? "border-pink-400" : status === 1 ? "border-blue-400" : "border-green-500") : "border-border hover:shadow-md")}

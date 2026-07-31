@@ -827,7 +827,7 @@ function DeckListItem({
           ) : cards?.length === 0 ? (
             <p className="text-muted-foreground text-sm">暂无卡牌</p>
           ) : (
-            <div className={deckLayout === "compact" ? "grid grid-cols-2 gap-x-4 sm:gap-x-6 lg:gap-x-8 gap-y-3 sm:gap-y-4" : deckLayout === "list" ? "space-y-2" : "space-y-4"}>
+            <div className={deckLayout === "compact" ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3 sm:gap-y-4" : deckLayout === "list" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4" : "space-y-4"}>
               {Array.from(groupCardsByArtist(cards || [])).map(([artist, artistCards]) => {
                 // 合并模式：相同卡牌（同名+同系列+同编号）合并为一条
                 const displayCards =
@@ -896,7 +896,7 @@ function DeckListItem({
                     <h4 className={"text-base font-medium " + (deckLayout === "compact" ? "mb-1 sm:mb-1.5 truncate" : "mb-2")}>
                       {deckLayout === "compact" ? <span className="hidden sm:inline">🎨 </span> : "🎨 "}{artist} ({artistCards.length})
                     </h4>
-                    <div className={deckLayout === "compact" ? "grid grid-cols-2 gap-1 sm:gap-1.5 lg:gap-2" : "grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:gap-3"}>
+                    <div className={deckLayout === "compact" ? "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1 sm:gap-1.5 lg:gap-2" : "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 sm:gap-3 lg:gap-4"}>
                       {displayCards.map((group) => (
                         <CardThumbnail
                           key={group.ids[0]}
@@ -957,7 +957,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
   }
 
   return (
-    <div className={isCompact ? "group relative w-full" : "group relative w-full sm:w-24"}>
+    <div className={isCompact ? "group relative w-full" : "group relative w-full"}>
       <div
         onClick={handleToggle}
         className={"relative rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 " + (hasOverlay ? (status === 3 ? "border-pink-400" : status === 1 ? "border-blue-400" : "border-green-500") : "border-border hover:shadow-md")}
@@ -1087,7 +1087,7 @@ function VersionSwitchDialog({
         </DialogContent>
       ) : (
         <DialogContent>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto p-1 pr-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 max-h-[60vh] overflow-y-auto p-1 pr-2">
             {(() => {
               // 确保当前版本始终在列表中（Scryfall 搜索可能遗漏部分 promo/特殊版本）
               const currentSet = (switchCard?.set_code || "").toLowerCase().trim();

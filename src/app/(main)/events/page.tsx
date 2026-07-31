@@ -111,7 +111,7 @@ export default function EventsPage() {
       ) : events.length === 0 ? (
         <p className="text-muted-foreground text-center py-12">暂无未来活动</p>
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {events.map((event) => (
             <Card key={event.id}>
               <CardHeader
@@ -210,7 +210,7 @@ export default function EventsPage() {
                 未找到该画家的卡牌
               </p>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[65vh] overflow-y-auto pr-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 max-h-[65vh] overflow-y-auto pr-2">
                 {artistCards.map((card) => (
                   <div
                     key={`${card.set}-${card.collector_number}`}
