@@ -225,16 +225,12 @@ export default function DecksPage() {
       const data = await res.json();
 
       if (data.success) {
-        const t = data.timing;
         const hasFailures = (data.failCount ?? 0) > 0;
-        const timedOut = data.timedOut;
-        let msg =
-          `「${deckName}」${data.successCount}/${data.total} 张成功` +
-          (hasFailures ? `，${data.failCount} 张未处理` : "");
-        if (timedOut) msg += `（超时保护，已导入的已保存）`;
-        msg += ` | ${t.total}`;
+        let msg = hasFailures
+          ? `「${deckName}」${data.successCount}/${data.total} 张导入成功，${data.failCount} 张可尝试搜索`
+          : `「${deckName}」导入成功，共 ${data.successCount} 张`;
 
-        showToast(msg, hasFailures ? "error" : "success");
+        showToast(msg, "success");
 
         // 合并失败和超时卡牌，供手动重试
         const allFailed = [
@@ -280,9 +276,9 @@ export default function DecksPage() {
       if (data.success) {
         setFailedCards((prev) => prev.filter((c) => c.name !== cardName));
         if (data.note) {
-          showToast(`「${cardName}」录入成功（版本不同，请核对）`, "success");
+          showToast(`「${cardName}」导入成功（版本不同，请核对）`, "success");
         } else {
-          showToast(`「${cardName}」录入成功`, "success");
+          showToast(`「${cardName}」导入成功`, "success");
         }
         await loadDecks();
         if (expandedDeck === retryingDeckId) {
@@ -366,11 +362,10 @@ export default function DecksPage() {
 
       if (data.success) {
         const hasFailures = (data.failCount ?? 0) > 0;
-        const timedOut = data.timedOut;
-        let msg = `添加 ${data.successCount}/${data.total} 张成功`;
-        if (hasFailures) msg += `，${data.failCount} 张未处理`;
-        if (timedOut) msg += `（超时保护，剩余卡牌可重新添加）`;
-        showToast(msg, hasFailures ? "error" : "success");
+        let msg = hasFailures
+          ? `${data.successCount}/${data.total} 张追加成功，${data.failCount} 张可尝试搜索`
+          : `追加成功，共 ${data.successCount} 张`;
+        showToast(msg, "success");
         setAddCardsOpen(null);
         setAddCardsText("");
         await loadDecks();
