@@ -162,10 +162,10 @@ export default function SettingsPage() {
               <p className="text-sm font-medium">套牌排版方式</p>
               <p className="text-xs text-muted-foreground">
                 {deckLayout === "default"
-                  ? "当前：默认 — 宽松网格"
+                  ? "当前：默认 — 宽松格式"
                   : deckLayout === "compact"
-                  ? "当前：紧凑 — 自适应网格"
-                  : "当前：文本 — 高密度文本"}
+                  ? "当前：紧凑 — 紧凑格式"
+                  : "当前：文本 — 纯文字格式"}
               </p>
             </div>
             <Button
