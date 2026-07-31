@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 
-const STORAGE_KEY = "mtg-theme-color";
+const STORAGE_KEY = "mtg-theme-color-v2";
 
 export interface ThemeColor {
   id: string;
@@ -49,7 +49,7 @@ export const THEME_COLORS: ThemeColor[] = [
   },
 ];
 
-const DEFAULT_THEME = "ocean";
+const DEFAULT_THEME = "indigo";
 
 function applyThemeColor(theme: ThemeColor) {
   const root = document.documentElement;

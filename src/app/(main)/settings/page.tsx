@@ -183,6 +183,7 @@ export default function SettingsPage() {
             </Button>
           </div>
 
+          {/* 主题色切换 — 暂时隐藏，后续可调出
           <div className="flex items-center justify-between border-t pt-3">
             <div>
               <p className="text-sm font-medium">主题色</p>
@@ -199,6 +200,7 @@ export default function SettingsPage() {
               {themeId === "ocean" ? "海蓝" : themeId === "slate" ? "石板蓝" : "靛蓝"}
             </Button>
           </div>
+          */}
         </CardContent>
       </Card>
 
