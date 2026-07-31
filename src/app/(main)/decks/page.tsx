@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/lib/toast-context";
 import { useDisplayMode } from "@/lib/display-mode";
+import { useCompactMode } from "@/lib/compact-mode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -78,6 +79,7 @@ export default function DecksPage() {
   // Toast 通知
   const { toast: showToast } = useToast();
   const { mode: displayMode } = useDisplayMode();
+  const { compact: compactMode } = useCompactMode();
 
   // 导入失败卡牌的手动重试
   const [failedCards, setFailedCards] = useState<
@@ -549,10 +551,10 @@ export default function DecksPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">套牌管理</h1>
-          <p className="text-muted-foreground">管理你的套牌与签绘清单</p>
+          <h1 className="text-lg sm:text-xl lg:text-2xl font-semibold tracking-tight">套牌管理</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">管理你的套牌与签绘清单</p>
         </div>
         <Button
           onClick={() => {
@@ -680,6 +682,7 @@ export default function DecksPage() {
               cards={cards[deck.id]}
               cardsLoading={cardsLoading}
               displayMode={displayMode}
+              compactMode={compactMode}
               onToggle={toggleDeck}
               onAddCards={(deckId) => { setAddCardsOpen(deckId); setAddCardsText(""); }}
               onDelete={deleteDeck}
@@ -752,6 +755,7 @@ interface DeckListItemProps {
   cards: CardEntry[] | undefined;
   cardsLoading: boolean;
   displayMode: "individual" | "grouped";
+  compactMode: boolean;
   onToggle: (deckId: string) => void;
   onAddCards: (deckId: string) => void;
   onDelete: (deckId: string, deckName: string) => void;
@@ -760,7 +764,7 @@ interface DeckListItemProps {
 }
 
 function DeckListItem({
-  deck, stats, isExpanded, cards, cardsLoading, displayMode,
+  deck, stats, isExpanded, cards, cardsLoading, displayMode, compactMode,
   onToggle, onAddCards, onDelete, onToggleStatus, onLoadPrintings,
 }: DeckListItemProps) {
   return (
@@ -777,17 +781,19 @@ function DeckListItem({
               <ChevronRight className="h-4 w-4" />
             )}
             <div>
-              <CardTitle className="text-base">{deck.name}</CardTitle>
+              <CardTitle className="text-sm sm:text-base">{deck.name}</CardTitle>
               <CardDescription>
                 {stats && (
                   <>
-                    共 {stats.total} 张
-                    {stats.unsigned > 0 && ` · ${stats.unsigned} 待签`}
-                    {stats.pending > 0 && ` · ${stats.pending} 送签中`}
+                    <span>共 {stats.total} 张</span>
+                    {stats.unsigned > 0 && <span> · {stats.unsigned} 待签</span>}
+                    {stats.pending > 0 && <span> · {stats.pending} 送签中</span>}
                     {stats.total - stats.unsigned - stats.pending > 0 &&
-                      ` · ${stats.total - stats.unsigned - stats.pending} 已签`}
-                    <br />
-                    签绘进度 {Math.round(((stats.total - stats.unsigned - stats.pending) / stats.total) * 100)}% · 上次更新 {new Date(deck.created_at!).toLocaleDateString("zh-CN")}
+                      <span> · {stats.total - stats.unsigned - stats.pending} 已签</span>}
+                    <br className="hidden sm:inline" />
+                    <span className="hidden sm:inline">
+                      签绘进度 {Math.round(((stats.total - stats.unsigned - stats.pending) / stats.total) * 100)}% · 上次更新 {new Date(deck.created_at!).toLocaleDateString("zh-CN")}
+                    </span>
                   </>
                 )}
               </CardDescription>
@@ -823,7 +829,7 @@ function DeckListItem({
           ) : cards?.length === 0 ? (
             <p className="text-muted-foreground text-sm">暂无卡牌</p>
           ) : (
-            <div className="space-y-4">
+            <div className={compactMode ? "space-y-3 sm:space-y-3.5 lg:space-y-4" : "space-y-4"}>
               {Array.from(groupCardsByArtist(cards || [])).map(([artist, artistCards]) => {
                 // 合并模式：相同卡牌（同名+同系列+同编号）合并为一条
                 const displayCards =
@@ -833,10 +839,10 @@ function DeckListItem({
 
                 return (
                   <div key={artist}>
-                    <h4 className="text-sm font-medium mb-2">
-                      🎨 {artist} ({artistCards.length})
+                    <h4 className={compactMode ? "text-xs sm:text-sm lg:text-sm font-medium mb-1 sm:mb-1.5 lg:mb-2" : "text-sm font-medium mb-2"}>
+                      {compactMode ? <span className="hidden sm:inline">🎨 </span> : "🎨 "}{artist} ({artistCards.length})
                     </h4>
-                    <div className="flex flex-wrap gap-3">
+                    <div className={compactMode ? "flex flex-wrap gap-2 sm:gap-2.5 lg:gap-3" : "flex flex-wrap gap-3"}>
                       {displayCards.map((group) => (
                         <CardThumbnail
                           key={group.ids[0]}
@@ -844,6 +850,7 @@ function DeckListItem({
                           count={group.count}
                           allIds={group.ids}
                           deckId={deck.id}
+                          compactMode={compactMode}
                           onToggleStatus={onToggleStatus}
                           onLoadPrintings={onLoadPrintings}
                         />
@@ -869,11 +876,12 @@ interface CardThumbnailProps {
   count?: number;
   /** 合并模式下所有卡牌 ID，用于批量切换状态 */
   allIds?: string[];
+  compactMode?: boolean;
   onToggleStatus: (cardId: string, currentStatus: number, deckId: string) => void;
   onLoadPrintings: (card: CardEntry, allIds?: string[]) => void;
 }
 
-function CardThumbnail({ card, deckId, count = 1, allIds, onToggleStatus, onLoadPrintings }: CardThumbnailProps) {
+function CardThumbnail({ card, deckId, count = 1, allIds, compactMode, onToggleStatus, onLoadPrintings }: CardThumbnailProps) {
   const status = card.status ?? (card.is_signed ? 2 : 0);
   const statusLabels: Record<number, string> = {
     0: "未签（点击切换为送签中）",
@@ -894,7 +902,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, onToggleStatus, onLoad
   }
 
   return (
-    <div className="group relative w-24">
+    <div className={compactMode ? "group relative w-18 sm:w-22 lg:w-24" : "group relative w-24"}>
       <div
         onClick={handleToggle}
         className={`relative rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 ${
@@ -931,13 +939,13 @@ function CardThumbnail({ card, deckId, count = 1, allIds, onToggleStatus, onLoad
 
         {hasOverlay && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg ${overlayColor[status] || "bg-blue-500"}`}>
+            <div className={`${compactMode ? "w-6 h-6 sm:w-7 sm:h-7" : "w-7 h-7"} rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg ${overlayColor[status] || "bg-blue-500"}`}>
               {overlayIcon[status] || "…"}
             </div>
           </div>
         )}
 
-        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate">
+        <div className={compactMode ? "absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate hidden sm:block" : "absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate"}>
           {card.card_name}
         </div>
       </div>
@@ -945,7 +953,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, onToggleStatus, onLoad
       {/* 切换版本按钮 */}
       <button
         onClick={(e) => { e.stopPropagation(); onLoadPrintings(card, allIds); }}
-        className="absolute top-0.5 right-0.5 z-20 w-6 h-6 rounded-full bg-background/80 border shadow-sm flex items-center justify-center hover:bg-accent hover:scale-110 transition-all"
+        className={compactMode ? "absolute top-0.5 right-0.5 z-20 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-background/80 border shadow-sm flex items-center justify-center hover:bg-accent hover:scale-110 transition-all" : "absolute top-0.5 right-0.5 z-20 w-6 h-6 rounded-full bg-background/80 border shadow-sm flex items-center justify-center hover:bg-accent hover:scale-110 transition-all"}
         title="切换印刷版本"
       >
         <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />

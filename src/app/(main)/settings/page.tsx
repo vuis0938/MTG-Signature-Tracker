@@ -12,8 +12,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useDisplayMode } from "@/lib/display-mode";
+import { useCompactMode } from "@/lib/compact-mode";
 import { useUser } from "@/lib/user-context";
-import { LogOut, Download, Trash2, User, Info, Layout } from "lucide-react";
+import { LogOut, Download, Trash2, User, Info, Layout, Columns } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -24,6 +25,7 @@ export default function SettingsPage() {
   const [clearing, setClearing] = useState(false);
   const { toast: showToast } = useToast();
   const { mode: displayMode, toggle: toggleDisplayMode } = useDisplayMode();
+  const { compact, toggle: toggleCompactMode } = useCompactMode();
 
   // ─── 退出登录 ───
   async function handleLogout() {
@@ -152,6 +154,37 @@ export default function SettingsPage() {
             >
               <Layout className="h-4 w-4 mr-2" />
               {displayMode === "individual" ? "合并展示" : "独立展示"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 紧凑模式 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Columns className="h-4 w-4" />
+            卡片排版
+          </CardTitle>
+          <CardDescription>套牌管理界面的卡牌展示密度</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">紧凑模式</p>
+              <p className="text-xs text-muted-foreground">
+                {compact
+                  ? "当前：开启 — 针对手机/平板/桌面自适应，缩小卡牌、收紧间距"
+                  : "当前：关闭 — 使用默认宽松排版"}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleCompactMode}
+            >
+              <Columns className="h-4 w-4 mr-2" />
+              {compact ? "关闭紧凑" : "开启紧凑"}
             </Button>
           </div>
         </CardContent>
