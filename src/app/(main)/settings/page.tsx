@@ -13,9 +13,9 @@ import {
 } from "@/components/ui/card";
 import { useDisplayMode } from "@/lib/display-mode";
 import { useDeckLayout, type DeckLayout } from "@/lib/deck-layout";
-import { useThemeColor, THEME_COLORS } from "@/lib/use-theme-color";
+import { useThemeColor } from "@/lib/use-theme-color";
 import { useUser } from "@/lib/user-context";
-import { LogOut, Download, Trash2, User, Info, Layout, Columns, List, Layers, Rows3, PanelsTopLeft, Palette, Check } from "lucide-react";
+import { LogOut, Download, Trash2, User, Info, Layout, Columns, List, Layers, Rows3, PanelsTopLeft, Palette } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -27,7 +27,7 @@ export default function SettingsPage() {
   const { toast: showToast } = useToast();
   const { mode: displayMode, toggle: toggleDisplayMode } = useDisplayMode();
   const { layout: deckLayout, setLayout: setDeckLayout } = useDeckLayout();
-  const { themeId, setTheme } = useThemeColor();
+  const { themeId, toggleTheme } = useThemeColor();
 
   // ─── 退出登录 ───
   async function handleLogout() {
@@ -187,26 +187,17 @@ export default function SettingsPage() {
             <div>
               <p className="text-sm font-medium">主题色</p>
               <p className="text-xs text-muted-foreground">
-                临时比选 — 点击切换主题色调
+                {"当前：" + (themeId === "ocean" ? "海蓝" : themeId === "slate" ? "石板蓝" : "靛蓝")}
               </p>
             </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {THEME_COLORS.map((tc) => (
-              <button
-                key={tc.id}
-                onClick={() => setTheme(tc.id)}
-                className={"flex items-center gap-2 px-3 py-1.5 rounded-lg border-2 transition-all " + (themeId === tc.id ? "border-foreground shadow-sm" : "border-border hover:border-foreground/40")}
-              >
-                <span
-                  className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center"
-                  style={{ backgroundColor: tc.swatch }}
-                >
-                  {themeId === tc.id && <Check className="h-3 w-3 text-white" />}
-                </span>
-                <span className="text-sm font-medium">{tc.name}</span>
-              </button>
-            ))}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleTheme}
+            >
+              <Palette className="h-4 w-4 mr-2" />
+              {themeId === "ocean" ? "海蓝" : themeId === "slate" ? "石板蓝" : "靛蓝"}
+            </Button>
           </div>
         </CardContent>
       </Card>

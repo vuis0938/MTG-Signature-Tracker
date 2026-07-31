@@ -21,15 +21,6 @@ export interface ThemeColor {
 
 export const THEME_COLORS: ThemeColor[] = [
   {
-    id: "sky",
-    name: "天蓝",
-    lightPrimary: "oklch(0.685 0.148 237.3)",
-    lightRing: "oklch(0.705 0.13 237.3)",
-    darkPrimary: "oklch(0.765 0.13 237.3)",
-    darkRing: "oklch(0.725 0.12 237.3)",
-    swatch: "#0ea5e9",
-  },
-  {
     id: "ocean",
     name: "海蓝",
     lightPrimary: "oklch(0.588 0.139 242.0)",
@@ -56,18 +47,9 @@ export const THEME_COLORS: ThemeColor[] = [
     darkRing: "oklch(0.626 0.166 264.9)",
     swatch: "#3e70f3",
   },
-  {
-    id: "cobalt",
-    name: "钴蓝",
-    lightPrimary: "oklch(0.488 0.217 264.4)",
-    lightRing: "oklch(0.508 0.191 264.4)",
-    darkPrimary: "oklch(0.568 0.191 264.4)",
-    darkRing: "oklch(0.528 0.176 264.4)",
-    swatch: "#1d4ed8",
-  },
 ];
 
-const DEFAULT_THEME = "sky";
+const DEFAULT_THEME = "ocean";
 
 function applyThemeColor(theme: ThemeColor) {
   const root = document.documentElement;
@@ -132,5 +114,18 @@ export function useThemeColor() {
     }
   }, []);
 
-  return { themeId, setTheme } as const;
+  const toggleTheme = useCallback(() => {
+    const currentIndex = THEME_COLORS.findIndex((t) => t.id === themeId);
+    const nextIndex = (currentIndex + 1) % THEME_COLORS.length;
+    const next = THEME_COLORS[nextIndex];
+    setThemeId(next.id);
+    applyThemeColor(next);
+    try {
+      localStorage.setItem(STORAGE_KEY, next.id);
+    } catch {
+      // 忽略写入失败
+    }
+  }, [themeId]);
+
+  return { themeId, setTheme, toggleTheme } as const;
 }
