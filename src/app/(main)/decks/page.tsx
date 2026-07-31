@@ -591,7 +591,7 @@ export default function DecksPage() {
               <Label htmlFor="text">牌表内容</Label>
               <Textarea
                 id="text"
-                placeholder={`粘贴纯文本套牌，支持多种格式，例如：\n1 Sol Ring (SLD) 1494\n1 Arcane Signet\n\n`}
+                placeholder={"粘贴纯文本套牌，支持多种格式，例如：\n1 Sol Ring (SLD) 1494\n1 Arcane Signet\n\n"}
                 rows={8}
                 value={deckText}
                 onChange={(e) => setDeckText(e.target.value)}
@@ -706,7 +706,7 @@ export default function DecksPage() {
             <Label htmlFor="addCardsText">牌表内容</Label>
             <Textarea
               id="addCardsText"
-              placeholder={`粘贴纯文本套牌，支持多种格式，例如：\n1 Sol Ring (SLD) 1494\n1 Arcane Signet\n\n`}
+              placeholder={"粘贴纯文本套牌，支持多种格式，例如：\n1 Sol Ring (SLD) 1494\n1 Arcane Signet\n\n"}
               rows={6}
               value={addCardsText}
               onChange={(e) => setAddCardsText(e.target.value)}
@@ -856,16 +856,14 @@ function DeckListItem({
                           return (
                             <div
                               key={group.ids[0]}
-                              className={`flex items-center gap-3 px-3 py-1.5 hover:bg-accent/60 transition-colors cursor-pointer group/list ${
-                                idx !== displayCards.length - 1 ? "border-b border-border/40" : ""
-                              }`}
+                              className={"flex items-center gap-3 px-3 py-1.5 hover:bg-accent/60 transition-colors cursor-pointer group/list " + (idx !== displayCards.length - 1 ? "border-b border-border/40" : "")}
                               onClick={() => {
                                 const ids = group.ids.length > 0 ? group.ids : [group.card.id];
                                 for (const id of ids) onToggleStatus(id, s, deck.id);
                               }}
                             >
-                              <span className={`inline-flex items-center gap-1.5 shrink-0 px-1.5 py-0.5 rounded text-xs font-medium ${cfg.bg} ${cfg.text}`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                              <span className={"inline-flex items-center gap-1.5 shrink-0 px-1.5 py-0.5 rounded text-xs font-medium " + cfg.bg + " " + cfg.text}>
+                                <span className={"w-1.5 h-1.5 rounded-full " + cfg.dot} />
                                 {cfg.label}
                               </span>
                               {group.count > 1 && (
@@ -962,11 +960,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
     <div className={isCompact ? "group relative w-full" : "group relative w-24"}>
       <div
         onClick={handleToggle}
-        className={`relative rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 ${
-          hasOverlay
-            ? status === 3 ? "border-pink-400" : status === 1 ? "border-blue-400" : "border-green-500"
-            : "border-border hover:shadow-md"
-        }`}
+        className={"relative rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 " + (hasOverlay ? (status === 3 ? "border-pink-400" : status === 1 ? "border-blue-400" : "border-green-500") : "border-border hover:shadow-md")}
         title={statusLabels[status]}
       >
         <div className={hasOverlay ? "opacity-75" : ""}>
@@ -981,7 +975,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
 
         {hasOverlay && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className={`${isCompact ? "w-8 h-8 sm:w-9 sm:h-9 text-sm sm:text-base" : "w-9 h-9 text-base"} rounded-full flex items-center justify-center text-white font-bold shadow-lg ${overlayColor[status] || "bg-blue-500"}`}>
+            <div className={(isCompact ? "w-8 h-8 sm:w-9 sm:h-9 text-sm sm:text-base" : "w-9 h-9 text-base") + " rounded-full flex items-center justify-center text-white font-bold shadow-lg " + (overlayColor[status] || "bg-blue-500")}>
               {overlayIcon[status] || "…"}
             </div>
           </div>
@@ -990,7 +984,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
         {/* 底部信息条 — 有活动时双行（活动名 + 卡牌名），无活动时单行卡牌名，统一 10px */}
         {card.event_name ? (
           <div className="absolute bottom-0 left-0 right-0 z-10">
-            <div className={`${status === 3 ? "bg-pink-500/90" : "bg-black/75"} text-white text-[10px] px-1 py-0.5 text-center leading-tight truncate`}>
+            <div className={(status === 3 ? "bg-pink-500/90" : "bg-black/75") + " text-white text-[10px] px-1 py-0.5 text-center leading-tight truncate"}>
               {card.event_name}
             </div>
             <div className="bg-black/80 text-white text-[10px] px-1 py-0.5 text-center leading-tight truncate">
@@ -1007,13 +1001,13 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
       {/* 合并按钮：数量 + 切换版本 — 右上角，圆角与卡牌一致 */}
       <button
         onClick={(e) => { e.stopPropagation(); onLoadPrintings(card, allIds); }}
-        className={`absolute top-0.5 right-0.5 z-20 ${isCompact ? "h-5 sm:h-6" : "h-6"} bg-background/80 border border-border shadow-sm flex items-center justify-center gap-0.5 px-1 rounded-lg hover:bg-accent hover:scale-105 transition-all`}
+        className={"absolute top-0.5 right-0.5 z-20 " + (isCompact ? "h-5 sm:h-6" : "h-6") + " bg-background/80 border border-border shadow-sm flex items-center justify-center gap-0.5 px-1 rounded-lg hover:bg-accent hover:scale-105 transition-all"}
         title="切换印刷版本"
       >
         {count > 1 && (
           <span className="text-[10px] font-bold text-foreground leading-tight">×{count}</span>
         )}
-        <RefreshCw className={`${isCompact ? "h-3 w-3 sm:h-3.5 sm:w-3.5" : "h-3.5 w-3.5"} text-foreground"} />
+        <RefreshCw className={(isCompact ? "h-3 w-3 sm:h-3.5 sm:w-3.5" : "h-3.5 w-3.5") + " text-foreground"} />
       </button>
     </div>
   );
@@ -1109,11 +1103,7 @@ function VersionSwitchDialog({
                     }
                   }}
                   disabled={isCurrent || isSwitching}
-                  className={`text-left rounded-lg border-2 transition-all ${
-                    isCurrent
-                      ? "overflow-visible border-blue-400 ring-2 ring-blue-400/40 cursor-default"
-                      : "overflow-hidden border-border hover:border-primary/50 hover:shadow cursor-pointer"
-                  } ${isSwitching ? "opacity-50" : ""}`}
+                  className={"text-left rounded-lg border-2 transition-all " + (isCurrent ? "overflow-visible border-blue-400 ring-2 ring-blue-400/40 cursor-default" : "overflow-hidden border-border hover:border-primary/50 hover:shadow cursor-pointer") + (isSwitching ? " opacity-50" : "")}
                   title={printing.artist}
                 >
                   {printing.image_url ? (
