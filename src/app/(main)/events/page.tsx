@@ -123,32 +123,32 @@ export default function EventsPage() {
                     <div className="flex items-center gap-2">
                       <CardTitle className="text-base">{event.name}</CardTitle>
                     </div>
-                    <CardDescription className="flex items-center gap-3">
+                    <CardDescription className="grid grid-cols-[auto_auto_auto] gap-x-4 gap-y-1 items-center">
                       {event.source === "mtgac" ? (
                         <>
-                          <span className="inline-flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
+                          <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                            <Calendar className="h-3 w-3 shrink-0" />
                             {formatDate(event.startDate, event.endDate || event.startDate)}
                           </span>
-                          <span className="inline-flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
+                          <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                            <MapPin className="h-3 w-3 shrink-0" />
                             {event.city}
                           </span>
                         </>
                       ) : (
                         <>
-                          <span className="inline-flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
+                          <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                            <Calendar className="h-3 w-3 shrink-0" />
                             {formatDeadline(event.endDate)}
                           </span>
-                          <span className="inline-flex items-center gap-1">
-                            <Package className="h-3 w-3" />
+                          <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                            <Package className="h-3 w-3 shrink-0" />
                             平台代理（邮寄）
                           </span>
                         </>
                       )}
-                      <span className="inline-flex items-center gap-1">
-                        <Users className="h-3 w-3" />
+                      <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                        <Users className="h-3 w-3 shrink-0" />
                         {event.artists.length} 位画家
                       </span>
                     </CardDescription>
