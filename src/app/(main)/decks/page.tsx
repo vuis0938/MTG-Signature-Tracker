@@ -978,7 +978,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
 
         {/* 心动活动标签 */}
         {status === 3 && card.event_name && (
-          <div className="absolute top-0 left-0 right-0 z-10 bg-pink-500/90 text-white text-xs px-1 py-0.5 text-center leading-tight">
+          <div className="absolute top-0 left-0 right-0 z-10 bg-pink-500/90 text-white px-1 py-0.5 text-center leading-tight truncate text-[10px] sm:text-xs">
             ♥ {card.event_name}
             {card.event_date && ` · ${card.event_date}`}
           </div>
