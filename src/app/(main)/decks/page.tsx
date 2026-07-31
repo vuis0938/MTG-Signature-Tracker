@@ -1081,7 +1081,7 @@ function VersionSwitchDialog({
         <DialogTitle>切换印刷版本 — {switchCard?.card_name}</DialogTitle>
         <DialogDescription>
           当前版本：{switchCard?.set_code?.toUpperCase()} #{switchCard?.collector_number}
-          {switchCard?.artist_names && ` · 画家：${switchCard.artist_names.join(", ")}`}
+          {switchCard?.artist_names && (" \u00b7 画家：" + switchCard.artist_names.join(", "))}
         </DialogDescription>
       </DialogHeader>
       {printingsLoading ? (
