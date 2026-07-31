@@ -8,6 +8,7 @@ import {
   GitCompare,
   Calendar,
   Settings,
+  Palette,
 } from "lucide-react";
 
 const navItems = [
@@ -41,7 +42,8 @@ export function NavBar() {
       {/* 桌面端：顶部导航 */}
       <header className="hidden md:flex h-14 items-center gap-4 border-b bg-background px-6 sticky top-0 z-50">
         <Link href="/decks" className="flex items-center gap-2 font-semibold">
-          🃏 MTG 签绘管家
+          <Palette className="h-5 w-5 text-primary" />
+          MTG 签绘管家
         </Link>
         <nav className="flex items-center gap-1 ml-4">
           {navItems.map((item) => {

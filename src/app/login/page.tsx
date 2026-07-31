@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Palette } from "lucide-react";
 
 export default function LoginPage() {
   const [isRegister, setIsRegister] = useState(false);
@@ -51,7 +52,10 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">🃏 MTG 签绘管家</CardTitle>
+          <CardTitle className="text-2xl flex items-center justify-center gap-2">
+            <Palette className="h-6 w-6 text-primary" />
+            MTG 签绘管家
+          </CardTitle>
           <CardDescription>
             {isRegister ? "注册新账号" : "请输入用户名和密码"}
           </CardDescription>

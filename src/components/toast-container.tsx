@@ -1,6 +1,7 @@
 "use client";
 
 import { useToast } from "@/lib/toast-context";
+import { X } from "lucide-react";
 
 export function ToastContainer() {
   const { toasts, dismiss } = useToast();
@@ -24,7 +25,7 @@ export function ToastContainer() {
               onClick={() => dismiss(t.id)}
               className="shrink-0 text-current opacity-50 hover:opacity-100"
             >
-              ✕
+              <X className="h-4 w-4" />
             </button>
           </div>
         </div>

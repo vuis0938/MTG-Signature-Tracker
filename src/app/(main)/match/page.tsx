@@ -13,7 +13,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/user";
 import { useDisplayMode } from "@/lib/display-mode";
-import { Search, Play, Download, CheckSquare, Square, Loader2, Sparkles } from "lucide-react";
+import { Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Palette, Package, Heart, Check, MoreHorizontal } from "lucide-react";
 import {
   Dialog,
   DialogHeader,
@@ -558,7 +558,7 @@ export default function MatchPage() {
 
     if (currentFuzzyMode && currentFuzzyMatched.size > 0) {
       for (const [artist, entries] of currentFuzzyMatched) {
-        text += `🎨 ${artist} (${entries.length} 个版本)\n`;
+        text += `${artist} (${entries.length} 个版本)\n`;
         const byName = new Map<string, FuzzyCardEntry[]>();
         for (const e of entries) {
           const arr = byName.get(e.card_name) || [];
@@ -575,7 +575,7 @@ export default function MatchPage() {
       }
     } else {
       for (const [artist, cards] of currentMatched) {
-        text += `🎨 ${artist} (${cards.length} 张)\n`;
+        text += `${artist} (${cards.length} 张)\n`;
         for (const card of cards) {
           text += `  - ${card.card_name} [${card.set_code.toUpperCase()}] ${card.deck_name}\n`;
         }
@@ -623,11 +623,11 @@ export default function MatchPage() {
             onFocus={() => { if (events.length === 0) loadEvents(); }}
           >
             <option value="" disabled>
-              {loadingEvents ? "加载中..." : "📅 选择活动自动填充画家名单..."}
+              {loadingEvents ? "加载中..." : "选择活动自动填充画家名单..."}
             </option>
             {events.map((e) => (
               <option key={e.id} value={e.id}>
-                {e.source === "mountain_mage" ? "📦 " : ""}{new Date(e.startDate).toLocaleDateString("zh-CN")} | {e.name} ({e.city}) — {e.artists.length} 位画家
+                {new Date(e.startDate).toLocaleDateString("zh-CN")} | {e.name} ({e.city}) — {e.artists.length} 位画家
               </option>
             ))}
           </select>
@@ -921,7 +921,7 @@ function ExactMatchResults({ matched, displayMode, toggleStatus }: {
       {Array.from(matched).map(([artist, cards]) => (
         <div key={artist}>
           <h3 className="text-base font-semibold mb-3">
-            🎨 {artist} ← 出席！<span className="ml-2 text-base font-normal text-muted-foreground">({cards.length} 张)</span>
+            <Palette className="inline h-4 w-4 mr-1 text-primary" /> {artist} ← 出席！<span className="ml-2 text-base font-normal text-muted-foreground">({cards.length} 张)</span>
           </h3>
           {(() => {
             const byDeck = new Map<string, CardEntry[]>();
@@ -940,7 +940,7 @@ function ExactMatchResults({ matched, displayMode, toggleStatus }: {
 
               return (
                 <div key={deckName} className="mb-3">
-                  <p className="text-sm text-muted-foreground mb-2">📦 {deckName}</p>
+                  <p className="text-sm text-muted-foreground mb-2 flex items-center gap-1"><Package className="h-3.5 w-3.5" /> {deckName}</p>
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
                     {displayCards.map((group) => (
                       <CardThumbnail
@@ -982,7 +982,7 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
         return (
           <div key={artist}>
             <h3 className="text-base font-semibold mb-3">
-              🎨 {artist} ← 出席！
+              <Palette className="inline h-4 w-4 mr-1 text-primary" /> {artist} ← 出席！
               <span className="ml-2 text-base font-normal text-muted-foreground">
                 ({entries.length} 个版本{deckCount > 0 && `，${deckCount} 张在套牌中`})
               </span>
@@ -990,7 +990,7 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
 
             {Array.from(byCardName).map(([cardName, versions]) => (
               <div key={cardName} className="mb-3">
-                <p className="text-sm text-muted-foreground mb-2">📦 {cardName}</p>
+                <p className="text-sm text-muted-foreground mb-2 flex items-center gap-1"><Package className="h-3.5 w-3.5" /> {cardName}</p>
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
                   {versions.map((v, idx) => {
                     const isInDeck = !!v.deckCard;
@@ -1040,8 +1040,8 @@ function StatusBadge({ status, isInDeck }: { status: number; isInDeck: boolean }
   if (!isInDeck || status < 1) return null;
   return (
     <div className="absolute inset-0 flex items-center justify-center">
-      <div className={"w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg -translate-y-2 " + (status === 3 ? "bg-pink-500" : status === 1 ? "bg-blue-500" : status === 2 ? "bg-green-600" : "bg-green-500")}>
-        {status === 3 ? "\u2665\uFE0E" : status === 1 ? "…" : status === 2 ? "✓" : "✓"}
+      <div className={"w-8 h-8 rounded-full flex items-center justify-center text-white shadow-lg -translate-y-2 " + (status === 3 ? "bg-pink-500" : status === 1 ? "bg-blue-500" : status === 2 ? "bg-green-600" : "bg-green-500")}>
+        {status === 3 ? <Heart className="h-4 w-4" /> : status === 1 ? <MoreHorizontal className="h-4 w-4" /> : <Check className="h-4 w-4" />}
       </div>
     </div>
   );

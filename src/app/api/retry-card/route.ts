@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       },
       note:
         data.set !== setCode?.toLowerCase()
-          ? `⚠️ 模糊搜索返回了不同版本 (${data.set_name})，请确认画家是否正确`
+          ? `模糊搜索返回了不同版本 (${data.set_name})，请确认画家是否正确`
           : undefined,
     });
   } catch {

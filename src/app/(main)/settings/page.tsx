@@ -61,7 +61,7 @@ export default function SettingsPage() {
         a.click();
         URL.revokeObjectURL(url);
         showToast(
-          `✅ 导出成功：${data.deckCount} 个套牌，${data.cardCount} 张卡牌`,
+          `导出成功：${data.deckCount} 个套牌，${data.cardCount} 张卡牌`,
           "success",
         );
       } else {
@@ -84,7 +84,7 @@ export default function SettingsPage() {
       const data = await res.json();
 
       if (data.success) {
-        showToast("✅ 所有数据已清除", "success");
+        showToast("所有数据已清除", "success");
       } else {
         showToast(data.error || "清除失败", "error");
       }

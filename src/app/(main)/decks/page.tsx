@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useToast } from "@/lib/toast-context";
 import { useDisplayMode } from "@/lib/display-mode";
 import { useDeckLayout } from "@/lib/deck-layout";
@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/user";
-import { Upload, Trash2, ChevronDown, ChevronRight, Plus, RefreshCw, Loader2 } from "lucide-react";
+import { Upload, Trash2, ChevronDown, ChevronRight, Plus, RefreshCw, Loader2, Palette, Lightbulb, AlertTriangle, Heart, Check, MoreHorizontal } from "lucide-react";
 import {
   Dialog,
   DialogHeader,
@@ -229,7 +229,7 @@ export default function DecksPage() {
         const hasFailures = (data.failCount ?? 0) > 0;
         const timedOut = data.timedOut;
         let msg =
-          `✅ 「${deckName}」${data.successCount}/${data.total} 张成功` +
+          `「${deckName}」${data.successCount}/${data.total} 张成功` +
           (hasFailures ? `，${data.failCount} 张未处理` : "");
         if (timedOut) msg += `（超时保护，已导入的已保存）`;
         msg += ` | ${t.total}`;
@@ -279,7 +279,7 @@ export default function DecksPage() {
 
       if (data.success) {
         setFailedCards((prev) => prev.filter((c) => c.name !== cardName));
-        showToast(`✅ 「${cardName}」通过模糊搜索成功录入`, "success");
+        showToast(`「${cardName}」通过模糊搜索成功录入`, "success");
         await loadDecks();
         if (expandedDeck === retryingDeckId) {
           const { data: freshCards } = await supabase
@@ -292,10 +292,10 @@ export default function DecksPage() {
           }
         }
       } else {
-        showToast(`❌ ${cardName}: ${data.error}`, "error");
+        showToast(`${cardName}: ${data.error}`, "error");
       }
     } catch {
-      showToast(`❌ ${cardName}: 网络错误`, "error");
+      showToast(`${cardName}: 网络错误`, "error");
     } finally {
       setRetryingCard(null);
     }
@@ -363,7 +363,7 @@ export default function DecksPage() {
       if (data.success) {
         const hasFailures = (data.failCount ?? 0) > 0;
         const timedOut = data.timedOut;
-        let msg = `✅ 添加 ${data.successCount}/${data.total} 张成功`;
+        let msg = `添加 ${data.successCount}/${data.total} 张成功`;
         if (hasFailures) msg += `，${data.failCount} 张未处理`;
         if (timedOut) msg += `（超时保护，剩余卡牌可重新添加）`;
         showToast(msg, hasFailures ? "error" : "success");
@@ -469,7 +469,7 @@ export default function DecksPage() {
       if (data.success) {
         const countSuffix = allIds.length > 1 ? `（共 ${allIds.length} 张）` : "";
         showToast(
-          `✅ 已切换为 ${data.newSet} #${data.newCollectorNumber}${countSuffix}`,
+          `已切换为 ${data.newSet} #${data.newCollectorNumber}${countSuffix}`,
           "success",
         );
 
@@ -523,7 +523,7 @@ export default function DecksPage() {
         return;
       }
 
-      showToast("✅ 卡牌已删除", "success");
+      showToast("卡牌已删除", "success");
 
       const deckId = switchCard?.deck_id;
       if (deckId) {
@@ -597,10 +597,12 @@ export default function DecksPage() {
                 onChange={(e) => setDeckText(e.target.value)}
                 className="font-mono text-xs"
               />
-              <p className="text-xs text-muted-foreground">
-                💡 操作提示：<br />
+              <p className="text-xs text-muted-foreground flex items-start gap-1">
+                <Lightbulb className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <span>操作提示：<br />
                 1. 推荐使用 Moxfield 网站，将牌表修改为实际持有的版本，选择 Copy for Moxfield 格式导入套牌<br />
                 2. 无系列/编号信息的格式，导入时将随机选取卡牌版本，导入后点击卡牌右上角图标可随时切换版本
+                </span>
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -624,8 +626,9 @@ export default function DecksPage() {
       {failedCards.length > 0 && (
         <Card className="border-amber-200 bg-amber-50">
           <CardHeader>
-            <CardTitle className="text-base">
-              ⚠️ {failedCards.length} 张卡牌未找到
+            <CardTitle className="text-base flex items-center gap-1.5">
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+              {failedCards.length} 张卡牌未找到
             </CardTitle>
             <CardDescription>
               精确定位失败，可手动触发模糊搜索。注意：模糊搜索可能返回不同版本，请确认画家是否正确。
@@ -887,7 +890,7 @@ function DeckListItem({
                 return (
                   <div key={artist}>
                     <h4 className={"text-base font-medium " + (deckLayout === "compact" ? "mb-1 sm:mb-1.5 truncate" : "mb-2")}>
-                      {deckLayout === "compact" ? <span className="hidden sm:inline">🎨 </span> : "🎨 "}{artist} ({artistCards.length})
+                      <Palette className={"inline h-4 w-4 mr-1 text-primary " + (deckLayout === "compact" ? "hidden sm:inline-block" : "")} />{artist} ({artistCards.length})
                     </h4>
                     <div className={deckLayout === "compact" ? "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1 sm:gap-1.5 lg:gap-2" : "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 sm:gap-3 lg:gap-4"}>
                       {displayCards.map((group) => (
@@ -938,7 +941,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
   };
   const hasOverlay = status >= 1;
   const overlayColor: Record<number, string> = { 1: "bg-blue-500", 2: "bg-green-500", 3: "bg-pink-500" };
-  const overlayIcon: Record<number, string> = { 1: "…", 2: "✓", 3: "\u2665\uFE0E" };
+  const overlayIcon: Record<number, ReactNode> = { 1: <MoreHorizontal className="h-4 w-4" />, 2: <Check className="h-4 w-4" />, 3: <Heart className="h-4 w-4" /> };
   const isCompact = deckLayout === "compact";
 
   /** 点击切换状态：合并模式下批量切换所有同款卡牌 */
@@ -968,8 +971,8 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
 
         {hasOverlay && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className={(isCompact ? "w-7 h-7 sm:w-8 sm:h-8 text-xs sm:text-sm" : "w-8 h-8 text-sm") + " rounded-full flex items-center justify-center text-white font-bold shadow-lg " + (overlayColor[status] || "bg-blue-500") + (!card.event_name ? " -translate-y-2" : "")}>
-              {overlayIcon[status] || "…"}
+            <div className={(isCompact ? "w-7 h-7 sm:w-8 sm:h-8" : "w-8 h-8") + " rounded-full flex items-center justify-center text-white shadow-lg " + (overlayColor[status] || "bg-blue-500") + (!card.event_name ? " -translate-y-2" : "")}>
+              {overlayIcon[status] || <MoreHorizontal className="h-4 w-4" />}
             </div>
           </div>
         )}
