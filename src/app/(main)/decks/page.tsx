@@ -875,13 +875,6 @@ function DeckListItem({
                               <span className="text-xs text-muted-foreground shrink-0 font-mono ml-auto hidden sm:inline">
                                 {group.card.set_code.toUpperCase()} #{group.card.collector_number}
                               </span>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); onLoadPrintings(group.card, group.ids); }}
-                                className="w-5 h-5 rounded-md bg-background/80 border shrink-0 flex items-center justify-center hover:bg-accent hover:scale-110 transition-all opacity-0 group-hover/list:opacity-100"
-                                title="切换版本"
-                              >
-                                <RefreshCw className="h-3 w-3 text-muted-foreground" />
-                              </button>
                             </div>
                           );
                         })}
