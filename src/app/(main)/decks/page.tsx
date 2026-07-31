@@ -976,9 +976,9 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
           </div>
         )}
 
-        {/* 心动活动标签 */}
-        {status === 3 && card.event_name && (
-          <div className="absolute top-0 left-0 right-0 z-10 bg-pink-500/90 text-white px-1 py-0.5 text-center leading-tight truncate text-[10px] sm:text-xs">
+        {/* 心动活动标签 — 紧凑模式在底部显示，其他模式在顶部 */}
+        {status === 3 && card.event_name && !isCompact && (
+          <div className="absolute top-0 left-0 right-0 z-10 bg-pink-500/90 text-white text-xs px-1 py-0.5 text-center leading-tight">
             ♥ {card.event_name}
             {card.event_date && ` · ${card.event_date}`}
           </div>
@@ -1002,9 +1002,22 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
           </div>
         )}
 
-        <div className={isCompact ? "absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate hidden sm:block" : "absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate"}>
-          {card.card_name}
-        </div>
+        {/* 底部信息条：紧凑模式心动状态显示活动名，其他情况显示卡牌名 */}
+        {isCompact ? (
+          status === 3 && card.event_name ? (
+            <div className="absolute bottom-0 left-0 right-0 bg-pink-500/90 text-white text-[10px] sm:text-xs px-1 py-0.5 text-center leading-tight truncate z-10">
+              ♥ {card.event_name}
+            </div>
+          ) : (
+            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate hidden sm:block">
+              {card.card_name}
+            </div>
+          )
+        ) : (
+          <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate">
+            {card.card_name}
+          </div>
+        )}
       </div>
 
       {/* 切换版本按钮 */}
