@@ -18,6 +18,7 @@ export default function LoginPage() {
   const [isRegister, setIsRegister] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -25,6 +26,12 @@ export default function LoginPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+
+    if (isRegister && password !== confirmPassword) {
+      setError("两次输入的密码不一致");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -84,6 +91,19 @@ export default function LoginPage() {
                 required
               />
             </div>
+            {isRegister && (
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">确认密码</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="请再次输入密码"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                />
+              </div>
+            )}
             {error && (
               <p className="text-sm text-destructive">{error}</p>
             )}
@@ -99,6 +119,7 @@ export default function LoginPage() {
               onClick={() => {
                 setIsRegister(!isRegister);
                 setError("");
+                setConfirmPassword("");
               }}
             >
               {isRegister ? "去登录" : "注册"}
