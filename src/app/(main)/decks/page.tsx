@@ -975,7 +975,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
 
         {hasOverlay && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className={(isCompact ? "w-7 h-7 sm:w-8 sm:h-8 text-xs sm:text-sm" : "w-8 h-8 text-sm") + " rounded-full flex items-center justify-center text-white font-bold shadow-lg " + (overlayColor[status] || "bg-blue-500") + (card.event_name ? " -translate-y-3.5" : " -translate-y-2")}>
+            <div className={(isCompact ? "w-7 h-7 sm:w-8 sm:h-8 text-xs sm:text-sm" : "w-8 h-8 text-sm") + " rounded-full flex items-center justify-center text-white font-bold shadow-lg " + (overlayColor[status] || "bg-blue-500") + (!card.event_name ? " -translate-y-2" : "")}>
               {overlayIcon[status] || "…"}
             </div>
           </div>
