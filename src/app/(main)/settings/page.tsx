@@ -177,7 +177,7 @@ export default function SettingsPage() {
               }}
             >
               {deckLayout === "default" ? <PanelsTopLeft className="h-4 w-4 mr-2" /> : deckLayout === "compact" ? <Columns className="h-4 w-4 mr-2" /> : <List className="h-4 w-4 mr-2" />}
-              {deckLayout === "default" ? "默认" : deckLayout === "compact" ? "紧凑" : "文本"}
+              {deckLayout === "default" ? "默认模式" : deckLayout === "compact" ? "紧凑模式" : "文本模式"}
             </Button>
           </div>
         </CardContent>
