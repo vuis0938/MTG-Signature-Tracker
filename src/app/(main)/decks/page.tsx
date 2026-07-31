@@ -827,7 +827,7 @@ function DeckListItem({
           ) : cards?.length === 0 ? (
             <p className="text-muted-foreground text-sm">暂无卡牌</p>
           ) : (
-            <div className={deckLayout === "compact" ? "grid grid-cols-2 sm:gap-4 gap-2" : deckLayout === "list" ? "space-y-2" : "space-y-4"}>
+            <div className={deckLayout === "compact" ? "grid grid-cols-2 gap-x-4 sm:gap-x-6 lg:gap-x-8 gap-y-3 sm:gap-y-4" : deckLayout === "list" ? "space-y-2" : "space-y-4"}>
               {Array.from(groupCardsByArtist(cards || [])).map(([artist, artistCards]) => {
                 // 合并模式：相同卡牌（同名+同系列+同编号）合并为一条
                 const displayCards =
@@ -898,7 +898,7 @@ function DeckListItem({
                     <h4 className={deckLayout === "compact" ? "text-xs font-medium mb-1 sm:mb-1.5 truncate" : "text-sm font-medium mb-2"}>
                       {deckLayout === "compact" ? <span className="hidden sm:inline">🎨 </span> : "🎨 "}{artist} ({artistCards.length})
                     </h4>
-                    <div className={deckLayout === "compact" ? "flex flex-wrap gap-1.5 sm:gap-2.5 lg:gap-3" : "flex flex-wrap gap-3"}>
+                    <div className={deckLayout === "compact" ? "grid grid-cols-2 gap-1 sm:gap-1.5 lg:gap-2" : "flex flex-wrap gap-3"}>
                       {displayCards.map((group) => (
                         <CardThumbnail
                           key={group.ids[0]}
@@ -959,7 +959,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
   }
 
   return (
-    <div className={isCompact ? "group relative w-16 sm:w-20 lg:w-24" : "group relative w-24"}>
+    <div className={isCompact ? "group relative w-full" : "group relative w-24"}>
       <div
         onClick={handleToggle}
         className={`relative rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 ${
