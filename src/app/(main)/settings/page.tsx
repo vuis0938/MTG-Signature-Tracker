@@ -12,9 +12,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useDisplayMode } from "@/lib/display-mode";
-import { useCompactMode } from "@/lib/compact-mode";
+import { useDeckLayout, type DeckLayout } from "@/lib/deck-layout";
 import { useUser } from "@/lib/user-context";
-import { LogOut, Download, Trash2, User, Info, Layout, Columns } from "lucide-react";
+import { LogOut, Download, Trash2, User, Info, Layout, Columns, Grid3X3, List } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -25,7 +25,7 @@ export default function SettingsPage() {
   const [clearing, setClearing] = useState(false);
   const { toast: showToast } = useToast();
   const { mode: displayMode, toggle: toggleDisplayMode } = useDisplayMode();
-  const { compact, toggle: toggleCompactMode } = useCompactMode();
+  const { layout: deckLayout, setLayout: setDeckLayout } = useDeckLayout();
 
   // ─── 退出登录 ───
   async function handleLogout() {
@@ -159,33 +159,38 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* 紧凑模式 */}
+      {/* 卡片排版 */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Columns className="h-4 w-4" />
             卡片排版
           </CardTitle>
-          <CardDescription>套牌管理界面的卡牌展示密度</CardDescription>
+          <CardDescription>套牌管理界面的卡牌展示方式</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium">紧凑模式</p>
-              <p className="text-xs text-muted-foreground">
-                {compact
-                  ? "当前：开启 — 针对手机/平板/桌面自适应，缩小卡牌、收紧间距"
-                  : "当前：关闭 — 使用默认宽松排版"}
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={toggleCompactMode}
-            >
-              <Columns className="h-4 w-4 mr-2" />
-              {compact ? "关闭紧凑" : "开启紧凑"}
-            </Button>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-2">
+            {([
+              { value: "default" as DeckLayout, icon: Grid3X3, label: "默认", desc: "宽网格" },
+              { value: "compact" as DeckLayout, icon: Columns, label: "紧凑", desc: "自适应" },
+              { value: "list" as DeckLayout, icon: List, label: "列表", desc: "高密度" },
+            ]).map(({ value, icon: Icon, label, desc }) => (
+              <button
+                key={value}
+                onClick={() => setDeckLayout(value)}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border text-sm transition-all ${
+                  deckLayout === value
+                    ? "border-primary bg-primary/10 text-primary font-medium"
+                    : "border-border hover:bg-accent text-muted-foreground"
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                <span>
+                  {label}
+                  <span className="hidden sm:inline text-xs ml-1.5 opacity-60">{desc}</span>
+                </span>
+              </button>
+            ))}
           </div>
         </CardContent>
       </Card>

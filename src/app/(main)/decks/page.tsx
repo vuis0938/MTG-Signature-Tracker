@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/lib/toast-context";
 import { useDisplayMode } from "@/lib/display-mode";
-import { useCompactMode } from "@/lib/compact-mode";
+import { useDeckLayout } from "@/lib/deck-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -79,7 +79,7 @@ export default function DecksPage() {
   // Toast 通知
   const { toast: showToast } = useToast();
   const { mode: displayMode } = useDisplayMode();
-  const { compact: compactMode } = useCompactMode();
+  const { layout: deckLayout } = useDeckLayout();
 
   // 导入失败卡牌的手动重试
   const [failedCards, setFailedCards] = useState<
@@ -682,7 +682,7 @@ export default function DecksPage() {
               cards={cards[deck.id]}
               cardsLoading={cardsLoading}
               displayMode={displayMode}
-              compactMode={compactMode}
+              deckLayout={deckLayout}
               onToggle={toggleDeck}
               onAddCards={(deckId) => { setAddCardsOpen(deckId); setAddCardsText(""); }}
               onDelete={deleteDeck}
@@ -755,7 +755,7 @@ interface DeckListItemProps {
   cards: CardEntry[] | undefined;
   cardsLoading: boolean;
   displayMode: "individual" | "grouped";
-  compactMode: boolean;
+  deckLayout: "default" | "compact" | "list";
   onToggle: (deckId: string) => void;
   onAddCards: (deckId: string) => void;
   onDelete: (deckId: string, deckName: string) => void;
@@ -764,7 +764,7 @@ interface DeckListItemProps {
 }
 
 function DeckListItem({
-  deck, stats, isExpanded, cards, cardsLoading, displayMode, compactMode,
+  deck, stats, isExpanded, cards, cardsLoading, displayMode, deckLayout,
   onToggle, onAddCards, onDelete, onToggleStatus, onLoadPrintings,
 }: DeckListItemProps) {
   return (
@@ -829,7 +829,7 @@ function DeckListItem({
           ) : cards?.length === 0 ? (
             <p className="text-muted-foreground text-sm">暂无卡牌</p>
           ) : (
-            <div className={compactMode ? "space-y-3 sm:space-y-3.5 lg:space-y-4" : "space-y-4"}>
+            <div className={deckLayout === "compact" ? "space-y-3 sm:space-y-3.5 lg:space-y-4" : deckLayout === "list" ? "space-y-2" : "space-y-4"}>
               {Array.from(groupCardsByArtist(cards || [])).map(([artist, artistCards]) => {
                 // 合并模式：相同卡牌（同名+同系列+同编号）合并为一条
                 const displayCards =
@@ -837,12 +837,66 @@ function DeckListItem({
                     ? mergeIdenticalCards(artistCards)
                     : artistCards.map((c) => ({ card: c, count: 1, ids: [c.id] }));
 
+                // 列表视图
+                if (deckLayout === "list") {
+                  return (
+                    <div key={artist}>
+                      <h4 className="text-xs font-medium mb-1.5 text-muted-foreground">
+                        {artist} ({artistCards.length})
+                      </h4>
+                      <div className="space-y-0.5">
+                        {displayCards.map((group) => {
+                          const s = group.card.status ?? (group.card.is_signed ? 2 : 0);
+                          const statusColors: Record<number, string> = { 0: "bg-gray-300", 1: "bg-blue-500", 2: "bg-green-500", 3: "bg-pink-500" };
+                          const statusHover: Record<number, string> = { 0: "hover:bg-gray-400", 1: "hover:bg-blue-600", 2: "hover:bg-green-600", 3: "hover:bg-pink-600" };
+                          return (
+                            <div
+                              key={group.ids[0]}
+                              className="flex items-center gap-2 py-1 px-2 rounded-md hover:bg-accent/50 transition-colors group/list"
+                            >
+                              <div
+                                onClick={() => {
+                                  const ids = group.ids.length > 0 ? group.ids : [group.card.id];
+                                  for (const id of ids) onToggleStatus(id, s, deck.id);
+                                }}
+                                className={`w-2.5 h-2.5 rounded-full cursor-pointer ${statusColors[s]} ${statusHover[s]} shrink-0 transition-colors`}
+                                title="点击切换状态"
+                              />
+                              {group.count > 1 && (
+                                <span className="text-xs text-muted-foreground shrink-0 w-7 text-right">×{group.count}</span>
+                              )}
+                              <span
+                                className="text-sm truncate cursor-pointer hover:text-primary transition-colors"
+                                onClick={() => onLoadPrintings(group.card, group.ids)}
+                                title="点击切换版本"
+                              >
+                                {group.card.card_name}
+                              </span>
+                              <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
+                                {group.card.set_code.toUpperCase()} #{group.card.collector_number}
+                              </span>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); onLoadPrintings(group.card, group.ids); }}
+                                className="ml-auto w-5 h-5 rounded-full bg-background/80 border shrink-0 flex items-center justify-center hover:bg-accent hover:scale-110 transition-all opacity-0 group-hover/list:opacity-100"
+                                title="切换版本"
+                              >
+                                <RefreshCw className="h-3 w-3 text-muted-foreground" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                }
+
+                // 网格视图（默认 & 紧凑）
                 return (
                   <div key={artist}>
-                    <h4 className={compactMode ? "text-xs sm:text-sm lg:text-sm font-medium mb-1 sm:mb-1.5 lg:mb-2" : "text-sm font-medium mb-2"}>
-                      {compactMode ? <span className="hidden sm:inline">🎨 </span> : "🎨 "}{artist} ({artistCards.length})
+                    <h4 className={deckLayout === "compact" ? "text-xs sm:text-sm lg:text-sm font-medium mb-1 sm:mb-1.5 lg:mb-2" : "text-sm font-medium mb-2"}>
+                      {deckLayout === "compact" ? <span className="hidden sm:inline">🎨 </span> : "🎨 "}{artist} ({artistCards.length})
                     </h4>
-                    <div className={compactMode ? "flex flex-wrap gap-2 sm:gap-2.5 lg:gap-3" : "flex flex-wrap gap-3"}>
+                    <div className={deckLayout === "compact" ? "flex flex-wrap gap-2 sm:gap-2.5 lg:gap-3" : "flex flex-wrap gap-3"}>
                       {displayCards.map((group) => (
                         <CardThumbnail
                           key={group.ids[0]}
@@ -850,7 +904,7 @@ function DeckListItem({
                           count={group.count}
                           allIds={group.ids}
                           deckId={deck.id}
-                          compactMode={compactMode}
+                          deckLayout={deckLayout}
                           onToggleStatus={onToggleStatus}
                           onLoadPrintings={onLoadPrintings}
                         />
@@ -876,12 +930,12 @@ interface CardThumbnailProps {
   count?: number;
   /** 合并模式下所有卡牌 ID，用于批量切换状态 */
   allIds?: string[];
-  compactMode?: boolean;
+  deckLayout?: "default" | "compact" | "list";
   onToggleStatus: (cardId: string, currentStatus: number, deckId: string) => void;
   onLoadPrintings: (card: CardEntry, allIds?: string[]) => void;
 }
 
-function CardThumbnail({ card, deckId, count = 1, allIds, compactMode, onToggleStatus, onLoadPrintings }: CardThumbnailProps) {
+function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleStatus, onLoadPrintings }: CardThumbnailProps) {
   const status = card.status ?? (card.is_signed ? 2 : 0);
   const statusLabels: Record<number, string> = {
     0: "未签（点击切换为送签中）",
@@ -892,6 +946,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, compactMode, onToggleS
   const hasOverlay = status >= 1;
   const overlayColor: Record<number, string> = { 1: "bg-blue-500", 2: "bg-green-500", 3: "bg-pink-500" };
   const overlayIcon: Record<number, string> = { 1: "…", 2: "✓", 3: "♥" };
+  const isCompact = deckLayout === "compact";
 
   /** 点击切换状态：合并模式下批量切换所有同款卡牌 */
   function handleToggle() {
@@ -902,7 +957,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, compactMode, onToggleS
   }
 
   return (
-    <div className={compactMode ? "group relative w-18 sm:w-22 lg:w-24" : "group relative w-24"}>
+    <div className={isCompact ? "group relative w-18 sm:w-22 lg:w-24" : "group relative w-24"}>
       <div
         onClick={handleToggle}
         className={`relative rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 ${
@@ -939,13 +994,13 @@ function CardThumbnail({ card, deckId, count = 1, allIds, compactMode, onToggleS
 
         {hasOverlay && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className={`${compactMode ? "w-6 h-6 sm:w-7 sm:h-7" : "w-7 h-7"} rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg ${overlayColor[status] || "bg-blue-500"}`}>
+            <div className={`${isCompact ? "w-6 h-6 sm:w-7 sm:h-7" : "w-7 h-7"} rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg ${overlayColor[status] || "bg-blue-500"}`}>
               {overlayIcon[status] || "…"}
             </div>
           </div>
         )}
 
-        <div className={compactMode ? "absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate hidden sm:block" : "absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate"}>
+        <div className={isCompact ? "absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate hidden sm:block" : "absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate"}>
           {card.card_name}
         </div>
       </div>
@@ -953,7 +1008,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, compactMode, onToggleS
       {/* 切换版本按钮 */}
       <button
         onClick={(e) => { e.stopPropagation(); onLoadPrintings(card, allIds); }}
-        className={compactMode ? "absolute top-0.5 right-0.5 z-20 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-background/80 border shadow-sm flex items-center justify-center hover:bg-accent hover:scale-110 transition-all" : "absolute top-0.5 right-0.5 z-20 w-6 h-6 rounded-full bg-background/80 border shadow-sm flex items-center justify-center hover:bg-accent hover:scale-110 transition-all"}
+        className={isCompact ? "absolute top-0.5 right-0.5 z-20 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-background/80 border shadow-sm flex items-center justify-center hover:bg-accent hover:scale-110 transition-all" : "absolute top-0.5 right-0.5 z-20 w-6 h-6 rounded-full bg-background/80 border shadow-sm flex items-center justify-center hover:bg-accent hover:scale-110 transition-all"}
         title="切换印刷版本"
       >
         <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
