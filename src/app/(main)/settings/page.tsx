@@ -14,7 +14,7 @@ import {
 import { useDisplayMode } from "@/lib/display-mode";
 import { useDeckLayout, type DeckLayout } from "@/lib/deck-layout";
 import { useUser } from "@/lib/user-context";
-import { LogOut, Download, Trash2, User, Info, Layout, Columns, Grid3X3, List, Layers } from "lucide-react";
+import { LogOut, Download, Trash2, User, Info, Layout, Columns, List, Layers, Rows3, PanelsTopLeft } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -152,7 +152,7 @@ export default function SettingsPage() {
               size="sm"
               onClick={toggleDisplayMode}
             >
-              {displayMode === "individual" ? <Grid3X3 className="h-4 w-4 mr-2" /> : <Layers className="h-4 w-4 mr-2" />}
+              {displayMode === "individual" ? <Rows3 className="h-4 w-4 mr-2" /> : <Layers className="h-4 w-4 mr-2" />}
               {displayMode === "individual" ? "独立显示" : "合并显示"}
             </Button>
           </div>
@@ -176,7 +176,7 @@ export default function SettingsPage() {
                 setDeckLayout(next);
               }}
             >
-              {deckLayout === "default" ? <Grid3X3 className="h-4 w-4 mr-2" /> : deckLayout === "compact" ? <Columns className="h-4 w-4 mr-2" /> : <List className="h-4 w-4 mr-2" />}
+              {deckLayout === "default" ? <PanelsTopLeft className="h-4 w-4 mr-2" /> : deckLayout === "compact" ? <Columns className="h-4 w-4 mr-2" /> : <List className="h-4 w-4 mr-2" />}
               {deckLayout === "default" ? "默认" : deckLayout === "compact" ? "紧凑" : "文本"}
             </Button>
           </div>
