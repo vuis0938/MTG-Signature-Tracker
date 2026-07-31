@@ -987,17 +987,11 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
           </div>
         )}
 
-        {/* 底部信息条 */}
-        {isCompact ? (
-          status === 3 && card.event_name ? (
-            <div className="absolute bottom-0 left-0 right-0 bg-pink-500/90 text-white text-[10px] sm:text-xs px-1 py-0.5 text-center leading-tight truncate z-10">
-              ♥ {card.event_name}
-            </div>
-          ) : (
-            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate hidden sm:block">
-              {card.card_name}
-            </div>
-          )
+        {/* 底部信息条 — 两种排版统一显示活动名称，无活动名称时显示卡牌名 */}
+        {card.event_name ? (
+          <div className={`absolute bottom-0 left-0 right-0 ${status === 3 ? "bg-pink-500/90" : "bg-black/70"} text-white text-xs px-1 py-0.5 text-center leading-tight truncate z-10`}>
+            {status === 3 ? `♥ ${card.event_name}` : card.event_name}
+          </div>
         ) : (
           <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate">
             {card.card_name}
@@ -1005,10 +999,10 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
         )}
       </div>
 
-      {/* 合并按钮：数量 + 切换版本 — 左上角 */}
+      {/* 合并按钮：数量 + 切换版本 — 右上角 */}
       <button
         onClick={(e) => { e.stopPropagation(); onLoadPrintings(card, allIds); }}
-        className={`absolute top-0.5 left-0.5 z-20 ${isCompact ? "h-5 sm:h-6" : "h-6"} bg-background/80 border border-border shadow-sm flex items-center justify-center gap-1 px-1.5 rounded-md hover:bg-accent hover:scale-105 transition-all`}
+        className={`absolute top-0.5 right-0.5 z-20 ${isCompact ? "h-5 sm:h-6" : "h-6"} bg-background/80 border border-border shadow-sm flex items-center justify-center gap-1 px-1.5 rounded-md hover:bg-accent hover:scale-105 transition-all`}
         title="切换印刷版本"
       >
         {count > 1 && (
