@@ -153,7 +153,7 @@ export default function SettingsPage() {
               onClick={toggleDisplayMode}
             >
               <Layout className="h-4 w-4 mr-2" />
-              {displayMode === "individual" ? "合并展示" : "独立展示"}
+              {displayMode === "individual" ? "独立展示" : "合并展示"}
             </Button>
           </div>
 
@@ -176,8 +176,8 @@ export default function SettingsPage() {
                 setDeckLayout(next);
               }}
             >
-              {deckLayout === "default" ? <Columns className="h-4 w-4 mr-2" /> : deckLayout === "compact" ? <List className="h-4 w-4 mr-2" /> : <Grid3X3 className="h-4 w-4 mr-2" />}
-              {deckLayout === "default" ? "紧凑" : deckLayout === "compact" ? "文本" : "默认"}
+              {deckLayout === "default" ? <Grid3X3 className="h-4 w-4 mr-2" /> : deckLayout === "compact" ? <Columns className="h-4 w-4 mr-2" /> : <List className="h-4 w-4 mr-2" />}
+              {deckLayout === "default" ? "默认" : deckLayout === "compact" ? "紧凑" : "文本"}
             </Button>
           </div>
         </CardContent>
