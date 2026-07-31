@@ -839,7 +839,7 @@ function DeckListItem({
                 if (deckLayout === "list") {
                   return (
                     <div key={artist}>
-                      <h4 className="text-sm font-semibold mb-1.5 text-foreground/80 tracking-wide">
+                      <h4 className="text-base font-semibold mb-1.5 text-foreground/80 tracking-wide">
                         {artist}
                         <span className="text-muted-foreground font-normal ml-1">({artistCards.length})</span>
                       </h4>
@@ -893,7 +893,7 @@ function DeckListItem({
                 // 网格视图（默认 & 紧凑）
                 return (
                   <div key={artist}>
-                    <h4 className={"text-sm font-medium " + (deckLayout === "compact" ? "mb-1 sm:mb-1.5 truncate" : "mb-2")}>
+                    <h4 className={"text-base font-medium " + (deckLayout === "compact" ? "mb-1 sm:mb-1.5 truncate" : "mb-2")}>
                       {deckLayout === "compact" ? <span className="hidden sm:inline">🎨 </span> : "🎨 "}{artist} ({artistCards.length})
                     </h4>
                     <div className={deckLayout === "compact" ? "grid grid-cols-2 gap-1 sm:gap-1.5 lg:gap-2" : "flex flex-wrap gap-3"}>
