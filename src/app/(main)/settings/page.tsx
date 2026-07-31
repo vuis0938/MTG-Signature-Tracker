@@ -140,7 +140,7 @@ export default function SettingsPage() {
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium">卡片显示模式</p>
+              <p className="text-sm font-medium">卡牌显示模式</p>
               <p className="text-xs text-muted-foreground">
                 {displayMode === "individual"
                   ? "当前：独立展示 — 每张卡牌单独显示"
@@ -159,13 +159,13 @@ export default function SettingsPage() {
 
           <div className="flex items-center justify-between border-t pt-3">
             <div>
-              <p className="text-sm font-medium">卡片排版</p>
+              <p className="text-sm font-medium">卡牌排版</p>
               <p className="text-xs text-muted-foreground">
                 {deckLayout === "default"
                   ? "当前：默认 — 宽松网格"
                   : deckLayout === "compact"
                   ? "当前：紧凑 — 自适应网格"
-                  : "当前：列表 — 高密度列表"}
+                  : "当前：文本 — 高密度文本"}
               </p>
             </div>
             <Button
@@ -177,7 +177,7 @@ export default function SettingsPage() {
               }}
             >
               {deckLayout === "default" ? <Columns className="h-4 w-4 mr-2" /> : deckLayout === "compact" ? <List className="h-4 w-4 mr-2" /> : <Grid3X3 className="h-4 w-4 mr-2" />}
-              {deckLayout === "default" ? "紧凑" : deckLayout === "compact" ? "列表" : "默认"}
+              {deckLayout === "default" ? "紧凑" : deckLayout === "compact" ? "文本" : "默认"}
             </Button>
           </div>
         </CardContent>

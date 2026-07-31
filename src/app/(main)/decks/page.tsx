@@ -835,7 +835,7 @@ function DeckListItem({
                     ? mergeIdenticalCards(artistCards)
                     : artistCards.map((c) => ({ card: c, count: 1, ids: [c.id] }));
 
-                // 列表视图
+                // 文本视图
                 if (deckLayout === "list") {
                   return (
                     <div key={artist}>

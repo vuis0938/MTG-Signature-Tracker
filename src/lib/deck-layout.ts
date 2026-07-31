@@ -12,7 +12,7 @@ const LAYOUTS: DeckLayout[] = ["default", "compact", "list"];
  *
  * - default：默认网格，96px 大图，宽松间距
  * - compact：紧凑网格，三断点自适应（72/88/96px），移动端隐藏冗余信息
- * - list：高密度列表视图，纯文字行，适合快速浏览大套牌
+ * - list：高密度文本视图，纯文字行，适合快速浏览大套牌
  *
  * 通过 localStorage 持久化，默认 default。
  */
