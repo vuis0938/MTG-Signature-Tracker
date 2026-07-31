@@ -633,7 +633,7 @@ export default function MatchPage() {
           </select>
 
           <Textarea
-            placeholder={`粘贴活动画家名单，支持多种格式，例如：\n1. John Avon  $6/$12\n2. Rebecca Guay  $6/$12\n\n`}
+            placeholder={"粘贴活动画家名单，支持多种格式，例如：\n1. John Avon  $6/$12\n2. Rebecca Guay  $6/$12\n\n"}
             rows={6}
             value={rawText}
             onChange={(e) => setRawText(e.target.value)}
@@ -776,9 +776,9 @@ export default function MatchPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[65vh] overflow-y-auto pr-2">
                 {artistCards.map((card) => (
                   <div
-                    key={`${card.set}-${card.collector_number}`}
+                    key={card.set + "-" + card.collector_number}
                     className="rounded-lg border overflow-hidden bg-background"
-                    title={`${card.set_name} #${card.collector_number}`}
+                    title={card.set_name + " #" + card.collector_number}
                   >
                     {card.image_url ? (
                       <img src={card.image_url} alt={card.name} className="w-full" loading="lazy" />
@@ -940,7 +940,7 @@ function ExactMatchResults({ matched, displayMode, toggleStatus }: {
 
               return (
                 <div key={deckName} className="mb-3">
-                  <p className="text-xs text-muted-foreground mb-2">📦 {deckName}</p>
+                  <p className="text-sm text-muted-foreground mb-2">📦 {deckName}</p>
                   <div className="flex flex-wrap gap-3">
                     {displayCards.map((group) => (
                       <CardThumbnail
@@ -990,7 +990,7 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
 
             {Array.from(byCardName).map(([cardName, versions]) => (
               <div key={cardName} className="mb-3">
-                <p className="text-xs text-muted-foreground mb-2">📦 {cardName}</p>
+                <p className="text-sm text-muted-foreground mb-2">📦 {cardName}</p>
                 <div className="flex flex-wrap gap-3">
                   {versions.map((v, idx) => {
                     const isInDeck = !!v.deckCard;
@@ -999,11 +999,9 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
 
                     return (
                       <div
-                        key={`${v.set_code}-${v.collector_number}-${idx}`}
+                        key={v.set_code + "-" + v.collector_number + "-" + idx}
                         onClick={() => { if (cardId) toggleStatus(cardId); }}
-                        className={`relative w-24 rounded-lg overflow-hidden border transition-all hover:scale-105 ${
-                          isInDeck ? "cursor-pointer hover:shadow-md" : "cursor-default opacity-60"
-                        } ${statusBorderClass(isInDeck, status)}`}
+                        className={"relative w-24 rounded-lg overflow-hidden border transition-all hover:scale-105 " + (isInDeck ? "cursor-pointer hover:shadow-md" : "cursor-default opacity-60") + " " + statusBorderClass(isInDeck, status)}
                         title={isInDeck ? { 0: "待签", 1: "送签中", 2: "已签", 3: "心动" }[status] : "非套牌版本"}
                       >
                         <div className={isInDeck && status >= 1 ? "opacity-75" : ""}>
@@ -1019,7 +1017,7 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
                         {!isInDeck && (
                           <div className="absolute top-0 right-0 bg-amber-500 text-white text-xs px-1 rounded-bl">其他</div>
                         )}
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate">
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs px-1 py-0.5 text-center leading-tight truncate">
                           {v.set_code.toUpperCase()} #{v.collector_number}
                         </div>
                       </div>
@@ -1042,9 +1040,7 @@ function StatusBadge({ status, isInDeck }: { status: number; isInDeck: boolean }
   if (!isInDeck || status < 1) return null;
   return (
     <div className="absolute inset-0 flex items-center justify-center">
-      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg ${
-        status === 3 ? "bg-pink-500" : status === 1 ? "bg-blue-500" : status === 2 ? "bg-green-600" : "bg-green-500"
-      }`}>
+      <div className={"w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg -translate-y-2 " + (status === 3 ? "bg-pink-500" : status === 1 ? "bg-blue-500" : status === 2 ? "bg-green-600" : "bg-green-500")}>
         {status === 3 ? "♥" : status === 1 ? "…" : status === 2 ? "✓" : "✓"}
       </div>
     </div>
@@ -1081,35 +1077,33 @@ function CardThumbnail({
   }
 
   return (
-    <div
-      onClick={handleToggle}
-      className={`relative w-24 rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 ${
-        status >= 1
-          ? status === 3 ? "border-pink-400" : status === 1 ? "border-blue-400" : "border-green-500"
-          : "border-border hover:shadow-md"
-      }`}
-      title={{ 0: "待签", 1: "送签中", 2: "已签", 3: "心动" }[status ?? 0]}
-    >
-      {/* 数量角标（合并模式） */}
+    <div className="group relative w-24">
+      <div
+        onClick={handleToggle}
+        className={"relative rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 " + (status >= 1 ? (status === 3 ? "border-pink-400" : status === 1 ? "border-blue-400" : "border-green-500") : "border-border hover:shadow-md")}
+        title={{ 0: "待签", 1: "送签中", 2: "已签", 3: "心动" }[status ?? 0]}
+      >
+        <div className={status >= 1 ? "opacity-75" : ""}>
+          {imageUrl ? (
+            <img src={imageUrl} alt={cardName} className="w-full" loading="lazy" />
+          ) : (
+            <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
+              {cardName}
+            </div>
+          )}
+        </div>
+        <StatusBadge status={status} isInDeck={true} />
+        <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs px-1 py-0.5 text-center leading-tight truncate">
+          {cardName}
+        </div>
+      </div>
+
+      {/* 合并按钮：数量 — 右上角，圆角与卡牌一致 */}
       {count > 1 && (
-        <div className="absolute top-0.5 left-0.5 z-10 bg-black/80 text-white text-xs font-bold px-1.5 py-0.5 rounded-md leading-tight">
-          ×{count}
+        <div className="absolute top-0.5 right-0.5 z-20 h-6 bg-background/80 border border-border shadow-sm flex items-center justify-center px-1 rounded-lg">
+          <span className="text-xs font-bold text-foreground leading-tight">×{count}</span>
         </div>
       )}
-
-      <div className={status >= 1 ? "opacity-75" : ""}>
-        {imageUrl ? (
-          <img src={imageUrl} alt={cardName} className="w-full" loading="lazy" />
-        ) : (
-          <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
-            {cardName}
-          </div>
-        )}
-      </div>
-      <StatusBadge status={status} isInDeck={true} />
-      <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate">
-        {cardName}
-      </div>
     </div>
   );
 }
