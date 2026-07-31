@@ -145,8 +145,8 @@ export default function SettingsPage() {
               <p className="text-sm font-medium">复数卡牌显示</p>
               <p className="text-xs text-muted-foreground">
                 {displayMode === "individual"
-                  ? "当前：独立显示 — 每张卡牌单独显示"
-                  : "当前：合并显示 — 相同卡牌合并为 ×N 样式"}
+                  ? "独立显示 — 每张卡牌单独显示"
+                  : "合并显示 — 相同卡牌合并为 ×N 样式"}
               </p>
             </div>
             <Button
@@ -164,10 +164,10 @@ export default function SettingsPage() {
               <p className="text-sm font-medium">套牌排版方式</p>
               <p className="text-xs text-muted-foreground">
                 {deckLayout === "default"
-                  ? "当前：默认 — 宽松格式"
+                  ? "默认 — 宽松格式"
                   : deckLayout === "compact"
-                  ? "当前：紧凑 — 紧凑格式"
-                  : "当前：文本 — 纯文字格式"}
+                  ? "紧凑 — 紧凑格式"
+                  : "文本 — 纯文字格式"}
               </p>
             </div>
             <Button

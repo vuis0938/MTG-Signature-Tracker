@@ -295,7 +295,7 @@ export default function DecksPage() {
         showToast(`${cardName}: ${data.error}`, "error");
       }
     } catch {
-      showToast(`${cardName}: 网络错误`, "error");
+      showToast(`${cardName}: 网络错误，请重试`, "error");
     } finally {
       setRetryingCard(null);
     }

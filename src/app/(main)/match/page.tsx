@@ -1002,7 +1002,7 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
                         key={v.set_code + "-" + v.collector_number + "-" + idx}
                         onClick={() => { if (cardId) toggleStatus(cardId); }}
                         className={"relative w-full rounded-lg overflow-hidden border transition-all hover:scale-105 " + (isInDeck ? "cursor-pointer hover:shadow-md" : "cursor-default opacity-60") + " " + statusBorderClass(isInDeck, status)}
-                        title={isInDeck ? { 0: "待签", 1: "送签中", 2: "已签", 3: "心动" }[status] : "非套牌版本"}
+                        title={isInDeck ? { 0: "待签", 1: "送签中", 2: "已签", 3: "心动" }[status] : "其他版本"}
                       >
                         <div className={isInDeck && status >= 1 ? "opacity-75" : ""}>
                           {v.image_url ? (
