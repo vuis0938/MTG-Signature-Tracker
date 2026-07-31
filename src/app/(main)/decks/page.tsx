@@ -280,9 +280,9 @@ export default function DecksPage() {
       if (data.success) {
         setFailedCards((prev) => prev.filter((c) => c.name !== cardName));
         if (data.note) {
-          showToast(`「${cardName}」已录入（版本不同，请核对）`, "success");
+          showToast(`「${cardName}」录入成功（版本不同，请核对）`, "success");
         } else {
-          showToast(`「${cardName}」已录入`, "success");
+          showToast(`「${cardName}」录入成功`, "success");
         }
         await loadDecks();
         if (expandedDeck === retryingDeckId) {
