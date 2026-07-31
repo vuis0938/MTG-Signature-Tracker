@@ -13,8 +13,9 @@ import {
 } from "@/components/ui/card";
 import { useDisplayMode } from "@/lib/display-mode";
 import { useDeckLayout, type DeckLayout } from "@/lib/deck-layout";
+import { useThemeColor, THEME_COLORS } from "@/lib/use-theme-color";
 import { useUser } from "@/lib/user-context";
-import { LogOut, Download, Trash2, User, Info, Layout, Columns, List, Layers, Rows3, PanelsTopLeft } from "lucide-react";
+import { LogOut, Download, Trash2, User, Info, Layout, Columns, List, Layers, Rows3, PanelsTopLeft, Palette, Check } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -26,6 +27,7 @@ export default function SettingsPage() {
   const { toast: showToast } = useToast();
   const { mode: displayMode, toggle: toggleDisplayMode } = useDisplayMode();
   const { layout: deckLayout, setLayout: setDeckLayout } = useDeckLayout();
+  const { themeId, setTheme } = useThemeColor();
 
   // ─── 退出登录 ───
   async function handleLogout() {
@@ -179,6 +181,32 @@ export default function SettingsPage() {
               {deckLayout === "default" ? <PanelsTopLeft className="h-4 w-4 mr-2" /> : deckLayout === "compact" ? <Columns className="h-4 w-4 mr-2" /> : <List className="h-4 w-4 mr-2" />}
               {deckLayout === "default" ? "默认模式" : deckLayout === "compact" ? "紧凑模式" : "文本模式"}
             </Button>
+          </div>
+
+          <div className="flex items-center justify-between border-t pt-3">
+            <div>
+              <p className="text-sm font-medium">主题色</p>
+              <p className="text-xs text-muted-foreground">
+                临时比选 — 点击切换主题色调
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {THEME_COLORS.map((tc) => (
+              <button
+                key={tc.id}
+                onClick={() => setTheme(tc.id)}
+                className={"flex items-center gap-2 px-3 py-1.5 rounded-lg border-2 transition-all " + (themeId === tc.id ? "border-foreground shadow-sm" : "border-border hover:border-foreground/40")}
+              >
+                <span
+                  className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center"
+                  style={{ backgroundColor: tc.swatch }}
+                >
+                  {themeId === tc.id && <Check className="h-3 w-3 text-white" />}
+                </span>
+                <span className="text-sm font-medium">{tc.name}</span>
+              </button>
+            ))}
           </div>
         </CardContent>
       </Card>
