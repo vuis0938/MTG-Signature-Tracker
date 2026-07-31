@@ -969,14 +969,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
         }`}
         title={statusLabels[status]}
       >
-        {/* 数量角标（合并模式） */}
-        {count > 1 && (
-          <div className="absolute top-0.5 left-0.5 z-10 bg-black/80 text-white text-xs font-bold px-1.5 py-0.5 rounded-md leading-tight">
-            ×{count}
-          </div>
-        )}
-
-        {/* 心动活动标签 — 紧凑模式在底部显示，其他模式在顶部 */}
+        {/* 心动活动标签 — 非紧凑模式在顶部显示 */}
         {status === 3 && card.event_name && !isCompact && (
           <div className="absolute top-0 left-0 right-0 z-10 bg-pink-500/90 text-white text-xs px-1 py-0.5 text-center leading-tight">
             ♥ {card.event_name}
@@ -1002,7 +995,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
           </div>
         )}
 
-        {/* 底部信息条：紧凑模式心动状态显示活动名，其他情况显示卡牌名 */}
+        {/* 底部信息条 */}
         {isCompact ? (
           status === 3 && card.event_name ? (
             <div className="absolute bottom-0 left-0 right-0 bg-pink-500/90 text-white text-[10px] sm:text-xs px-1 py-0.5 text-center leading-tight truncate z-10">
@@ -1014,20 +1007,29 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
             </div>
           )
         ) : (
-          <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate">
-            {card.card_name}
-          </div>
+          status === 3 && card.event_name && (
+            <div className="absolute bottom-0 left-0 right-0 bg-pink-500/90 text-white text-xs px-1 py-0.5 text-center leading-tight truncate z-10">
+              ♥ {card.event_name}
+            </div>
+          )
         )}
       </div>
 
-      {/* 切换版本按钮 */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onLoadPrintings(card, allIds); }}
-        className={isCompact ? "absolute top-0.5 right-0.5 z-20 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-background/80 border shadow-sm flex items-center justify-center hover:bg-accent hover:scale-110 transition-all" : "absolute top-0.5 right-0.5 z-20 w-6 h-6 rounded-full bg-background/80 border shadow-sm flex items-center justify-center hover:bg-accent hover:scale-110 transition-all"}
-        title="切换印刷版本"
-      >
-        <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
-      </button>
+      {/* 右上角：切换版本按钮 + 数量角标 */}
+      <div className="absolute top-0.5 right-0.5 z-20 flex flex-col items-end gap-1">
+        <button
+          onClick={(e) => { e.stopPropagation(); onLoadPrintings(card, allIds); }}
+          className={isCompact ? "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-background/80 border shadow-sm flex items-center justify-center hover:bg-accent hover:scale-110 transition-all" : "w-6 h-6 rounded-full bg-background/80 border shadow-sm flex items-center justify-center hover:bg-accent hover:scale-110 transition-all"}
+          title="切换印刷版本"
+        >
+          <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+        </button>
+        {count > 1 && (
+          <div className="bg-black/80 text-white text-xs font-bold px-1.5 py-0.5 rounded-md leading-tight">
+            ×{count}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
