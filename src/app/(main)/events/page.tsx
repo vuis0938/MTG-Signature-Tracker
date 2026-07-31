@@ -113,7 +113,7 @@ export default function EventsPage() {
       ) : (
         <div className="space-y-3">
           {events.map((event) => (
-            <Card size="sm" key={event.id}>
+            <Card key={event.id}>
               <CardHeader
                 className="cursor-pointer hover:bg-accent/50 rounded-t-lg"
                 onClick={() => toggleExpand(event.id)}
