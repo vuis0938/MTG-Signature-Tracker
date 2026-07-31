@@ -570,7 +570,7 @@ export default function DecksPage() {
 
       {/* 导入表单 */}
       {showImport && (
-        <Card>
+        <Card size="sm">
           <CardHeader>
             <CardTitle>导入套牌</CardTitle>
             <CardDescription>
@@ -622,7 +622,7 @@ export default function DecksPage() {
 
       {/* 导入失败的卡牌 — 手动重试 */}
       {failedCards.length > 0 && (
-        <Card className="border-amber-200 bg-amber-50">
+        <Card size="sm" className="border-amber-200 bg-amber-50">
           <CardHeader>
             <CardTitle className="text-base">
               ⚠️ {failedCards.length} 张卡牌未找到
@@ -768,7 +768,7 @@ function DeckListItem({
   onToggle, onAddCards, onDelete, onToggleStatus, onLoadPrintings,
 }: DeckListItemProps) {
   return (
-    <Card>
+    <Card size="sm">
       <CardHeader
         className="cursor-pointer hover:bg-accent/50 rounded-t-lg"
         onClick={() => onToggle(deck.id)}
