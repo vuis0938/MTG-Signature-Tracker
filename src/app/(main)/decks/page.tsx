@@ -551,10 +551,10 @@ export default function DecksPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg sm:text-xl lg:text-2xl font-semibold tracking-tight">套牌管理</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">管理你的套牌与签绘清单</p>
+          <h1 className="text-2xl font-semibold tracking-tight">套牌管理</h1>
+          <p className="text-muted-foreground">管理你的套牌与签绘清单</p>
         </div>
         <Button
           onClick={() => {
@@ -781,7 +781,7 @@ function DeckListItem({
               <ChevronRight className="h-4 w-4" />
             )}
             <div>
-              <CardTitle className="text-sm sm:text-base">{deck.name}</CardTitle>
+              <CardTitle className="text-base">{deck.name}</CardTitle>
               <CardDescription>
                 {stats && (
                   <>
