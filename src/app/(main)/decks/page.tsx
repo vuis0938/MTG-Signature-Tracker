@@ -969,14 +969,6 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
         }`}
         title={statusLabels[status]}
       >
-        {/* 心动活动标签 — 非紧凑模式在顶部显示 */}
-        {status === 3 && card.event_name && !isCompact && (
-          <div className="absolute top-0 left-0 right-0 z-10 bg-pink-500/90 text-white text-xs px-1 py-0.5 text-center leading-tight">
-            ♥ {card.event_name}
-            {card.event_date && ` · ${card.event_date}`}
-          </div>
-        )}
-
         <div className={hasOverlay ? "opacity-75" : ""}>
           {card.image_url ? (
             <img src={card.image_url} alt={card.card_name} className="w-full" loading="lazy" />
@@ -1007,29 +999,23 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
             </div>
           )
         ) : (
-          status === 3 && card.event_name && (
-            <div className="absolute bottom-0 left-0 right-0 bg-pink-500/90 text-white text-xs px-1 py-0.5 text-center leading-tight truncate z-10">
-              ♥ {card.event_name}
-            </div>
-          )
-        )}
-      </div>
-
-      {/* 右上角：切换版本按钮 + 数量角标 */}
-      <div className="absolute top-0.5 right-0.5 z-20 flex flex-col items-end gap-1">
-        <button
-          onClick={(e) => { e.stopPropagation(); onLoadPrintings(card, allIds); }}
-          className={isCompact ? "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-background/80 border shadow-sm flex items-center justify-center hover:bg-accent hover:scale-110 transition-all" : "w-6 h-6 rounded-full bg-background/80 border shadow-sm flex items-center justify-center hover:bg-accent hover:scale-110 transition-all"}
-          title="切换印刷版本"
-        >
-          <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
-        </button>
-        {count > 1 && (
-          <div className="bg-black/80 text-white text-xs font-bold px-1.5 py-0.5 rounded-md leading-tight">
-            ×{count}
+          <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 text-center truncate">
+            {card.card_name}
           </div>
         )}
       </div>
+
+      {/* 合并按钮：数量 + 切换版本 — 左上角 */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onLoadPrintings(card, allIds); }}
+        className={`absolute top-0.5 left-0.5 z-20 ${isCompact ? "h-5 sm:h-6" : "h-6"} bg-background/80 border border-border shadow-sm flex items-center justify-center gap-1 px-1.5 rounded-md hover:bg-accent hover:scale-105 transition-all`}
+        title="切换印刷版本"
+      >
+        {count > 1 && (
+          <span className="text-xs font-bold text-foreground leading-tight">×{count}</span>
+        )}
+        <RefreshCw className={`${isCompact ? "h-3 w-3 sm:h-3.5 sm:w-3.5" : "h-3.5 w-3.5"} text-muted-foreground`} />
+      </button>
     </div>
   );
 }
