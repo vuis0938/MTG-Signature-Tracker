@@ -1041,7 +1041,7 @@ function StatusBadge({ status, isInDeck }: { status: number; isInDeck: boolean }
   return (
     <div className="absolute inset-0 flex items-center justify-center">
       <div className={"w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg -translate-y-2 " + (status === 3 ? "bg-pink-500" : status === 1 ? "bg-blue-500" : status === 2 ? "bg-green-600" : "bg-green-500")}>
-        {status === 3 ? "♥" : status === 1 ? "…" : status === 2 ? "✓" : "✓"}
+        {status === 3 ? "\u2665\uFE0E" : status === 1 ? "…" : status === 2 ? "✓" : "✓"}
       </div>
     </div>
   );

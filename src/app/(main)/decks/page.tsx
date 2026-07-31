@@ -945,7 +945,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
   };
   const hasOverlay = status >= 1;
   const overlayColor: Record<number, string> = { 1: "bg-blue-500", 2: "bg-green-500", 3: "bg-pink-500" };
-  const overlayIcon: Record<number, string> = { 1: "…", 2: "✓", 3: "♥" };
+  const overlayIcon: Record<number, string> = { 1: "…", 2: "✓", 3: "\u2665\uFE0E" };
   const isCompact = deckLayout === "compact";
 
   /** 点击切换状态：合并模式下批量切换所有同款卡牌 */
