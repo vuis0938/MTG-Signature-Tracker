@@ -39,6 +39,15 @@ export const THEME_COLORS: ThemeColor[] = [
     swatch: "#0284c7",
   },
   {
+    id: "slate",
+    name: "石板蓝",
+    lightPrimary: "oklch(0.623 0.188 260)",
+    lightRing: "oklch(0.646 0.166 260)",
+    darkPrimary: "oklch(0.708 0.165 260)",
+    darkRing: "oklch(0.664 0.148 260)",
+    swatch: "#3b82f6",
+  },
+  {
     id: "cobalt",
     name: "钴蓝",
     lightPrimary: "oklch(0.48 0.19 265)",
@@ -46,24 +55,6 @@ export const THEME_COLORS: ThemeColor[] = [
     darkPrimary: "oklch(0.63 0.18 265)",
     darkRing: "oklch(0.58 0.15 265)",
     swatch: "#1d4ed8",
-  },
-  {
-    id: "slate",
-    name: "石板蓝",
-    lightPrimary: "oklch(0.50 0.16 255)",
-    lightRing: "oklch(0.53 0.14 255)",
-    darkPrimary: "oklch(0.65 0.17 255)",
-    darkRing: "oklch(0.60 0.14 255)",
-    swatch: "#3b82f6",
-  },
-  {
-    id: "brown",
-    name: "棕色",
-    lightPrimary: "oklch(0.48 0.08 55)",
-    lightRing: "oklch(0.51 0.06 55)",
-    darkPrimary: "oklch(0.62 0.08 55)",
-    darkRing: "oklch(0.56 0.06 55)",
-    swatch: "#8b5e3c",
   },
 ];
 
