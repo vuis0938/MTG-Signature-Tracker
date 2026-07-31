@@ -1102,7 +1102,7 @@ function VersionSwitchDialog({
 
               return (
                 <button
-                  key={`${printing.set}-${printing.collector_number}`}
+                  key={printing.set + "-" + printing.collector_number}
                   onClick={() => {
                     if (switchCard && !isCurrent && !isSwitching) {
                       onSwitchPrinting(switchCard.id, printing.set, printing.collector_number);
@@ -1119,7 +1119,7 @@ function VersionSwitchDialog({
                   {printing.image_url ? (
                     <img
                       src={printing.image_url}
-                      alt={`${printing.set_name} #${printing.collector_number}`}
+                      alt={printing.set_name + " #" + printing.collector_number}
                       className="w-full rounded-t-lg"
                       loading="lazy"
                     />
