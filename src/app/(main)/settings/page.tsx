@@ -268,16 +268,26 @@ export default function SettingsPage() {
                 Scryfall
               </a>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
               <span className="text-muted-foreground">活动信息</span>
-              <a
-                href="https://mtgartistconnection.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
-              >
-                MTG Artist Connection
-              </a>
+              <div className="flex flex-col items-end gap-0.5">
+                <a
+                  href="https://mtgartistconnection.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  MTG Artist Connection
+                </a>
+                <a
+                  href="https://mountainmagesigs.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  Mountain Mage Signatures
+                </a>
+              </div>
             </div>
           </div>
         </CardContent>
