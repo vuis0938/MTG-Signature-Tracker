@@ -279,7 +279,11 @@ export default function DecksPage() {
 
       if (data.success) {
         setFailedCards((prev) => prev.filter((c) => c.name !== cardName));
-        showToast(`「${cardName}」通过模糊搜索成功录入`, "success");
+        if (data.note) {
+          showToast(`「${cardName}」已录入（版本不同，请核对）`, "success");
+        } else {
+          showToast(`「${cardName}」已录入`, "success");
+        }
         await loadDecks();
         if (expandedDeck === retryingDeckId) {
           const { data: freshCards } = await supabase
@@ -631,7 +635,8 @@ export default function DecksPage() {
               {failedCards.length} 张卡牌未找到
             </CardTitle>
             <CardDescription>
-              精确定位失败，可手动触发模糊搜索。注意：模糊搜索可能返回不同版本，请确认画家是否正确。
+              未精确匹配到以下卡牌，可尝试搜索<br />
+              搜索可能返回不同版本，请核对
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -655,7 +660,7 @@ export default function DecksPage() {
                     disabled={retryingCard === card.name}
                     onClick={() => retryCard(card.name, card.setCode, card.collectorNumber)}
                   >
-                    {retryingCard === card.name ? "搜索中..." : "模糊搜索"}
+                    {retryingCard === card.name ? "搜索中..." : "尝试搜索"}
                   </Button>
                 </div>
               ))}
