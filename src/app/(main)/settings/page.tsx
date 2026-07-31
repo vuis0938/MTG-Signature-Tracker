@@ -14,7 +14,7 @@ import {
 import { useDisplayMode } from "@/lib/display-mode";
 import { useDeckLayout, type DeckLayout } from "@/lib/deck-layout";
 import { useUser } from "@/lib/user-context";
-import { LogOut, Download, Trash2, User, Info, Layout, Columns, Grid3X3, List } from "lucide-react";
+import { LogOut, Download, Trash2, User, Info, Layout, Columns, Grid3X3, List, Layers } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -152,7 +152,7 @@ export default function SettingsPage() {
               size="sm"
               onClick={toggleDisplayMode}
             >
-              <Layout className="h-4 w-4 mr-2" />
+              {displayMode === "individual" ? <Grid3X3 className="h-4 w-4 mr-2" /> : <Layers className="h-4 w-4 mr-2" />}
               {displayMode === "individual" ? "独立展示" : "合并展示"}
             </Button>
           </div>
