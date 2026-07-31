@@ -156,41 +156,29 @@ export default function SettingsPage() {
               {displayMode === "individual" ? "合并展示" : "独立展示"}
             </Button>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* 卡片排版 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Columns className="h-4 w-4" />
-            卡片排版
-          </CardTitle>
-          <CardDescription>套牌管理界面的卡牌展示方式</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-2">
-            {([
-              { value: "default" as DeckLayout, icon: Grid3X3, label: "默认", desc: "宽网格" },
-              { value: "compact" as DeckLayout, icon: Columns, label: "紧凑", desc: "自适应" },
-              { value: "list" as DeckLayout, icon: List, label: "列表", desc: "高密度" },
-            ]).map(({ value, icon: Icon, label, desc }) => (
-              <button
-                key={value}
-                onClick={() => setDeckLayout(value)}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border text-sm transition-all ${
-                  deckLayout === value
-                    ? "border-primary bg-primary/10 text-primary font-medium"
-                    : "border-border hover:bg-accent text-muted-foreground"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                <span>
-                  {label}
-                  <span className="hidden sm:inline text-xs ml-1.5 opacity-60">{desc}</span>
-                </span>
-              </button>
-            ))}
+          <div className="flex items-center justify-between border-t pt-3">
+            <div>
+              <p className="text-sm font-medium">卡片排版</p>
+              <p className="text-xs text-muted-foreground">
+                {deckLayout === "default"
+                  ? "当前：默认 — 宽松网格"
+                  : deckLayout === "compact"
+                  ? "当前：紧凑 — 自适应网格"
+                  : "当前：列表 — 高密度列表"}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const next: DeckLayout = deckLayout === "default" ? "compact" : deckLayout === "compact" ? "list" : "default";
+                setDeckLayout(next);
+              }}
+            >
+              {deckLayout === "default" ? <Columns className="h-4 w-4 mr-2" /> : deckLayout === "compact" ? <List className="h-4 w-4 mr-2" /> : <Grid3X3 className="h-4 w-4 mr-2" />}
+              {deckLayout === "default" ? "紧凑" : deckLayout === "compact" ? "列表" : "默认"}
+            </Button>
           </div>
         </CardContent>
       </Card>
