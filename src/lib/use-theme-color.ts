@@ -30,40 +30,40 @@ export const THEME_COLORS: ThemeColor[] = [
     swatch: "#0ea5e9",
   },
   {
-    id: "indigo",
-    name: "靛蓝",
-    lightPrimary: "oklch(0.50 0.18 265)",
-    lightRing: "oklch(0.55 0.15 265)",
-    darkPrimary: "oklch(0.65 0.20 265)",
-    darkRing: "oklch(0.60 0.15 265)",
-    swatch: "#6366f1",
+    id: "ocean",
+    name: "海蓝",
+    lightPrimary: "oklch(0.52 0.17 220)",
+    lightRing: "oklch(0.55 0.15 220)",
+    darkPrimary: "oklch(0.66 0.16 220)",
+    darkRing: "oklch(0.60 0.14 220)",
+    swatch: "#0284c7",
   },
   {
-    id: "violet",
-    name: "紫罗兰",
-    lightPrimary: "oklch(0.52 0.20 295)",
-    lightRing: "oklch(0.56 0.16 295)",
-    darkPrimary: "oklch(0.68 0.18 295)",
-    darkRing: "oklch(0.62 0.15 295)",
-    swatch: "#a855f7",
+    id: "cobalt",
+    name: "钴蓝",
+    lightPrimary: "oklch(0.50 0.16 255)",
+    lightRing: "oklch(0.53 0.14 255)",
+    darkPrimary: "oklch(0.65 0.17 255)",
+    darkRing: "oklch(0.60 0.14 255)",
+    swatch: "#3b82f6",
   },
   {
-    id: "emerald",
-    name: "翠绿",
-    lightPrimary: "oklch(0.52 0.15 160)",
-    lightRing: "oklch(0.56 0.13 160)",
-    darkPrimary: "oklch(0.68 0.15 160)",
-    darkRing: "oklch(0.62 0.13 160)",
-    swatch: "#10b981",
+    id: "slate",
+    name: "石板蓝",
+    lightPrimary: "oklch(0.50 0.05 250)",
+    lightRing: "oklch(0.53 0.04 250)",
+    darkPrimary: "oklch(0.65 0.05 250)",
+    darkRing: "oklch(0.58 0.04 250)",
+    swatch: "#64748b",
   },
   {
-    id: "amber",
-    name: "琥珀",
-    lightPrimary: "oklch(0.60 0.14 75)",
-    lightRing: "oklch(0.62 0.12 75)",
-    darkPrimary: "oklch(0.72 0.14 75)",
-    darkRing: "oklch(0.66 0.12 75)",
-    swatch: "#f59e0b",
+    id: "brown",
+    name: "棕色",
+    lightPrimary: "oklch(0.48 0.08 55)",
+    lightRing: "oklch(0.51 0.06 55)",
+    darkPrimary: "oklch(0.62 0.08 55)",
+    darkRing: "oklch(0.56 0.06 55)",
+    swatch: "#8b5e3c",
   },
 ];
 
@@ -95,12 +95,15 @@ export function useThemeColor() {
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const theme = THEME_COLORS.find((t) => t.id === stored);
-        if (theme) {
-          setThemeId(stored);
-          applyThemeColor(theme);
-        }
+      const theme = stored
+        ? THEME_COLORS.find((t) => t.id === stored)
+        : undefined;
+      const resolved = theme || THEME_COLORS[0];
+      setThemeId(resolved.id);
+      applyThemeColor(resolved);
+      if (!theme) {
+        // 存储的主题已被移除，回写默认值
+        localStorage.setItem(STORAGE_KEY, resolved.id);
       }
     } catch {
       // localStorage 不可用时忽略
