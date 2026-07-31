@@ -921,7 +921,7 @@ function ExactMatchResults({ matched, displayMode, toggleStatus }: {
       {Array.from(matched).map(([artist, cards]) => (
         <div key={artist}>
           <h3 className="text-base font-semibold mb-3">
-            <Palette className="inline h-4 w-4 mr-1 text-primary" /> {artist} ← 出席！<span className="ml-2 text-base font-normal text-muted-foreground">({cards.length} 张)</span>
+            <Palette className="inline-block h-4 w-4 mr-1 text-foreground align-text-bottom" /> {artist} ← 出席！<span className="ml-2 text-base font-normal text-muted-foreground">({cards.length} 张)</span>
           </h3>
           {(() => {
             const byDeck = new Map<string, CardEntry[]>();
@@ -982,7 +982,7 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
         return (
           <div key={artist}>
             <h3 className="text-base font-semibold mb-3">
-              <Palette className="inline h-4 w-4 mr-1 text-primary" /> {artist} ← 出席！
+              <Palette className="inline-block h-4 w-4 mr-1 text-foreground align-text-bottom" /> {artist} ← 出席！
               <span className="ml-2 text-base font-normal text-muted-foreground">
                 ({entries.length} 个版本{deckCount > 0 && `，${deckCount} 张在套牌中`})
               </span>

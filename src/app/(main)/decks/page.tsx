@@ -890,7 +890,7 @@ function DeckListItem({
                 return (
                   <div key={artist}>
                     <h4 className={"text-base font-medium " + (deckLayout === "compact" ? "mb-1 sm:mb-1.5 truncate" : "mb-2")}>
-                      <Palette className={"inline h-4 w-4 mr-1 text-primary " + (deckLayout === "compact" ? "hidden sm:inline-block" : "")} />{artist} ({artistCards.length})
+                      <Palette className={"inline-block h-4 w-4 mr-1 text-foreground align-text-bottom " + (deckLayout === "compact" ? "hidden sm:inline-block" : "")} />{artist} ({artistCards.length})
                     </h4>
                     <div className={deckLayout === "compact" ? "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1 sm:gap-1.5 lg:gap-2" : "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 sm:gap-3 lg:gap-4"}>
                       {displayCards.map((group) => (
