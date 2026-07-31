@@ -643,7 +643,7 @@ export default function MatchPage() {
             <Button
                 variant={parsing || !rawText.trim() ? "outline" : "default"}
                 size="sm"
-                className={parsing || !rawText.trim() ? "bg-accent border-black hover:bg-accent/70" : "bg-black hover:bg-black/80"}
+                className={parsing || !rawText.trim() ? "border-primary/30 text-primary hover:bg-primary/10" : "bg-primary hover:bg-primary/90"}
                 onClick={handleParse}
                 disabled={parsing || !rawText.trim()}
               >
@@ -664,7 +664,7 @@ export default function MatchPage() {
                   key={a}
                   variant="outline"
                   size="sm"
-                  className="bg-accent border-black hover:bg-accent/70"
+                  className="border-primary/30 text-primary hover:bg-primary/10"
                   onClick={() => handleArtistClick(a)}
                 >
                   {a}
@@ -693,7 +693,7 @@ export default function MatchPage() {
                 key={deck.id}
                 variant="outline"
                 size="sm"
-                className={selectedDecks.has(deck.id) ? "bg-black text-white hover:bg-black/80" : "bg-accent border-black hover:bg-accent/70"}
+                className={selectedDecks.has(deck.id) ? "bg-primary text-primary-foreground hover:bg-primary/90" : "border-primary/30 text-primary hover:bg-primary/10"}
                 onClick={() => toggleDeck(deck.id)}
               >
                 {selectedDecks.has(deck.id) ? <CheckSquare className="h-4 w-4 mr-2" /> : <Square className="h-4 w-4 mr-2" />}
@@ -707,7 +707,7 @@ export default function MatchPage() {
             <Button
                 variant={matching || parsedArtists.length === 0 || selectedDecks.size === 0 ? "outline" : "default"}
                 size="sm"
-                className={matching || parsedArtists.length === 0 || selectedDecks.size === 0 ? "bg-accent border-black hover:bg-accent/70" : "bg-black hover:bg-black/80"}
+                className={matching || parsedArtists.length === 0 || selectedDecks.size === 0 ? "border-primary/30 text-primary hover:bg-primary/10" : "bg-primary hover:bg-primary/90"}
                 onClick={handleMatch}
                 disabled={matching || parsedArtists.length === 0 || selectedDecks.size === 0}
               >
@@ -853,7 +853,7 @@ function MatchResultCard({
             </CardDescription>
           </div>
           {!matching && matchedCount > 0 && (
-            <Button variant="outline" size="sm" className="bg-accent border-black hover:bg-accent/70" onClick={exportText}>
+            <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/10" onClick={exportText}>
               <Download className="h-4 w-4 mr-2" />导出清单
             </Button>
           )}

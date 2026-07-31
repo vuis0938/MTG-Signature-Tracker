@@ -168,7 +168,7 @@ export default function EventsPage() {
                           key={artist}
                           variant="outline"
                           size="sm"
-                          className="bg-accent border-black hover:bg-accent/70"
+                          className="border-primary/30 text-primary hover:bg-primary/10"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleArtistClick(artist);

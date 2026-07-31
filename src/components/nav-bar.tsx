@@ -53,7 +53,7 @@ export function NavBar() {
                 className={cn(
                   "inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors",
                   isActive
-                    ? "bg-accent text-accent-foreground"
+                    ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                 )}
               >
