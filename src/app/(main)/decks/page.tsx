@@ -896,7 +896,7 @@ function DeckListItem({
                     <h4 className={"text-base font-medium " + (deckLayout === "compact" ? "mb-1 sm:mb-1.5 truncate" : "mb-2")}>
                       {deckLayout === "compact" ? <span className="hidden sm:inline">🎨 </span> : "🎨 "}{artist} ({artistCards.length})
                     </h4>
-                    <div className={deckLayout === "compact" ? "grid grid-cols-2 gap-1 sm:gap-1.5 lg:gap-2" : "flex flex-wrap gap-3"}>
+                    <div className={deckLayout === "compact" ? "grid grid-cols-2 gap-1 sm:gap-1.5 lg:gap-2" : "grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:gap-3"}>
                       {displayCards.map((group) => (
                         <CardThumbnail
                           key={group.ids[0]}
@@ -957,7 +957,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
   }
 
   return (
-    <div className={isCompact ? "group relative w-full" : "group relative w-24"}>
+    <div className={isCompact ? "group relative w-full" : "group relative w-full sm:w-24"}>
       <div
         onClick={handleToggle}
         className={"relative rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 " + (hasOverlay ? (status === 3 ? "border-pink-400" : status === 1 ? "border-blue-400" : "border-green-500") : "border-border hover:shadow-md")}
