@@ -436,10 +436,10 @@ export default function MatchPage() {
       });
       if (fuzzyRes.ok) return await fuzzyRes.json();
       console.error(`[模糊匹配] API 返回错误状态: ${fuzzyRes.status}`);
-      setMatchError("模糊匹配服务暂时不可用，已降级为精确匹配结果。请稍后再试。");
+      setMatchError("模糊匹配暂时不可用，已显示精确匹配结果");
     } catch (err: unknown) {
       console.error("[模糊匹配] API 调用异常:", err instanceof Error ? err.message : String(err));
-      setMatchError("模糊匹配服务网络异常，已降级为精确匹配结果。请稍后再试。");
+      setMatchError("模糊匹配网络异常，已显示精确匹配结果");
     }
     return { success: false };
   }
@@ -730,8 +730,8 @@ export default function MatchPage() {
           {fuzzyMode && (
             <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
               <Sparkles className="h-3 w-3 inline mr-1" />
-              模糊匹配会搜索套牌中每张卡牌的<strong>所有印刷版本</strong>，扩大匹配范围。
-              例如：你的套牌中有一张异画版「脑力激荡」，开启后将匹配<strong>所有画过脑力激荡</strong>的画家，而非仅限当前版本的画家。
+              模糊匹配会搜索每张卡牌的<strong>所有印刷版本</strong>，扩大匹配范围<br />
+              例如：套牌中有异画版「脑力激荡」，开启后将匹配<strong>所有画过该牌的画家</strong>
             </p>
           )}
         </CardContent>
@@ -838,7 +838,7 @@ function MatchResultCard({
               匹配结果
               {fuzzyMode && (
                 <span className="ml-2 text-sm font-normal text-amber-500">
-                  <Sparkles className="h-4 w-4 inline mr-1" />模糊
+                  <Sparkles className="h-4 w-4 inline mr-1" />模糊模式
                 </span>
               )}
             </CardTitle>
