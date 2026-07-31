@@ -839,7 +839,7 @@ function DeckListItem({
                 if (deckLayout === "list") {
                   return (
                     <div key={artist}>
-                      <h4 className="text-xs font-semibold mb-1.5 text-foreground/80 tracking-wide">
+                      <h4 className="text-sm font-semibold mb-1.5 text-foreground/80 tracking-wide">
                         {artist}
                         <span className="text-muted-foreground font-normal ml-1">({artistCards.length})</span>
                       </h4>
@@ -893,7 +893,7 @@ function DeckListItem({
                 // 网格视图（默认 & 紧凑）
                 return (
                   <div key={artist}>
-                    <h4 className={deckLayout === "compact" ? "text-xs font-medium mb-1 sm:mb-1.5 truncate" : "text-sm font-medium mb-2"}>
+                    <h4 className={"text-sm font-medium " + (deckLayout === "compact" ? "mb-1 sm:mb-1.5 truncate" : "mb-2")}>
                       {deckLayout === "compact" ? <span className="hidden sm:inline">🎨 </span> : "🎨 "}{artist} ({artistCards.length})
                     </h4>
                     <div className={deckLayout === "compact" ? "grid grid-cols-2 gap-1 sm:gap-1.5 lg:gap-2" : "flex flex-wrap gap-3"}>
@@ -981,18 +981,18 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
           </div>
         )}
 
-        {/* 底部信息条 — 有活动时双行（活动名 + 卡牌名），无活动时单行卡牌名，统一 10px */}
+        {/* 底部信息条 — 有活动时双行（活动名 + 卡牌名），无活动时单行卡牌名 */}
         {card.event_name ? (
           <div className="absolute bottom-0 left-0 right-0 z-10">
-            <div className={(status === 3 ? "bg-pink-500/90" : "bg-black/75") + " text-white text-[10px] px-1 py-0.5 text-center leading-tight truncate"}>
+            <div className={(status === 3 ? "bg-pink-500/90" : "bg-black/75") + " text-white text-xs px-1 py-0.5 text-center leading-tight truncate"}>
               {card.event_name}
             </div>
-            <div className="bg-black/80 text-white text-[10px] px-1 py-0.5 text-center leading-tight truncate">
+            <div className="bg-black/80 text-white text-xs px-1 py-0.5 text-center leading-tight truncate">
               {card.card_name}
             </div>
           </div>
         ) : (
-          <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-[10px] px-1 py-0.5 text-center leading-tight truncate">
+          <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs px-1 py-0.5 text-center leading-tight truncate">
             {card.card_name}
           </div>
         )}
@@ -1005,7 +1005,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
         title="切换印刷版本"
       >
         {count > 1 && (
-          <span className="text-[10px] font-bold text-foreground leading-tight">×{count}</span>
+          <span className="text-xs font-bold text-foreground leading-tight">×{count}</span>
         )}
         <RefreshCw className={(isCompact ? "h-3 w-3 sm:h-3.5 sm:w-3.5" : "h-3.5 w-3.5") + " text-foreground"} />
       </button>

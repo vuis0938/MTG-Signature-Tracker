@@ -417,7 +417,7 @@ export default function VerifyPage() {
                     onClick={() => toggleTag(line.index)}
                     className={`flex items-center gap-2 px-1 py-0.5 rounded my-0.5 cursor-pointer hover:ring-1 hover:ring-ring transition-all ${tag.color}`}
                   >
-                    <span className="shrink-0 text-[10px] font-medium px-1 py-0 rounded bg-background/50">
+                    <span className="shrink-0 text-xs font-medium px-1 py-0 rounded bg-background/50">
                       {tag.label}
                     </span>
                     {line.tag === "section" && (
