@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
       timedOut: isTimedOut,
       timedOutCards: isTimedOut ? timedOutCards : undefined,
       hint: isTimedOut
-        ? `超时保护：${timedOutCards.length} 张卡牌未处理，已导入的 ${successCount} 张已保存。请将剩余卡牌通过「添加卡牌」重新导入`
+        ? `成功导入 ${successCount} 张，${timedOutCards.length} 张未查到，可通过「添加卡牌」补充`
         : undefined,
       timing: {
         total: `${tTotal}s`,

@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
       timedOut: isTimedOut,
       timedOutCards: isTimedOut ? timedOutCards : undefined,
       hint: isTimedOut
-        ? `超时保护：${timedOutCards.length} 张卡牌未处理，已添加的 ${successCount} 张已保存。请将剩余卡牌重新添加`
+        ? `成功添加 ${successCount} 张，${timedOutCards.length} 张未查到，可重新添加补充`
         : undefined,
     });
   } catch (error) {
