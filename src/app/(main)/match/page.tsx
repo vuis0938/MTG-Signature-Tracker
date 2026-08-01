@@ -702,9 +702,7 @@ export default function MatchPage() {
           />
           <div className="flex items-center gap-3">
             <Button
-                variant={parsing || !rawText.trim() ? "outline" : "default"}
                 size="sm"
-                className={parsing || !rawText.trim() ? "border-primary/30 text-primary hover:bg-primary/10" : "bg-primary hover:bg-primary/90"}
                 onClick={handleParse}
                 disabled={parsing || !rawText.trim()}
               >
@@ -723,11 +721,11 @@ export default function MatchPage() {
               {parsedArtists.map((a) => (
                 <Button
                   key={a}
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
-                  className="border-primary/30 text-primary hover:bg-primary/10"
                   onClick={() => handleArtistClick(a)}
                 >
+                  <Palette className="h-3.5 w-3.5 mr-1.5" />
                   {a}
                 </Button>
               ))}
@@ -766,27 +764,21 @@ export default function MatchPage() {
 
           <div className="flex items-center gap-3">
             <Button
-                variant={matching || parsedArtists.length === 0 || selectedDecks.size === 0 ? "outline" : "default"}
                 size="sm"
-                className={matching || parsedArtists.length === 0 || selectedDecks.size === 0 ? "border-primary/30 text-primary hover:bg-primary/10" : "bg-primary hover:bg-primary/90"}
                 onClick={handleMatch}
                 disabled={matching || parsedArtists.length === 0 || selectedDecks.size === 0}
               >
                 <Play className="h-4 w-4 mr-2" />
                 {matching ? "匹配中..." : "开始匹配"}
               </Button>
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={fuzzyMode}
-                onChange={(e) => setFuzzyMode(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 accent-primary cursor-pointer"
-              />
-              <span className="text-sm flex items-center gap-1">
-                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+            <Button
+                variant={fuzzyMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFuzzyMode(!fuzzyMode)}
+              >
+                <Sparkles className="h-3.5 w-3.5 mr-1.5" />
                 模糊匹配
-              </span>
-            </label>
+              </Button>
           </div>
           {fuzzyMode && (
             <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
@@ -913,11 +905,6 @@ function MatchResultCard({
               )}
             </CardDescription>
           </div>
-          {!matching && matchedCount > 0 && (
-            <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/10" onClick={exportText}>
-              <Download className="h-4 w-4 mr-2" />导出清单
-            </Button>
-          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -950,6 +937,14 @@ function MatchResultCard({
                 <span key={a} className="px-2 py-1 bg-accent text-muted-foreground rounded text-sm line-through">{a}</span>
               ))}
             </div>
+          </div>
+        )}
+
+        {!matching && matchedCount > 0 && (
+          <div className="pt-4 border-t mt-4 flex justify-end">
+            <Button variant="outline" size="sm" onClick={exportText}>
+              <Download className="h-4 w-4 mr-2" />导出清单
+            </Button>
           </div>
         )}
       </CardContent>
