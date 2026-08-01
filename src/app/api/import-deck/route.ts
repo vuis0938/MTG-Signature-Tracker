@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     const rows = parseMoxfieldFormat(text);
     if (rows.length === 0) {
       return NextResponse.json(
-        { error: "未识别到有效卡牌。支持 Moxfield 的 Copy for Moxfield / Arena / MTGO / Plain Text 格式" },
+        { error: "未识别到卡牌，请粘贴纯文本套牌内容" },
         { status: 400 }
       );
     }
