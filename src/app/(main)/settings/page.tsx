@@ -272,7 +272,7 @@ export default function SettingsPage() {
                 href="https://scryfall.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary hover:underline"
+                className="text-foreground underline hover:text-primary"
               >
                 Scryfall
               </a>
@@ -284,7 +284,7 @@ export default function SettingsPage() {
                   href="https://mtgartistconnection.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-primary hover:underline"
+                  className="text-foreground underline hover:text-primary"
                 >
                   MTG Artist Connection
                 </a>
@@ -292,7 +292,7 @@ export default function SettingsPage() {
                   href="https://mountainmagesigs.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-primary hover:underline"
+                  className="text-foreground underline hover:text-primary"
                 >
                   Mountain Mage Signatures
                 </a>
