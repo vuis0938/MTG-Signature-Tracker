@@ -752,7 +752,7 @@ export default function MatchPage() {
                 key={deck.id}
                 variant="outline"
                 size="sm"
-                className={selectedDecks.has(deck.id) ? "border-primary bg-primary/10 text-primary hover:bg-primary/15" : "border-border text-muted-foreground hover:bg-accent"}
+                className={selectedDecks.has(deck.id) ? "border-primary bg-primary/10 text-primary hover:bg-primary/20" : "border-border text-muted-foreground hover:bg-accent"}
                 onClick={() => toggleDeck(deck.id)}
               >
                 {selectedDecks.has(deck.id) ? <CheckSquare className="h-4 w-4 mr-2" /> : <Square className="h-4 w-4 mr-2" />}
@@ -774,7 +774,7 @@ export default function MatchPage() {
             <Button
                 variant="outline"
                 size="sm"
-                className={fuzzyMode ? "border-primary bg-primary/10 text-primary hover:bg-primary/15" : "border-border text-muted-foreground hover:bg-accent"}
+                className={fuzzyMode ? "border-primary bg-primary/10 text-primary hover:bg-primary/20" : "border-border text-muted-foreground hover:bg-accent"}
                 onClick={() => setFuzzyMode(!fuzzyMode)}
               >
                 {fuzzyMode ? <Sparkles className="h-3.5 w-3.5 mr-1.5" /> : <Sparkle className="h-3.5 w-3.5 mr-1.5" />}
@@ -907,7 +907,7 @@ function MatchResultCard({
             </CardDescription>
           </div>
           {!matching && matchedCount > 0 && (
-            <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/10" onClick={exportText}>
+            <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/20" onClick={exportText}>
               <Download className="h-4 w-4 mr-2" />导出清单
             </Button>
           )}
@@ -1046,7 +1046,7 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
             <h3 className="text-base font-semibold mb-3 flex items-center gap-1">
               <Palette className="h-4 w-4 text-foreground shrink-0" /> {artist} ← 出席！
               <span className="ml-2 text-base font-normal text-muted-foreground">
-                ({entries.length} 个版本{deckCount > 0 && `，${deckCount} 张在套牌中`})
+                ({entries.length} 个版本)
               </span>
             </h3>
 

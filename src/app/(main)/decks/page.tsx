@@ -863,7 +863,7 @@ function DeckListItem({
                           return (
                             <div
                               key={group.ids[0]}
-                              className={"flex items-center gap-3 px-3 py-1.5 hover:bg-accent/60 transition-colors cursor-pointer group/list " + (idx !== displayCards.length - 1 ? "border-b border-border/40" : "")}
+                              className={"flex items-center gap-3 px-3 py-1.5 hover:bg-accent/50 transition-colors cursor-pointer group/list " + (idx !== displayCards.length - 1 ? "border-b border-border/40" : "")}
                               onClick={() => {
                                 const ids = group.ids.length > 0 ? group.ids : [group.card.id];
                                 for (const id of ids) onToggleStatus(id, s, deck.id);

@@ -232,7 +232,7 @@ export default function SettingsPage() {
 
           <div className="flex items-center justify-between border-t pt-3">
             <div>
-              <p className="text-sm font-medium text-destructive">清除所有数据</p>
+              <p className="text-sm font-medium">清除所有数据</p>
               <p className="text-xs text-muted-foreground">永久删除所有套牌和卡牌，不可恢复</p>
             </div>
             <Button
@@ -272,7 +272,7 @@ export default function SettingsPage() {
                 href="https://scryfall.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-foreground underline hover:text-primary"
+                className="text-foreground underline"
               >
                 Scryfall
               </a>
@@ -284,7 +284,7 @@ export default function SettingsPage() {
                   href="https://mtgartistconnection.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-foreground underline hover:text-primary"
+                  className="text-foreground underline"
                 >
                   MTG Artist Connection
                 </a>
@@ -292,7 +292,7 @@ export default function SettingsPage() {
                   href="https://mountainmagesigs.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-foreground underline hover:text-primary"
+                  className="text-foreground underline"
                 >
                   Mountain Mage Signatures
                 </a>
