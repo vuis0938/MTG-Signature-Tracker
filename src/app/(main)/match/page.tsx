@@ -14,7 +14,7 @@ import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/user";
 import { useDisplayMode } from "@/lib/display-mode";
 import { useToast } from "@/lib/toast-context";
-import { Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Palette, Package, Heart, Check, MoreHorizontal } from "lucide-react";
+import { Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Palette, Package, Heart, Check, MoreHorizontal, Lightbulb } from "lucide-react";
 import {
   Dialog,
   DialogHeader,
@@ -928,10 +928,18 @@ function MatchResultCard({
           </div>
         ) : matchedCount === 0 ? (
           <p className="text-muted-foreground text-center py-8">没有匹配到任何卡牌，请检查活动名单与套牌选择是否正确</p>
-        ) : fuzzyMode ? (
-          <FuzzyMatchResults fuzzyMatched={fuzzyMatched} toggleStatus={toggleStatus} />
         ) : (
-          <ExactMatchResults matched={matched} displayMode={displayMode} toggleStatus={toggleStatus} />
+          <>
+            <p className="text-xs text-muted-foreground flex items-center gap-1 mb-3">
+              <Lightbulb className="h-3.5 w-3.5 shrink-0" />
+              点击卡牌可切换状态：未签 → 心动 → 送签中
+            </p>
+            {fuzzyMode ? (
+              <FuzzyMatchResults fuzzyMatched={fuzzyMatched} toggleStatus={toggleStatus} />
+            ) : (
+              <ExactMatchResults matched={matched} displayMode={displayMode} toggleStatus={toggleStatus} />
+            )}
+          </>
         )}
 
         {!matching && unmatched.length > 0 && (
