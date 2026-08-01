@@ -13,6 +13,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/user";
 import { useDisplayMode } from "@/lib/display-mode";
+import { useToast } from "@/lib/toast-context";
 import { Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Palette, Package, Heart, Check, MoreHorizontal } from "lucide-react";
 import {
   Dialog,
@@ -61,6 +62,9 @@ export default function MatchPage() {
   const [artistCardsLoading, setArtistCardsLoading] = useState(false);
 
   const [hasRun, setHasRun] = useState(false);
+
+  // Toast
+  const { toast: showToast } = useToast();
 
   // Ref 锁定最新状态，避免闭包陷阱
   const selectedDecksRef = useRef(selectedDecks);
@@ -122,8 +126,35 @@ export default function MatchPage() {
 
   // ─── 事件处理 ──────────────────────────────────────────
 
-  async function loadEvents() {
-    if (eventsLoadedRef.current) return;
+  /** 检测解析的画家名单与已有活动的重合度，返回最佳匹配活动 */
+  function detectMatchingEvent(artists: string[], eventList: CalendarEvent[]): CalendarEvent | null {
+    if (artists.length === 0 || eventList.length === 0) return null;
+
+    const parsedSet = new Set(artists.map((a) => a.toLowerCase().trim()));
+
+    let bestEvent: CalendarEvent | null = null;
+    let bestRatio = 0;
+
+    for (const event of eventList) {
+      const eventSet = new Set(event.artists.map((a) => a.toLowerCase().trim()));
+      let overlap = 0;
+      for (const a of parsedSet) {
+        if (eventSet.has(a)) overlap++;
+      }
+      // 重合度 = 交集 / 解析画家数
+      const ratio = overlap / parsedSet.size;
+      if (ratio > bestRatio) {
+        bestRatio = ratio;
+        bestEvent = event;
+      }
+    }
+
+    // 重合度 >= 60% 视为高度重合
+    return bestRatio >= 0.6 ? bestEvent : null;
+  }
+
+  async function loadEvents(): Promise<CalendarEvent[]> {
+    if (eventsLoadedRef.current) return events;
     setLoadingEvents(true);
     try {
       const res = await fetch("/api/events");
@@ -131,12 +162,14 @@ export default function MatchPage() {
       if (data.success) {
         setEvents(data.events);
         eventsLoadedRef.current = true;
+        return data.events as CalendarEvent[];
       }
     } catch {
       eventsLoadedRef.current = false;
     } finally {
       setLoadingEvents(false);
     }
+    return [];
   }
 
   function selectEvent(eventId: string) {
@@ -175,6 +208,9 @@ export default function MatchPage() {
     if (!rawText.trim()) return;
     setParsing(true);
     try {
+      // 确保活动列表已加载（用于后续重合度检测）
+      const currentEvents = eventsLoadedRef.current ? events : await loadEvents();
+
       const res = await fetch("/api/parse-artists", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -185,6 +221,18 @@ export default function MatchPage() {
         setParsedArtists(data.artists);
         setParseMethod(data.method);
         resetMatchState();
+
+        // 检测解析的画家名单是否与已有活动高度重合
+        const matchedEvent = detectMatchingEvent(data.artists, currentEvents);
+        if (matchedEvent) {
+          setCurrentEvent(matchedEvent.name);
+          setCurrentEventDate(new Date(matchedEvent.startDate).toLocaleDateString("zh-CN"));
+          showToast(`检测到名单与活动「${matchedEvent.name}」高度重合，已自动关联`, "success");
+        } else {
+          // 未匹配到活动，清空之前的活动关联
+          setCurrentEvent("");
+          setCurrentEventDate("");
+        }
       }
     } catch {
       setParseMethod("");
