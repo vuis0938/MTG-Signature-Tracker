@@ -149,8 +149,8 @@ export default function MatchPage() {
       }
     }
 
-    // 重合度 >= 60% 视为高度重合
-    return bestRatio >= 0.6 ? bestEvent : null;
+    // 重合度 > 90% 视为高度重合
+    return bestRatio > 0.9 ? bestEvent : null;
   }
 
   async function loadEvents(): Promise<CalendarEvent[]> {
