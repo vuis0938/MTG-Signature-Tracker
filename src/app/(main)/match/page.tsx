@@ -132,8 +132,11 @@ export default function MatchPage() {
 
     const parsedSet = new Set(artists.map((a) => a.toLowerCase().trim()));
 
-    let bestEvent: CalendarEvent | null = null;
-    let bestRatio = 0;
+    // 分别记录展会(mtgac)和平台寄签(mountain_mage)的最佳匹配
+    let bestShowEvent: CalendarEvent | null = null;
+    let bestShowRatio = 0;
+    let bestPlatformEvent: CalendarEvent | null = null;
+    let bestPlatformRatio = 0;
 
     for (const event of eventList) {
       const eventSet = new Set(event.artists.map((a) => a.toLowerCase().trim()));
@@ -143,14 +146,24 @@ export default function MatchPage() {
       }
       // 重合度 = 交集 / 解析画家数
       const ratio = overlap / parsedSet.size;
-      if (ratio > bestRatio) {
-        bestRatio = ratio;
-        bestEvent = event;
+
+      if (event.source === "mtgac") {
+        if (ratio > bestShowRatio) {
+          bestShowRatio = ratio;
+          bestShowEvent = event;
+        }
+      } else {
+        if (ratio > bestPlatformRatio) {
+          bestPlatformRatio = ratio;
+          bestPlatformEvent = event;
+        }
       }
     }
 
-    // 重合度 > 90% 视为高度重合
-    return bestRatio > 0.9 ? bestEvent : null;
+    // 优先展会活动，其次平台寄签，均需 > 90%
+    if (bestShowRatio > 0.9) return bestShowEvent;
+    if (bestPlatformRatio > 0.9) return bestPlatformEvent;
+    return null;
   }
 
   async function loadEvents(): Promise<CalendarEvent[]> {
