@@ -14,7 +14,7 @@ import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/user";
 import { useDisplayMode } from "@/lib/display-mode";
 import { useToast } from "@/lib/toast-context";
-import { Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Palette, Package, Heart, Check, MoreHorizontal, Lightbulb } from "lucide-react";
+import { Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Sparkle, Palette, Package, Heart, Check, MoreHorizontal, Lightbulb } from "lucide-react";
 import {
   Dialog,
   DialogHeader,
@@ -777,7 +777,7 @@ export default function MatchPage() {
                 className={fuzzyMode ? "border-primary bg-primary/10 text-primary hover:bg-primary/15" : "border-border text-muted-foreground hover:bg-accent"}
                 onClick={() => setFuzzyMode(!fuzzyMode)}
               >
-                <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                {fuzzyMode ? <Sparkles className="h-3.5 w-3.5 mr-1.5" /> : <Sparkle className="h-3.5 w-3.5 mr-1.5" />}
                 模糊匹配
               </Button>
           </div>
