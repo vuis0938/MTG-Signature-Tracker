@@ -14,7 +14,7 @@ import {
   DialogTitle,
   DialogContent,
 } from "@/components/ui/dialog";
-import { Calendar, MapPin, Users, Loader2, Package } from "lucide-react";
+import { Calendar, MapPin, Users, Loader2, Package, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ArtistCard, CalendarEvent } from "@/types";
 
@@ -162,22 +162,28 @@ export default function EventsPage() {
                   {event.artists.length === 0 ? (
                     <p className="text-sm text-muted-foreground">暂无画家信息</p>
                   ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {event.artists.map((artist) => (
-                        <Button
-                          key={artist}
-                          variant="outline"
-                          size="sm"
-                          className="border-primary/30 text-primary hover:bg-primary/10"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleArtistClick(artist);
-                          }}
-                        >
-                          {artist}
-                        </Button>
-                      ))}
-                    </div>
+                    <>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mb-3">
+                        <Lightbulb className="h-3.5 w-3.5 shrink-0" />
+                        点击画家名可查看其全部卡牌
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {event.artists.map((artist) => (
+                          <Button
+                            key={artist}
+                            variant="outline"
+                            size="sm"
+                            className="border-border text-muted-foreground hover:bg-accent"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleArtistClick(artist);
+                            }}
+                          >
+                            {artist}
+                          </Button>
+                        ))}
+                      </div>
+                    </>
                   )}
                 </CardContent>
               )}
