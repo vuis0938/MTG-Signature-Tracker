@@ -752,7 +752,7 @@ export default function MatchPage() {
                 key={deck.id}
                 variant="outline"
                 size="sm"
-                className={selectedDecks.has(deck.id) ? "bg-primary text-primary-foreground hover:bg-primary/90" : "border-primary/30 text-primary hover:bg-primary/10"}
+                className={selectedDecks.has(deck.id) ? "border-primary bg-primary/10 text-primary hover:bg-primary/15" : "border-border text-muted-foreground hover:bg-accent"}
                 onClick={() => toggleDeck(deck.id)}
               >
                 {selectedDecks.has(deck.id) ? <CheckSquare className="h-4 w-4 mr-2" /> : <Square className="h-4 w-4 mr-2" />}
