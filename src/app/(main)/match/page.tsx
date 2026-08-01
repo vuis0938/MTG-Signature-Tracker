@@ -723,7 +723,7 @@ export default function MatchPage() {
                   key={a}
                   variant="outline"
                   size="sm"
-                  className="border-primary/30 text-primary hover:bg-primary/10"
+                  className="border-border text-muted-foreground hover:bg-accent"
                   onClick={() => handleArtistClick(a)}
                 >
                   {a}
