@@ -772,8 +772,9 @@ export default function MatchPage() {
                 {matching ? "匹配中..." : "开始匹配"}
               </Button>
             <Button
-                variant={fuzzyMode ? "default" : "outline"}
+                variant="outline"
                 size="sm"
+                className={fuzzyMode ? "border-primary bg-primary/10 text-primary hover:bg-primary/15" : "border-border text-muted-foreground hover:bg-accent"}
                 onClick={() => setFuzzyMode(!fuzzyMode)}
               >
                 <Sparkles className="h-3.5 w-3.5 mr-1.5" />
