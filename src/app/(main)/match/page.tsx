@@ -721,11 +721,11 @@ export default function MatchPage() {
               {parsedArtists.map((a) => (
                 <Button
                   key={a}
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
+                  className="border-primary/30 text-primary hover:bg-primary/10"
                   onClick={() => handleArtistClick(a)}
                 >
-                  <Palette className="h-3.5 w-3.5 mr-1.5" />
                   {a}
                 </Button>
               ))}
@@ -905,6 +905,11 @@ function MatchResultCard({
               )}
             </CardDescription>
           </div>
+          {!matching && matchedCount > 0 && (
+            <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/10" onClick={exportText}>
+              <Download className="h-4 w-4 mr-2" />导出清单
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -937,14 +942,6 @@ function MatchResultCard({
                 <span key={a} className="px-2 py-1 bg-accent text-muted-foreground rounded text-sm line-through">{a}</span>
               ))}
             </div>
-          </div>
-        )}
-
-        {!matching && matchedCount > 0 && (
-          <div className="pt-4 border-t mt-4 flex justify-end">
-            <Button variant="outline" size="sm" onClick={exportText}>
-              <Download className="h-4 w-4 mr-2" />导出清单
-            </Button>
           </div>
         )}
       </CardContent>
