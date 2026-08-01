@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, createContext, useContext } from "react";
+import type { ReactNode } from "react";
 
-const STORAGE_KEY = "mtg-theme-color-v2";
+const STORAGE_KEY = "mtg-theme-color-v3";
 
 export interface ThemeColor {
   id: string;
@@ -51,6 +52,25 @@ export const THEME_COLORS: ThemeColor[] = [
 
 const DEFAULT_THEME = "indigo";
 
+/** 获取默认主题对象 */
+function getDefaultTheme(): ThemeColor {
+  return THEME_COLORS.find((t) => t.id === DEFAULT_THEME) || THEME_COLORS[0];
+}
+
+/** 从 localStorage 读取并解析主题 */
+function readStoredTheme(): ThemeColor {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const found = THEME_COLORS.find((t) => t.id === stored);
+      if (found) return found;
+    }
+  } catch {
+    // localStorage 不可用时忽略
+  }
+  return getDefaultTheme();
+}
+
 function applyThemeColor(theme: ThemeColor) {
   const root = document.documentElement;
   root.style.setProperty("--primary", theme.lightPrimary);
@@ -68,38 +88,54 @@ function applyThemeColor(theme: ThemeColor) {
   }
 }
 
-/** 监听暗色模式切换，重新应用主题色 */
+// ─── Context ──────────────────────────────────────────────
+
+interface ThemeColorContextValue {
+  themeId: string;
+  setTheme: (id: string) => void;
+  toggleTheme: () => void;
+}
+
+const ThemeColorContext = createContext<ThemeColorContextValue>({
+  themeId: DEFAULT_THEME,
+  setTheme: () => {},
+  toggleTheme: () => {},
+});
+
+// ─── Provider（全局唯一实例） ─────────────────────────────
+
+/** 监听暗色模式切换，重新应用主题色（模块级单例） */
 let darkObserver: MutationObserver | null = null;
 
-export function useThemeColor() {
+export function ThemeColorProvider({ children }: { children: ReactNode }) {
   const [themeId, setThemeId] = useState<string>(DEFAULT_THEME);
 
   useEffect(() => {
+    const theme = readStoredTheme();
+    setThemeId(theme.id);
+    applyThemeColor(theme);
+
+    // 若存储的主题已被移除，回写默认值
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      const theme = stored
-        ? THEME_COLORS.find((t) => t.id === stored)
-        : undefined;
-      const resolved = theme || THEME_COLORS[0];
-      setThemeId(resolved.id);
-      applyThemeColor(resolved);
-      if (!theme) {
-        // 存储的主题已被移除，回写默认值
-        localStorage.setItem(STORAGE_KEY, resolved.id);
+      if (localStorage.getItem(STORAGE_KEY) !== theme.id) {
+        localStorage.setItem(STORAGE_KEY, theme.id);
       }
     } catch {
-      // localStorage 不可用时忽略
+      // 忽略
     }
 
     // 监听 dark class 变化，重新应用主题色
     darkObserver?.disconnect();
     darkObserver = new MutationObserver(() => {
-      const theme = THEME_COLORS.find((t) => t.id === localStorage.getItem(STORAGE_KEY)) || THEME_COLORS[0];
-      applyThemeColor(theme);
+      const currentTheme = readStoredTheme();
+      applyThemeColor(currentTheme);
     });
     darkObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 
-    return () => darkObserver?.disconnect();
+    return () => {
+      darkObserver?.disconnect();
+      darkObserver = null;
+    };
   }, []);
 
   const setTheme = useCallback((id: string) => {
@@ -127,5 +163,15 @@ export function useThemeColor() {
     }
   }, [themeId]);
 
-  return { themeId, setTheme, toggleTheme } as const;
+  return (
+    <ThemeColorContext.Provider value={{ themeId, setTheme, toggleTheme }}>
+      {children}
+    </ThemeColorContext.Provider>
+  );
+}
+
+// ─── Hook（任意组件调用，读取全局 Context） ───────────────
+
+export function useThemeColor() {
+  return useContext(ThemeColorContext);
 }

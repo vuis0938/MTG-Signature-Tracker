@@ -3,6 +3,7 @@
 import { UserProvider } from "@/lib/user-context";
 import { ToastProvider } from "@/lib/toast-context";
 import { ToastContainer } from "@/components/toast-container";
+import { ThemeColorProvider } from "@/lib/use-theme-color";
 import type { ReactNode } from "react";
 
 export function Providers({
@@ -13,11 +14,13 @@ export function Providers({
   children: ReactNode;
 }) {
   return (
-    <UserProvider userName={userName}>
-      <ToastProvider>
-        {children}
-        <ToastContainer />
-      </ToastProvider>
-    </UserProvider>
+    <ThemeColorProvider>
+      <UserProvider userName={userName}>
+        <ToastProvider>
+          {children}
+          <ToastContainer />
+        </ToastProvider>
+      </UserProvider>
+    </ThemeColorProvider>
   );
 }
