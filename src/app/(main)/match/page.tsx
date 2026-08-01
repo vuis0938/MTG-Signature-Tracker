@@ -707,7 +707,7 @@ export default function MatchPage() {
                 disabled={parsing || !rawText.trim()}
               >
                 <Search className="h-4 w-4 mr-2" />
-                {parsing ? "解析中..." : "智能解析"}
+                智能解析
               </Button>
             {parseMethod && (
               <span className="text-xs text-muted-foreground">
@@ -769,7 +769,7 @@ export default function MatchPage() {
                 disabled={matching || parsedArtists.length === 0 || selectedDecks.size === 0}
               >
                 <Play className="h-4 w-4 mr-2" />
-                {matching ? "匹配中..." : "开始匹配"}
+                开始匹配
               </Button>
             <Button
                 variant="outline"
