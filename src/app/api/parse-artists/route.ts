@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
+import { loadArtistAliases, resolveAliases } from "@/lib/artist-aliases";
 
 // ─── LLM 清洗（DeepSeek 优先，Anthropic 备选） ─────────────
 
@@ -195,6 +196,12 @@ export async function POST(request: NextRequest) {
     } else {
       artists = parseWithRegex(text);
       method = "regex";
+    }
+
+    // 应用画家别名映射（将别名转换为标准名称）
+    const aliasMap = await loadArtistAliases();
+    if (aliasMap.size > 0) {
+      artists = resolveAliases(artists, aliasMap);
     }
 
     return NextResponse.json({

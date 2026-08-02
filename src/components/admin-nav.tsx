@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Users, ScrollText, Tag, ArrowLeft } from "lucide-react";
+import { LayoutDashboard, Users, ScrollText, Tag, ArrowLeft, Calendar, Database, UserCheck } from "lucide-react";
 
 const adminNavItems = [
   { href: "/admin/dashboard", label: "仪表盘", icon: LayoutDashboard },
   { href: "/admin/users", label: "用户管理", icon: Users },
+  { href: "/admin/events", label: "活动管理", icon: Calendar },
+  { href: "/admin/artists", label: "画家别名", icon: UserCheck },
+  { href: "/admin/cache", label: "缓存管理", icon: Database },
   { href: "/admin/audit-log", label: "审计日志", icon: ScrollText },
   { href: "/verify", label: "策展管理", icon: Tag },
 ] as const;

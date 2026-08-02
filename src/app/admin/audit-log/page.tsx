@@ -29,6 +29,13 @@ const actionLabels: Record<string, { label: string; color: string }> = {
   user_reset_password: { label: "重置密码", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
   curate_save: { label: "保存策展", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
   curate_refresh: { label: "刷新策展", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+  event_create: { label: "创建活动", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
+  event_update: { label: "更新活动", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
+  event_delete: { label: "删除活动", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  cache_clear_all: { label: "清空缓存", color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
+  cache_delete: { label: "删除缓存", color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
+  artist_alias_add: { label: "添加别名", color: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400" },
+  artist_alias_delete: { label: "删除别名", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
 };
 
 export default function AuditLogPage() {

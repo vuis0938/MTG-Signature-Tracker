@@ -30,6 +30,13 @@ const actionLabels: Record<string, { label: string; color: string }> = {
   user_reset_password: { label: "重置密码", color: "text-amber-600" },
   curate_save: { label: "保存策展", color: "text-blue-600" },
   curate_refresh: { label: "刷新策展", color: "text-blue-600" },
+  event_create: { label: "创建活动", color: "text-purple-600" },
+  event_update: { label: "更新活动", color: "text-purple-600" },
+  event_delete: { label: "删除活动", color: "text-red-600" },
+  cache_clear_all: { label: "清空缓存", color: "text-orange-600" },
+  cache_delete: { label: "删除缓存", color: "text-orange-600" },
+  artist_alias_add: { label: "添加别名", color: "text-teal-600" },
+  artist_alias_delete: { label: "删除别名", color: "text-red-600" },
 };
 
 export default function DashboardPage() {

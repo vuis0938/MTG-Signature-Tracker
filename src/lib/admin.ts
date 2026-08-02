@@ -30,7 +30,14 @@ export type AdminAction =
   | "user_unban"
   | "user_reset_password"
   | "curate_save"
-  | "curate_refresh";
+  | "curate_refresh"
+  | "event_create"
+  | "event_update"
+  | "event_delete"
+  | "cache_clear_all"
+  | "cache_delete"
+  | "artist_alias_add"
+  | "artist_alias_delete";
 
 /**
  * 记录管理员操作到审计日志表

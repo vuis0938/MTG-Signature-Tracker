@@ -52,7 +52,7 @@ export interface EventWithArtists {
   startDate: string;
   endDate: string | null;
   artists: string[];
-  source: "mtgac" | "mountain_mage";
+  source: "mtgac" | "mountain_mage" | "manual";
 }
 
 interface GraphqlResponse {
@@ -192,7 +192,36 @@ export async function GET(request: NextRequest) {
     console.error("[Events API] Mountain Mage 获取失败:", error);
   }
 
-  // ─── 统一排序：按时间升序，同日期会场优先于平台 ──────────
+  // ─── 自定义活动（管理员手动添加） ──────────────────────────
+  try {
+    const supabase = getSupabase();
+    const now = new Date().toISOString().split("T")[0];
+    const { data: customEvents } = await supabase
+      .from("events")
+      .select("*")
+      .eq("source", "manual")
+      .eq("archived", false)
+      .gte("date", now)
+      .order("date", { ascending: true });
+
+    if (customEvents && customEvents.length > 0) {
+      for (const e of customEvents) {
+        results.push({
+          id: `custom-${e.id}`,
+          name: e.name,
+          city: e.location || "自定义活动",
+          startDate: e.date,
+          endDate: e.end_date || null,
+          artists: e.artists || [],
+          source: "manual" as const,
+        });
+      }
+    }
+  } catch (error) {
+    console.error("[Events API] 自定义活动获取失败:", error);
+  }
+
+  // ─── 统一排序：按时间升序 ──────────────────────────────────
   results.sort((a, b) => {
     const dateA = new Date(a.source === "mtgac" ? a.startDate : (a.endDate || a.startDate)).getTime();
     const dateB = new Date(b.source === "mtgac" ? b.startDate : (b.endDate || b.startDate)).getTime();
