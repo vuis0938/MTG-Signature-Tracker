@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useUser } from "@/lib/user-context";
 import {
   Layers,
   GitCompare,
   Calendar,
   Settings,
   Palette,
+  ShieldCheck,
 } from "lucide-react";
 
 const navItems = [
@@ -36,6 +38,12 @@ const navItems = [
 
 export function NavBar() {
   const pathname = usePathname();
+  const { isAdmin } = useUser();
+
+  // 合并管理员入口
+  const items = isAdmin
+    ? [...navItems, { href: "/admin", label: "管理", icon: ShieldCheck } as const]
+    : navItems;
 
   return (
     <>
@@ -46,7 +54,7 @@ export function NavBar() {
           MTG 签绘管家
         </Link>
         <nav className="flex items-center gap-1 ml-4">
-          {navItems.map((item) => {
+          {items.map((item) => {
             const isActive = pathname.startsWith(item.href);
             return (
               <Link
@@ -70,7 +78,7 @@ export function NavBar() {
       {/* 移动端：底部导航 */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-background">
         <div className="flex items-center justify-around h-14">
-          {navItems.map((item) => {
+          {items.map((item) => {
             const isActive = pathname.startsWith(item.href);
             return (
               <Link

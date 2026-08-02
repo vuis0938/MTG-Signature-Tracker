@@ -54,12 +54,17 @@ export async function POST(request: NextRequest) {
 
     const { data: users } = await supabase
       .from("users")
-      .select("username, password")
+      .select("username, password, banned_at")
       .eq("username", username)
       .limit(1);
 
     if (!users || users.length === 0) {
       return NextResponse.json({ error: "用户名或密码不正确" }, { status: 401 });
+    }
+
+    // 检查是否被封禁
+    if (users[0].banned_at) {
+      return NextResponse.json({ error: "该账号已被封禁，请联系管理员" }, { status: 403 });
     }
 
     // 兼容旧明文密码：如果存储的密码不含 ":" 分隔符，说明是旧明文密码
@@ -97,6 +102,14 @@ export async function POST(request: NextRequest) {
 
     const response = NextResponse.json({ success: true, user: username });
     setCookies(response, username);
+
+    // 更新最后活跃时间
+    supabase
+      .from("users")
+      .update({ last_active_at: new Date().toISOString() })
+      .eq("username", username)
+      .then(() => {});
+
     return response;
   } catch {
     return NextResponse.json({ error: "请求格式错误" }, { status: 400 });

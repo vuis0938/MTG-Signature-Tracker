@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { getUserFromRequest, isAdmin } from "@/lib/auth";
+import { logAdminAction } from "@/lib/admin";
 import type { NextRequest } from "next/server";
 
 interface CuratedSection {
@@ -57,6 +58,12 @@ export async function POST(request: NextRequest) {
       console.error("[Curate API] Supabase 写入失败:", error);
       return NextResponse.json({ error: "保存失败" }, { status: 500 });
     }
+
+    // 记录审计日志
+    await logAdminAction(userName, "curate_save", "mountain_mage", {
+      sections: body.sections.length,
+      artists: body.sections.reduce((sum, s) => sum + s.artists.length, 0),
+    });
 
     return NextResponse.json({
       success: true,
