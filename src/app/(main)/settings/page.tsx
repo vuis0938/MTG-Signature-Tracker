@@ -19,7 +19,7 @@ import { LogOut, Download, Trash2, User, Info, Layout, Columns, List, Layers, Ro
 
 export default function SettingsPage() {
   const router = useRouter();
-  const currentUser = useUser();
+  const { userName: currentUser, isAdmin } = useUser();
 
   const [loggingOut, setLoggingOut] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -114,7 +114,14 @@ export default function SettingsPage() {
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium">{currentUser}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium">{currentUser}</p>
+                {isAdmin && (
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-medium">
+                    管理员
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">当前用户名</p>
             </div>
             <Button

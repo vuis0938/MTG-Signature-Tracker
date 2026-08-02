@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Loader2, Save, Tag, Edit3, RefreshCw } from "lucide-react";
+import { Loader2, Save, Tag, Edit3, RefreshCw, Lock } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
+import { useUser } from "@/lib/user-context";
 
 type LineTag = "section" | "artist" | "ignore" | "terminate";
 
@@ -134,6 +135,7 @@ function preClassify(rawText: string): TaggedLine[] {
 
 export default function VerifyPage() {
   const { toast: showToast } = useToast();
+  const { isAdmin } = useUser();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -148,10 +150,10 @@ export default function VerifyPage() {
     setRefreshing(true);
     setSaved(false);
     try {
-      const rawRes = await fetch("/api/events/mountain-mage?debug=1&refresh=1");
+      const rawRes = await fetch("/api/events/mountain-mage?raw=1&refresh=1");
       const rawData = await rawRes.json();
-      if (rawData.success && rawData.debug?.rawText) {
-        setTaggedLines(preClassify(rawData.debug.rawText));
+      if (rawData.success && rawData.rawText) {
+        setTaggedLines(preClassify(rawData.rawText));
         setSectionNameOverrides({});
         setDeadlineOverrides({});
       } else {
@@ -204,10 +206,10 @@ export default function VerifyPage() {
         }
 
         // 2. 无已保存数据，从 Google Docs 重新抓取并 AI 预分类
-        const rawRes = await fetch("/api/events/mountain-mage?debug=1&refresh=1");
+        const rawRes = await fetch("/api/events/mountain-mage?raw=1&refresh=1");
         const rawData = await rawRes.json();
-        if (rawData.success && rawData.debug?.rawText) {
-          setTaggedLines(preClassify(rawData.debug.rawText));
+        if (rawData.success && rawData.rawText) {
+          setTaggedLines(preClassify(rawData.rawText));
         } else {
           setError(rawData.error || "加载失败");
         }
@@ -298,6 +300,17 @@ export default function VerifyPage() {
       <div className="flex items-center justify-center gap-2 min-h-screen text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin" />
         加载中...
+      </div>
+    );
+  }
+
+  // 非管理员无法访问策展页面
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 min-h-screen text-muted-foreground">
+        <Lock className="h-8 w-8" />
+        <p className="text-base font-medium">需要管理员权限</p>
+        <p className="text-sm">此页面仅限管理员访问，普通用户无权修改策展数据</p>
       </div>
     );
   }

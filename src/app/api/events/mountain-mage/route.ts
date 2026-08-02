@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchMountainMageArtists } from "@/lib/mountain-mage";
-import { getUserFromRequest } from "@/lib/auth";
+import { getUserFromRequest, isAdmin } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   // 鉴权
@@ -11,6 +11,8 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const refresh = searchParams.get("refresh") === "1";
+  // 仅管理员可获取原始文本（用于策展页面）
+  const includeRaw = searchParams.get("raw") === "1" && isAdmin(userName);
 
   try {
     const result = await fetchMountainMageArtists(refresh);
@@ -29,6 +31,11 @@ export async function GET(request: NextRequest) {
       cached: result.cached,
       stale: result.stale,
     };
+
+    // 仅管理员可获取原始文本
+    if (includeRaw) {
+      response.rawText = result.rawText || null;
+    }
 
     return NextResponse.json(response);
   } catch (error) {
