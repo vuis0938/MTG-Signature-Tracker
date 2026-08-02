@@ -1007,11 +1007,12 @@ function MatchResultCard({
 
 // ─── 精确匹配结果 ──────────────────────────────────────────
 
-/** 合并相同卡牌（同名+同系列+同编号），返回 { card, count, ids } */
+/** 合并相同卡牌（同名+同系列+同编号+同状态），返回 { card, count, ids } */
 function mergeCards(
   cardList: CardEntry[]
 ): Array<{ card: CardEntry; count: number; ids: string[] }> {
-  const key = (c: CardEntry) => `${c.card_name}|${c.set_code}|${c.collector_number}`;
+  // 合并 key 包含 status，不同状态的卡牌分开显示
+  const key = (c: CardEntry) => `${c.card_name}|${c.set_code}|${c.collector_number}|${c.status ?? 0}`;
   const groups = new Map<string, { card: CardEntry; count: number; ids: string[] }>();
 
   for (const card of cardList) {
