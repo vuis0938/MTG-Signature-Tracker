@@ -5,6 +5,7 @@ import { batchSearch, CardIdentifier, RateLimiter } from "@/lib/scryfall-client"
 import { parseMoxfieldFormat } from "@/lib/moxfield-parser";
 import { getUserFromRequest } from "@/lib/auth";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
+import { warmCardPrintingsCache } from "@/lib/cache-printings";
 
 // ─── API Handler ──────────────────────────────────────────
 
@@ -134,19 +135,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── 同步填充模糊匹配缓存 ──
+    // ── 直接调用函数预热缓存（避免 HTTP 自回环开销） ──
     const uniqueCardNames = [...new Set(cardsToInsert.map((c) => c.card_name as string))];
     if (uniqueCardNames.length > 0) {
-      try {
-        fetch(`${request.nextUrl.origin}/api/cache-printings`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Cookie: request.headers.get("cookie") || "",
-          },
-          body: JSON.stringify({ cardNames: uniqueCardNames }),
-        }).catch(() => {});
-      } catch {}
+      warmCardPrintingsCache(uniqueCardNames).catch(() => {});
     }
 
     const isTimedOut = timedOutCards.length > 0;

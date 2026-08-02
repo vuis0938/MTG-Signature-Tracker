@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { X, Info, AlertTriangle, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAnnouncements } from "@/lib/swr-hooks";
+
+const DISMISS_KEY = "announcement-dismissed";
 
 const typeConfig: Record<string, { icon: typeof Info; className: string }> = {
   info: { icon: Info, className: "bg-blue-50 border-blue-200 text-blue-900 dark:bg-blue-950/30 dark:border-blue-900 dark:text-blue-200" },
@@ -14,6 +16,27 @@ const typeConfig: Record<string, { icon: typeof Info; className: string }> = {
 export function AnnouncementBanner() {
   const { announcements } = useAnnouncements();
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+
+  // 从 localStorage 恢复已关闭的公告 ID
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(DISMISS_KEY);
+      if (stored) {
+        setDismissed(new Set(JSON.parse(stored)));
+      }
+    } catch {}
+  }, []);
+
+  // 持久化关闭状态到 localStorage
+  const dismiss = useCallback((id: string) => {
+    setDismissed((prev) => {
+      const next = new Set(prev).add(id);
+      try {
+        localStorage.setItem(DISMISS_KEY, JSON.stringify([...next]));
+      } catch {}
+      return next;
+    });
+  }, []);
 
   const visible = announcements.filter((a) => !dismissed.has(a.id));
   if (visible.length === 0) return null;
@@ -34,7 +57,7 @@ export function AnnouncementBanner() {
               {a.content && <span className="ml-2 opacity-90">{a.content}</span>}
             </div>
             <button
-              onClick={() => setDismissed((prev) => new Set(prev).add(a.id))}
+              onClick={() => dismiss(a.id)}
               className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
             >
               <X className="h-3.5 w-3.5" />

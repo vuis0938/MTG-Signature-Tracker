@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 
 /**
@@ -23,6 +24,21 @@ export function CardImage({
   alt: string;
   className?: string;
 }) {
+  const [errored, setErrored] = useState(false);
+
+  // next/image 优化失败时，降级为普通 img 标签直接加载原图
+  if (errored) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt={alt}
+        className={className}
+        loading="lazy"
+      />
+    );
+  }
+
   return (
     <Image
       src={src}
@@ -31,8 +47,8 @@ export function CardImage({
       height={CARD_HEIGHT}
       className={className}
       loading="lazy"
-      // 卡牌图较多，用低质量占位避免大量模糊计算
       placeholder="empty"
+      onError={() => setErrored(true)}
     />
   );
 }

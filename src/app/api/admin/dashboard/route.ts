@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabase();
 
-    // 并行查询所有统计数据
+    // 并行查询所有统计数据（含卡牌聚合数据，原先串行查两次）
     const [
       usersRes,
       decksRes,
@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
       signedCardsRes,
       pendingCardsRes,
       recentLogsRes,
+      cardsAggRes,
     ] = await Promise.all([
       // 用户总数
       supabase.from("users").select("username, created_at, last_active_at, banned_at", { count: "exact" }),
@@ -36,6 +37,8 @@ export async function GET(request: NextRequest) {
         .select("id, admin_user, action, target, detail, created_at")
         .order("created_at", { ascending: false })
         .limit(20),
+      // 卡牌聚合数据（合并原先两次串行查询为一次）
+      supabase.from("cards").select("artist_names, set_name").limit(5000),
     ]);
 
     const users = usersRes.data || [];
@@ -68,37 +71,24 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // 热门画家 Top 10（需要拉取卡牌数据）
-    const { data: cardsForArtists } = await supabase
-      .from("cards")
-      .select("artist_names")
-      .limit(5000);
-
+    // 热门画家 Top 10 + 热门系列 Top 10（从单次聚合查询计算）
+    const cardsAgg = cardsAggRes.data || [];
     const artistCounts: Record<string, number> = {};
-    (cardsForArtists || []).forEach((card) => {
+    const setCounts: Record<string, number> = {};
+    cardsAgg.forEach((card) => {
       if (card.artist_names && Array.isArray(card.artist_names)) {
         card.artist_names.forEach((artist: string) => {
           artistCounts[artist] = (artistCounts[artist] || 0) + 1;
         });
+      }
+      if (card.set_name) {
+        setCounts[card.set_name] = (setCounts[card.set_name] || 0) + 1;
       }
     });
     const topArtists = Object.entries(artistCounts)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
       .map(([name, count]) => ({ name, count }));
-
-    // 热门系列 Top 10
-    const { data: cardsForSets } = await supabase
-      .from("cards")
-      .select("set_name")
-      .limit(5000);
-
-    const setCounts: Record<string, number> = {};
-    (cardsForSets || []).forEach((card) => {
-      if (card.set_name) {
-        setCounts[card.set_name] = (setCounts[card.set_name] || 0) + 1;
-      }
-    });
     const topSets = Object.entries(setCounts)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)

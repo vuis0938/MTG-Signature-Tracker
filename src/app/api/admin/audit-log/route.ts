@@ -39,20 +39,25 @@ export async function GET(request: NextRequest) {
       query = query.lte("created_at", `${endDate}T23:59:59.999Z`);
     }
 
-    const { data, count, error: queryError } = await query.range(offset, offset + pageSize - 1);
+    // 并行查询：分页日志 + 管理员列表（原先串行，且管理员列表全表扫描）
+    const [logsResult, adminUsersResult] = await Promise.all([
+      query.range(offset, offset + pageSize - 1),
+      // 只取最近的记录去重，避免全表扫描
+      supabase
+        .from("admin_logs")
+        .select("admin_user")
+        .order("created_at", { ascending: false })
+        .limit(500),
+    ]);
+
+    const { data, count, error: queryError } = logsResult;
 
     if (queryError) {
       console.error("[Admin Audit Log API] 查询失败:", queryError.message);
       return NextResponse.json({ error: "获取日志失败" }, { status: 500 });
     }
 
-    // 获取所有管理员列表（用于筛选下拉框）
-    const { data: adminUsers } = await supabase
-      .from("admin_logs")
-      .select("admin_user")
-      .order("admin_user", { ascending: true });
-
-    const uniqueAdmins = [...new Set((adminUsers || []).map((a) => a.admin_user))];
+    const uniqueAdmins = [...new Set((adminUsersResult.data || []).map((a) => a.admin_user))].sort();
 
     return NextResponse.json({
       success: true,

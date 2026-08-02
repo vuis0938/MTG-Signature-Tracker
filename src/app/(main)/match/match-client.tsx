@@ -41,12 +41,14 @@ export default function MatchClient() {
   const { decks } = useDecks();
   const [selectedDecks, setSelectedDecks] = useState<Set<string>>(new Set());
 
-  // decks 加载后默认全选
+  // decks 加载后默认全选（仅首次，避免用户取消全选后被重新全选）
+  const autoSelectedRef = useRef(false);
   useEffect(() => {
-    if (decks.length > 0 && selectedDecks.size === 0) {
+    if (decks.length > 0 && !autoSelectedRef.current) {
+      autoSelectedRef.current = true;
       setSelectedDecks(new Set(decks.map((d) => d.id)));
     }
-  }, [decks, selectedDecks.size]);
+  }, [decks]);
 
   // 活动列表
   const [events, setEvents] = useState<CalendarEvent[]>([]);

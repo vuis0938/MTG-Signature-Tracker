@@ -71,92 +71,99 @@ async function graphql(query: string, variables?: Record<string, unknown>): Prom
   return res.json();
 }
 
-export async function GET(request: NextRequest) {
-  // 鉴权
-  const userName = getUserFromRequest(request);
-  if (!userName) {
-    return NextResponse.json({ error: "未登录" }, { status: 401 });
-  }
+// ─── 数据源 1: MTG Artist Connection ──────────────────────
 
+async function fetchMtgacEvents(): Promise<EventWithArtists[]> {
   const results: EventWithArtists[] = [];
 
-  try {
-    // 1. 获取 MTG Artist Connection 活动
-    const eventsData = await graphql(
-      "{ signingEvent { id name city startDate endDate } }"
+  const eventsData = await graphql(
+    "{ signingEvent { id name city startDate endDate } }"
+  );
+  const events: RawEvent[] = eventsData?.data?.signingEvent || [];
+
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  const upcoming = events
+    .filter((e) => new Date(e.endDate) >= now)
+    .sort(
+      (a, b) =>
+        new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
     );
-    const events: RawEvent[] = eventsData?.data?.signingEvent || [];
 
-    // 2. 筛选未来活动（含今天之后的）
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
+  const eventIds = upcoming.map((e) => e.id);
 
-    const upcoming = events
-      .filter((e) => new Date(e.endDate) >= now)
-      .sort(
-        (a, b) =>
-          new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
-      );
+  const artistMap = new Map<string, string[]>();
+  const BATCH = 50;
 
-    // 3. 获取所有活动 ID
-    const eventIds = upcoming.map((e) => e.id);
+  for (let i = 0; i < eventIds.length; i += BATCH) {
+    const batch = eventIds.slice(i, i + BATCH);
 
-    // 4. 批量获取画家映射
-    const artistMap = new Map<string, string[]>();
-    const BATCH = 50;
+    const artistData = await graphql(
+      `query($ids: [String!]!) { artistsByEventIds(eventIds: $ids) { artistName eventId } }`,
+      { ids: batch }
+    );
 
-    for (let i = 0; i < eventIds.length; i += BATCH) {
-      const batch = eventIds.slice(i, i + BATCH);
+    const mappings: EventArtist[] =
+      artistData?.data?.artistsByEventIds || [];
 
-      const artistData = await graphql(
-        `query($ids: [ID!]!) { artistsByEventIds(eventIds: $ids) { artistName eventId } }`,
-        { ids: batch }
-      );
-
-      const mappings: EventArtist[] =
-        artistData?.data?.artistsByEventIds || [];
-
-      for (const m of mappings) {
-        const list = artistMap.get(m.eventId) || [];
-        list.push(m.artistName);
-        artistMap.set(m.eventId, list);
-      }
+    for (const m of mappings) {
+      const list = artistMap.get(m.eventId) || [];
+      list.push(m.artistName);
+      artistMap.set(m.eventId, list);
     }
-
-    // 5. 组装 MTGAC 结果
-    for (const e of upcoming) {
-      results.push({
-        ...e,
-        artists: artistMap.get(e.id) || [],
-        source: "mtgac",
-      });
-    }
-  } catch (error) {
-    console.error("[Events API] MTGAC 获取失败:", error);
-    // 不中断，继续尝试 Mountain Mage
   }
 
-  // ─── Mountain Mage 数据 ──────────────────────────────────
-  // 优先读取人工策展数据，不存在则回退到自动解析
-  try {
-    const curated = await loadCurated();
-    const today = new Date().toISOString().split("T")[0];
+  for (const e of upcoming) {
+    results.push({
+      ...e,
+      artists: artistMap.get(e.id) || [],
+      source: "mtgac",
+    });
+  }
 
-    if (curated && curated.length > 0) {
-      // 使用人工策展数据
-      const now = new Date();
-      now.setHours(0, 0, 0, 0);
+  return results;
+}
+
+// ─── 数据源 2: Mountain Mage ──────────────────────────────
+
+async function fetchMountainMageEvents(): Promise<EventWithArtists[]> {
+  const results: EventWithArtists[] = [];
+  const today = new Date().toISOString().split("T")[0];
+
+  const curated = await loadCurated();
+
+  if (curated && curated.length > 0) {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    let lastDeadline: string | null = null;
+    for (const section of curated) {
+      if (section.artists.length === 0) continue;
+      const effectiveDeadline = section.deadline || lastDeadline;
+      if (section.deadline) lastDeadline = section.deadline;
+      if (effectiveDeadline) {
+        const deadlineDate = new Date(effectiveDeadline + "T00:00:00Z");
+        if (deadlineDate < now) continue;
+      }
+      const sortDate = effectiveDeadline || today;
+      results.push({
+        id: `mountain-mage-${section.name.toLowerCase().replace(/[\s.]+/g, "-")}`,
+        name: `Mountain Mage · ${section.name.replace(/\*+/g, "").trim()}`,
+        city: "代理平台（邮寄）",
+        startDate: sortDate,
+        endDate: section.deadline || null,
+        artists: section.artists,
+        source: "mountain_mage",
+      });
+    }
+  } else {
+    const mmData = await fetchMountainMageArtists();
+    if (mmData.success && mmData.sections?.length > 0) {
       let lastDeadline: string | null = null;
-      for (const section of curated) {
+      for (const section of mmData.sections) {
         if (section.artists.length === 0) continue;
-        const effectiveDeadline = section.deadline || lastDeadline;
+        const sortDate = section.deadline || lastDeadline || today;
         if (section.deadline) lastDeadline = section.deadline;
-        // 过期过滤：截止日期已过则跳过
-        if (effectiveDeadline) {
-          const deadlineDate = new Date(effectiveDeadline + "T00:00:00Z");
-          if (deadlineDate < now) continue;
-        }
-        const sortDate = effectiveDeadline || today;
         results.push({
           id: `mountain-mage-${section.name.toLowerCase().replace(/[\s.]+/g, "-")}`,
           name: `Mountain Mage · ${section.name.replace(/\*+/g, "").trim()}`,
@@ -167,58 +174,76 @@ export async function GET(request: NextRequest) {
           source: "mountain_mage",
         });
       }
-    } else {
-      // 回退到自动解析
-      const mmData = await fetchMountainMageArtists();
-      if (mmData.success && mmData.sections?.length > 0) {
-        let lastDeadline: string | null = null;
-        for (const section of mmData.sections) {
-          if (section.artists.length === 0) continue;
-          const sortDate = section.deadline || lastDeadline || today;
-          if (section.deadline) lastDeadline = section.deadline;
-          results.push({
-            id: `mountain-mage-${section.name.toLowerCase().replace(/[\s.]+/g, "-")}`,
-            name: `Mountain Mage · ${section.name.replace(/\*+/g, "").trim()}`,
-            city: "代理平台（邮寄）",
-            startDate: sortDate,
-            endDate: section.deadline || null,
-            artists: section.artists,
-            source: "mountain_mage",
-          });
-        }
-      }
     }
-  } catch (error) {
-    console.error("[Events API] Mountain Mage 获取失败:", error);
   }
 
-  // ─── 自定义活动（管理员手动添加） ──────────────────────────
-  try {
-    const supabase = getSupabase();
-    const now = new Date().toISOString().split("T")[0];
-    const { data: customEvents } = await supabase
-      .from("events")
-      .select("*")
-      .eq("source", "manual")
-      .eq("archived", false)
-      .gte("date", now)
-      .order("date", { ascending: true });
+  return results;
+}
 
-    if (customEvents && customEvents.length > 0) {
-      for (const e of customEvents) {
-        results.push({
-          id: `custom-${e.id}`,
-          name: e.name,
-          city: e.location || "自定义活动",
-          startDate: e.date,
-          endDate: e.end_date || null,
-          artists: e.artists || [],
-          source: "manual" as const,
-        });
-      }
+// ─── 数据源 3: 自定义活动 ──────────────────────────────────
+
+async function fetchCustomEvents(): Promise<EventWithArtists[]> {
+  const results: EventWithArtists[] = [];
+  const supabase = getSupabase();
+  const now = new Date().toISOString().split("T")[0];
+  const { data: customEvents } = await supabase
+    .from("events")
+    .select("*")
+    .eq("source", "manual")
+    .eq("archived", false)
+    .gte("date", now)
+    .order("date", { ascending: true });
+
+  if (customEvents && customEvents.length > 0) {
+    for (const e of customEvents) {
+      results.push({
+        id: `custom-${e.id}`,
+        name: e.name,
+        city: e.location || "自定义活动",
+        startDate: e.date,
+        endDate: e.end_date || null,
+        artists: e.artists || [],
+        source: "manual" as const,
+      });
     }
-  } catch (error) {
-    console.error("[Events API] 自定义活动获取失败:", error);
+  }
+
+  return results;
+}
+
+// ─── 主 Handler ──────────────────────────────────────────
+
+export async function GET(request: NextRequest) {
+  const userName = getUserFromRequest(request);
+  if (!userName) {
+    return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+
+  // 三数据源并行获取（原先串行，总耗时 = 三个数据源之和）
+  const [mtgacResult, mmResult, customResult] = await Promise.allSettled([
+    fetchMtgacEvents(),
+    fetchMountainMageEvents(),
+    fetchCustomEvents(),
+  ]);
+
+  const results: EventWithArtists[] = [];
+
+  if (mtgacResult.status === "fulfilled") {
+    results.push(...mtgacResult.value);
+  } else {
+    console.error("[Events API] MTGAC 获取失败:", mtgacResult.reason);
+  }
+
+  if (mmResult.status === "fulfilled") {
+    results.push(...mmResult.value);
+  } else {
+    console.error("[Events API] Mountain Mage 获取失败:", mmResult.reason);
+  }
+
+  if (customResult.status === "fulfilled") {
+    results.push(...customResult.value);
+  } else {
+    console.error("[Events API] 自定义活动获取失败:", customResult.reason);
   }
 
   // ─── 统一排序：按时间升序 ──────────────────────────────────
@@ -226,7 +251,6 @@ export async function GET(request: NextRequest) {
     const dateA = new Date(a.source === "mtgac" ? a.startDate : (a.endDate || a.startDate)).getTime();
     const dateB = new Date(b.source === "mtgac" ? b.startDate : (b.endDate || b.startDate)).getTime();
     if (dateA !== dateB) return dateA - dateB;
-    // 同日期：mtgac（会场）优先于 mountain_mage（平台）
     if (a.source === "mtgac" && b.source === "mountain_mage") return -1;
     if (a.source === "mountain_mage" && b.source === "mtgac") return 1;
     return 0;

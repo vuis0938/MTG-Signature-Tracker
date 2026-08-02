@@ -13,27 +13,29 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabase();
 
-    // 拉取所有用户
-    const { data: users, error: usersError } = await supabase
-      .from("users")
-      .select("username, created_at, last_active_at, banned_at")
-      .order("created_at", { ascending: false });
+    // 并行查询用户、套牌、卡牌（原先串行三次往返）
+    const [usersRes, decksRes, deckCardCountsRes] = await Promise.all([
+      supabase
+        .from("users")
+        .select("username, created_at, last_active_at, banned_at")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("decks")
+        .select("id, user_name"),
+      supabase
+        .from("cards")
+        .select("deck_id")
+        .limit(10000),
+    ]);
 
+    const { data: users, error: usersError } = usersRes;
     if (usersError) {
       console.error("[Admin Users API] 查询失败:", usersError.message);
       return NextResponse.json({ error: "获取用户列表失败" }, { status: 500 });
     }
 
-    // 拉取所有套牌（按用户分组统计）
-    const { data: decks } = await supabase
-      .from("decks")
-      .select("id, user_name");
-
-    // 拉取卡牌数（按 deck_id 分组）
-    const { data: deckCardCounts } = await supabase
-      .from("cards")
-      .select("deck_id")
-      .limit(10000);
+    const decks = decksRes.data || [];
+    const deckCardCounts = deckCardCountsRes.data || [];
 
     // 按 deck_id 统计卡牌数
     const cardCountByDeck: Record<string, number> = {};
