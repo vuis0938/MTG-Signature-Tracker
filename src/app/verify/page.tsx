@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Loader2, Save, Tag, Edit3, RefreshCw, Lock } from "lucide-react";
+import { Loader2, Save, Tag, Edit3, RefreshCw, Lock, ArrowLeft } from "lucide-react";
+import Link from "next/link";
 import { useToast } from "@/lib/toast-context";
 import { useUser } from "@/lib/user-context";
 
@@ -333,7 +334,16 @@ export default function VerifyPage() {
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold">Mountain Mage 策展</h1>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/admin/dashboard"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border rounded-md hover:bg-accent transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            返回
+          </Link>
+          <h1 className="text-xl font-semibold">Mountain Mage 策展</h1>
+        </div>
         <div className="flex items-center gap-2">
           {saved && <span className="text-xs text-emerald-600">已保存</span>}
           <button
