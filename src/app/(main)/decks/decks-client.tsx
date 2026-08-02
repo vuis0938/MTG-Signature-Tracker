@@ -267,12 +267,28 @@ export default function DecksClient() {
   function toggleStatus(cardId: string, currentStatus: number, deckId: string) {
     const newStatus = (currentStatus + 1) % 3;
 
+    // 记录旧卡牌数据，用于回滚时恢复 event_name/event_date
+    let oldCard: CardEntry | undefined;
+    for (const c of cards[deckId] || []) {
+      if (c.id === cardId) { oldCard = c; break; }
+    }
+
     // 1. 乐观更新：立即更新 UI，用户零延迟感知
+    // 切换到非心动状态时清除活动信息
+    const newCardPatch: Partial<CardEntry> = {
+      status: newStatus,
+      is_signed: newStatus === 2,
+    };
+    if (newStatus !== 3) {
+      newCardPatch.event_name = null;
+      newCardPatch.event_date = null;
+    }
+
     setCards((prev) => {
       const updated = { ...prev };
       if (updated[deckId]) {
         updated[deckId] = updated[deckId].map((c) =>
-          c.id === cardId ? { ...c, status: newStatus, is_signed: newStatus === 2 } : c
+          c.id === cardId ? { ...c, ...newCardPatch } : c
         );
       }
       return updated;
@@ -312,17 +328,19 @@ export default function DecksClient() {
         cardId,
         status: newStatus,
         is_signed: newStatus === 2,
+        event_name: newStatus === 3 ? (oldCard?.event_name ?? null) : null,
+        event_date: newStatus === 3 ? (oldCard?.event_date ?? null) : null,
       }),
     })
       .then((res) => res.json())
       .then((data) => {
         if (!data.success) {
-          // 回滚到旧状态
+          // 回滚到旧状态（恢复全部字段）
           setCards((prev) => {
             const updated = { ...prev };
             if (updated[deckId]) {
               updated[deckId] = updated[deckId].map((c) =>
-                c.id === cardId ? { ...c, status: currentStatus, is_signed: currentStatus === 2 } : c
+                c.id === cardId && oldCard ? oldCard : c
               );
             }
             return updated;
@@ -335,12 +353,12 @@ export default function DecksClient() {
         }
       })
       .catch(() => {
-        // 网络异常，回滚
+        // 网络异常，回滚（恢复全部字段）
         setCards((prev) => {
           const updated = { ...prev };
           if (updated[deckId]) {
             updated[deckId] = updated[deckId].map((c) =>
-              c.id === cardId ? { ...c, status: currentStatus, is_signed: currentStatus === 2 } : c
+              c.id === cardId && oldCard ? oldCard : c
             );
           }
           return updated;
