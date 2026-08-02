@@ -16,11 +16,11 @@ import {
 } from "@/components/ui/dialog";
 import { Calendar, MapPin, Users, Loader2, Package, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useEvents } from "@/lib/swr-hooks";
 import type { ArtistCard, CalendarEvent } from "@/types";
 
 export default function EventsPage() {
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { events, isLoading: loading } = useEvents();
   const [lastUpdated, setLastUpdated] = useState<string>("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -29,16 +29,12 @@ export default function EventsPage() {
   const [artistCards, setArtistCards] = useState<ArtistCard[]>([]);
   const [artistCardsLoading, setArtistCardsLoading] = useState(false);
 
+  // 首次加载完成后记录更新时间
   useEffect(() => {
-    fetch("/api/events")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.success) setEvents(data.events);
-        setLastUpdated(new Date().toLocaleString("zh-CN"));
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+    if (!loading) {
+      setLastUpdated(new Date().toLocaleString("zh-CN"));
+    }
+  }, [loading]);
 
   const toggleExpand = (id: string) => {
     setExpanded((prev) => {

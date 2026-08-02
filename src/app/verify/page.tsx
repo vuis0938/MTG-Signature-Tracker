@@ -136,7 +136,7 @@ function preClassify(rawText: string): TaggedLine[] {
 
 export default function VerifyPage() {
   const { toast: showToast } = useToast();
-  const { isAdmin } = useUser();
+  const { isAdmin, ready } = useUser();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -297,6 +297,16 @@ export default function VerifyPage() {
   }
 
   if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-2 min-h-screen text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        加载中...
+      </div>
+    );
+  }
+
+  // 等待客户端 cookie 读取完成（避免 isAdmin 初始 false 导致权限闪烁）
+  if (!ready) {
     return (
       <div className="flex items-center justify-center gap-2 min-h-screen text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin" />

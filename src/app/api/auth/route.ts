@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { hashPassword, verifyPassword, createToken, needsHashUpgrade } from "@/lib/auth";
+import { hashPassword, verifyPassword, createToken, needsHashUpgrade, isAdmin } from "@/lib/auth";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
 
 // 登录限流：15 分钟内最多 10 次尝试
@@ -24,6 +24,15 @@ function setCookies(response: NextResponse, username: string) {
     path: "/",
   });
   response.cookies.set("user_name", username, {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: COOKIE_MAX_AGE,
+    path: "/",
+  });
+  // is_admin 标记供客户端 UI 判断（httpOnly: false）。
+  // 安全保障：所有管理员 API 均有服务端 isAdmin() 验证，伪造此 cookie 无法执行任何操作。
+  response.cookies.set("is_admin", isAdmin(username) ? "true" : "false", {
     httpOnly: false,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

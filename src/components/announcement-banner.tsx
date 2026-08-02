@@ -1,16 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { X, Info, AlertTriangle, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-interface Announcement {
-  id: string;
-  title: string;
-  content: string;
-  type: string;
-  created_at: string;
-}
+import { useAnnouncements } from "@/lib/swr-hooks";
 
 const typeConfig: Record<string, { icon: typeof Info; className: string }> = {
   info: { icon: Info, className: "bg-blue-50 border-blue-200 text-blue-900 dark:bg-blue-950/30 dark:border-blue-900 dark:text-blue-200" },
@@ -19,23 +12,8 @@ const typeConfig: Record<string, { icon: typeof Info; className: string }> = {
 };
 
 export function AnnouncementBanner() {
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const { announcements } = useAnnouncements();
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch("/api/announcements");
-        const data = await res.json();
-        if (data.success && data.announcements) {
-          setAnnouncements(data.announcements);
-        }
-      } catch {
-        // 静默处理
-      }
-    }
-    load();
-  }, []);
 
   const visible = announcements.filter((a) => !dismissed.has(a.id));
   if (visible.length === 0) return null;

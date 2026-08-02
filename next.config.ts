@@ -1,6 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // staleTimes 是 experimental 特性，必须放在 experimental 下才生效。
+  // 之前放在顶层导致配置被忽略，动态页面 RSC 缓存时间为 0（每次导航都需服务端往返）。
+  // RootLayout 使用 cookies() 使所有页面动态渲染，
+  // 设置 300 秒缓存使来回切换页面时从缓存瞬时显示，SWR 后台静默刷新确保数据最新。
+  experimental: {
+    staleTimes: {
+      dynamic: 300,
+    },
+  },
   async headers() {
     return [
       {

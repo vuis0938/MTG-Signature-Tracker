@@ -27,35 +27,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, decks: [], stats: {} });
     }
 
-    // 批量查询每个套牌的统计
-    const stats: Record<string, { total: number; unsigned: number; pending: number }> = {};
+    // 单条查询拉取所有卡牌的 deck_id + status，在内存中聚合统计
+    // 替代原先 N×3 条 Supabase 查询（N+1 问题）
+    const deckIds = decks.map((d) => d.id);
+    const { data: allCards } = await supabase
+      .from("cards")
+      .select("deck_id, status")
+      .in("deck_id", deckIds);
 
-    await Promise.all(
-      decks.map(async (deck) => {
-        const [{ count: total }, { count: unsigned }, { count: pending }] =
-          await Promise.all([
-            supabase
-              .from("cards")
-              .select("*", { count: "exact", head: true })
-              .eq("deck_id", deck.id),
-            supabase
-              .from("cards")
-              .select("*", { count: "exact", head: true })
-              .eq("deck_id", deck.id)
-              .in("status", [0, 3]),
-            supabase
-              .from("cards")
-              .select("*", { count: "exact", head: true })
-              .eq("deck_id", deck.id)
-              .eq("status", 1),
-          ]);
-        stats[deck.id] = {
-          total: total ?? 0,
-          unsigned: unsigned ?? 0,
-          pending: pending ?? 0,
-        };
-      })
-    );
+    const stats: Record<string, { total: number; unsigned: number; pending: number }> = {};
+    for (const deck of decks) {
+      stats[deck.id] = { total: 0, unsigned: 0, pending: 0 };
+    }
+    if (allCards) {
+      for (const card of allCards) {
+        const s = stats[card.deck_id];
+        if (!s) continue;
+        s.total++;
+        if (card.status === 1) s.pending++;
+        else if (card.status === 0 || card.status === 3) s.unsigned++;
+      }
+    }
 
     return NextResponse.json({ success: true, decks, stats });
   } catch (error) {
