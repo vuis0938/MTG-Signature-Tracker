@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
-import { getUserFromRequest } from "@/lib/auth";
+import { getUserFromRequest, isAdmin } from "@/lib/auth";
 import type { NextRequest } from "next/server";
 
 interface CuratedSection {
@@ -21,6 +21,11 @@ export async function POST(request: NextRequest) {
   const userName = getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+
+  // 权限检查：仅管理员可修改策展数据
+  if (!isAdmin(userName)) {
+    return NextResponse.json({ error: "无权执行此操作" }, { status: 403 });
   }
 
   try {

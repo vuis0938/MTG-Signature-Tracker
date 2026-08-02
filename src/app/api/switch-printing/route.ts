@@ -21,6 +21,9 @@ export async function POST(request: NextRequest) {
     if (!cardIds || cardIds.length === 0) {
       return NextResponse.json({ error: "缺少卡牌 ID" }, { status: 400 });
     }
+    if (cardIds.length > 100) {
+      return NextResponse.json({ error: "卡牌数量过多（最多 100 张）" }, { status: 400 });
+    }
     if (!setCode?.trim() || !collectorNumber?.trim()) {
       return NextResponse.json({ error: "缺少 set_code 或 collector_number" }, { status: 400 });
     }

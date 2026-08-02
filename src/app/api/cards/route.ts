@@ -68,6 +68,14 @@ export async function PATCH(request: NextRequest) {
     if (!cardId) {
       return NextResponse.json({ error: "缺少卡牌 ID" }, { status: 400 });
     }
+    // 校验 status 合法范围
+    if (status !== undefined && (![0, 1, 2, 3].includes(status))) {
+      return NextResponse.json({ error: "无效的卡牌状态" }, { status: 400 });
+    }
+    // 校验字符串长度
+    if (event_name !== undefined && event_name !== null && event_name.length > 200) {
+      return NextResponse.json({ error: "活动名称过长" }, { status: 400 });
+    }
 
     const supabase = getSupabase();
 

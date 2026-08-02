@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { getUserFromRequest } from "@/lib/auth";
+import { rateLimit, getClientIP } from "@/lib/rate-limit";
 
 export async function DELETE(request: NextRequest) {
   // 鉴权
   const userName = getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+
+  // 限流：高危操作，限制频率
+  const ip = getClientIP(request);
+  const limit = rateLimit(`clear-data:${ip}`, 5, 10 * 60 * 1000);
+  if (!limit.allowed) {
+    return NextResponse.json({ error: "操作过于频繁，请稍后再试" }, { status: 429 });
   }
 
   try {

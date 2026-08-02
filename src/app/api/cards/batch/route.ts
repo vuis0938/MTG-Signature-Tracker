@@ -17,6 +17,9 @@ export async function POST(request: NextRequest) {
     if (!deckIds || deckIds.length === 0) {
       return NextResponse.json({ error: "缺少套牌 ID" }, { status: 400 });
     }
+    if (deckIds.length > 50) {
+      return NextResponse.json({ error: "套牌数量过多（最多 50 个）" }, { status: 400 });
+    }
 
     const supabase = getSupabase();
 

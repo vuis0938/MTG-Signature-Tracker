@@ -5,9 +5,12 @@
  * - Token 签名：HMAC-SHA256（无状态，无需 sessions 表）
  */
 
+import "server-only";
 import { createHmac, randomBytes, pbkdf2Sync, timingSafeEqual } from "crypto";
 
-const ITERATIONS = 100_000;
+// OWASP 2023 建议 PBKDF2-SHA256 ≥ 600,000 次
+const ITERATIONS = 600_000;
+const LEGACY_ITERATIONS = 100_000; // 旧哈希兼容
 const KEY_LENGTH = 64;
 
 // 生产环境必须设置 TOKEN_SECRET，否则运行时报错
@@ -32,18 +35,45 @@ function getTokenSecret(): string {
 
 // ─── 密码哈希 ──────────────────────────────────────────────
 
-/** 哈希密码（返回 "salt:hash" 格式的字符串） */
+/**
+ * 哈希密码（返回 "iterations:salt:hash" 格式的字符串）
+ * 迭代次数写入哈希，便于未来调整参数时兼容旧哈希
+ */
 export function hashPassword(password: string): string {
   const salt = randomBytes(16).toString("hex");
   const hash = pbkdf2Sync(password, salt, ITERATIONS, KEY_LENGTH, "sha256").toString("hex");
-  return `${salt}:${hash}`;
+  return `${ITERATIONS}:${salt}:${hash}`;
 }
 
-/** 验证密码是否匹配哈希 */
+/**
+ * 验证密码是否匹配哈希
+ * 兼容两种格式：
+ *   - 新格式 "iterations:salt:hash"
+ *   - 旧格式 "salt:hash"（迭代次数默认 100,000）
+ */
 export function verifyPassword(password: string, stored: string): boolean {
-  const [salt, expectedHash] = stored.split(":");
+  const parts = stored.split(":");
+  let iterations: number;
+  let salt: string | undefined;
+  let expectedHash: string | undefined;
+
+  if (parts.length === 3) {
+    // 新格式：iterations:salt:hash
+    iterations = parseInt(parts[0], 10);
+    salt = parts[1];
+    expectedHash = parts[2];
+    if (isNaN(iterations) || iterations < 1) return false;
+  } else if (parts.length === 2) {
+    // 旧格式：salt:hash（迭代次数 100,000）
+    iterations = LEGACY_ITERATIONS;
+    salt = parts[0];
+    expectedHash = parts[1];
+  } else {
+    return false;
+  }
+
   if (!salt || !expectedHash) return false;
-  const hash = pbkdf2Sync(password, salt, ITERATIONS, KEY_LENGTH, "sha256").toString("hex");
+  const hash = pbkdf2Sync(password, salt, iterations, KEY_LENGTH, "sha256").toString("hex");
   // 使用 timingSafeEqual 防止时序攻击
   try {
     return timingSafeEqual(Buffer.from(hash), Buffer.from(expectedHash));
@@ -52,10 +82,22 @@ export function verifyPassword(password: string, stored: string): boolean {
   }
 }
 
+/**
+ * 检查哈希是否需要升级（旧格式或低迭代次数）
+ */
+export function needsHashUpgrade(stored: string): boolean {
+  const parts = stored.split(":");
+  if (parts.length === 3) {
+    const iterations = parseInt(parts[0], 10);
+    return !isNaN(iterations) && iterations < ITERATIONS;
+  }
+  return true; // 旧格式（2 段）需要升级
+}
+
 // ─── Token 签名 ────────────────────────────────────────────
 
-// Token 有效期：30 天
-const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+// Token 有效期：7 天
+const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 interface TokenPayload {
   u: string; // username
@@ -119,4 +161,17 @@ export function verifyToken(token: string | undefined | null): string | null {
 export function getUserFromRequest(request: { cookies: { get: (name: string) => { value: string } | undefined } }): string | null {
   const token = request.cookies.get("auth_token")?.value;
   return verifyToken(token);
+}
+
+// ─── 管理员权限 ────────────────────────────────────────────
+
+/**
+ * 检查用户是否为管理员
+ * 通过环境变量 ADMIN_USERS 配置（逗号分隔的用户名列表）
+ */
+export function isAdmin(userName: string): boolean {
+  const adminUsers = process.env.ADMIN_USERS;
+  if (!adminUsers) return false;
+  const admins = adminUsers.split(",").map((u) => u.trim().toLowerCase());
+  return admins.includes(userName.trim().toLowerCase());
 }

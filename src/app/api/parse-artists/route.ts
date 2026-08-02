@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
+import { rateLimit, getClientIP } from "@/lib/rate-limit";
 
 // ─── LLM 清洗（DeepSeek 优先，Anthropic 备选） ─────────────
 
@@ -159,12 +160,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
+  // 限流：防止 LLM API 费用滥用
+  const ip = getClientIP(request);
+  const limit = rateLimit(`parse-artists:${ip}`, 10, 10 * 60 * 1000);
+  if (!limit.allowed) {
+    return NextResponse.json({ error: "操作过于频繁，请稍后再试" }, { status: 429 });
+  }
+
   try {
     const body = await request.json();
     const { text } = body as { text?: string };
 
     if (!text?.trim()) {
       return NextResponse.json({ error: "请粘贴活动画家名单" }, { status: 400 });
+    }
+    if (text.length > 10000) {
+      return NextResponse.json({ error: "文本内容过长（最多 10,000 字符）" }, { status: 400 });
     }
 
     let artists: string[];

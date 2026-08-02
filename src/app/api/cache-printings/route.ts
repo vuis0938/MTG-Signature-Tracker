@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { fetchAllPrintings, delay } from "@/lib/scryfall-client";
 import { getUserFromRequest } from "@/lib/auth";
+import { rateLimit, getClientIP } from "@/lib/rate-limit";
 
 /**
  * POST /api/cache-printings
@@ -14,12 +15,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
+  // 限流：防止 Scryfall API 滥用
+  const ip = getClientIP(request);
+  const limit = rateLimit(`cache-printings:${ip}`, 5, 10 * 60 * 1000);
+  if (!limit.allowed) {
+    return NextResponse.json({ error: "操作过于频繁，请稍后再试" }, { status: 429 });
+  }
+
   try {
     const body = await request.json();
     const { cardNames } = body as { cardNames?: string[] };
 
     if (!cardNames || cardNames.length === 0) {
       return NextResponse.json({ success: true, cached: 0 });
+    }
+    if (cardNames.length > 200) {
+      return NextResponse.json({ error: "卡牌名数量过多（最多 200 个）" }, { status: 400 });
     }
 
     const uniqueNames = [...new Set(cardNames)];

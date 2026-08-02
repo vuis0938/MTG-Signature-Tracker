@@ -2,9 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   hashPassword,
   verifyPassword,
+  needsHashUpgrade,
   createToken,
   verifyToken,
   getUserFromRequest,
+  isAdmin,
 } from "../auth";
 
 // ═════════════════════════════════════════════════════════════
@@ -12,12 +14,14 @@ import {
 // ═════════════════════════════════════════════════════════════
 
 describe("hashPassword", () => {
-  it("返回 salt:hash 格式", () => {
+  it("返回 iterations:salt:hash 格式", () => {
     const result = hashPassword("mypassword");
     expect(result).toContain(":");
-    const [salt, hash] = result.split(":");
-    expect(salt).toHaveLength(32); // 16 bytes hex = 32 chars
-    expect(hash).toHaveLength(128); // 64 bytes hex = 128 chars
+    const parts = result.split(":");
+    expect(parts).toHaveLength(3);
+    expect(parts[0]).toBe("600000"); // 迭代次数
+    expect(parts[1]).toHaveLength(32); // 16 bytes hex = 32 chars
+    expect(parts[2]).toHaveLength(128); // 64 bytes hex = 128 chars
   });
 
   it("每次调用生成不同 salt（非确定性）", () => {
@@ -52,6 +56,17 @@ describe("verifyPassword", () => {
     expect(verifyPassword("notempty", stored)).toBe(false);
   });
 
+  it("兼容旧格式 salt:hash（100,000 次迭代）", () => {
+    // 模拟旧格式哈希：iterations=100000
+    const { pbkdf2Sync, randomBytes } = require("crypto");
+    const salt = randomBytes(16).toString("hex");
+    const hash = pbkdf2Sync("legacytest", salt, 100000, 64, "sha256").toString("hex");
+    const legacyStored = `${salt}:${hash}`;
+    // 旧格式应能验证成功
+    expect(verifyPassword("legacytest", legacyStored)).toBe(true);
+    expect(verifyPassword("wrong", legacyStored)).toBe(false);
+  });
+
   it("格式错误的存储值返回 false", () => {
     expect(verifyPassword("test", "invalidformat")).toBe(false);
     expect(verifyPassword("test", "")).toBe(false);
@@ -60,6 +75,31 @@ describe("verifyPassword", () => {
 
   it("哈希值长度不匹配返回 false（防时序攻击异常）", () => {
     expect(verifyPassword("test", "abcd:efgh")).toBe(false);
+  });
+
+  it("三段格式但迭代次数无效返回 false", () => {
+    expect(verifyPassword("test", "abc:def:ghi")).toBe(false);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// needsHashUpgrade
+// ═════════════════════════════════════════════════════════════
+
+describe("needsHashUpgrade", () => {
+  it("新格式（600,000 次）不需要升级", () => {
+    const stored = hashPassword("test");
+    expect(needsHashUpgrade(stored)).toBe(false);
+  });
+
+  it("旧格式（salt:hash）需要升级", () => {
+    const legacyStored = "abcd1234:5678efgh";
+    expect(needsHashUpgrade(legacyStored)).toBe(true);
+  });
+
+  it("低迭代次数需要升级", () => {
+    const lowIterStored = "100000:somesalt:somehash";
+    expect(needsHashUpgrade(lowIterStored)).toBe(true);
   });
 });
 
@@ -201,5 +241,38 @@ describe("getUserFromRequest", () => {
 
   it("空 token 返回 null", () => {
     expect(getUserFromRequest(makeRequest(""))).toBeNull();
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// isAdmin
+// ═════════════════════════════════════════════════════════════
+
+describe("isAdmin", () => {
+  beforeEach(() => {
+    vi.stubEnv("ADMIN_USERS", "alice,bob");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("管理员用户返回 true", () => {
+    expect(isAdmin("alice")).toBe(true);
+    expect(isAdmin("bob")).toBe(true);
+  });
+
+  it("非管理员用户返回 false", () => {
+    expect(isAdmin("charlie")).toBe(false);
+  });
+
+  it("大小写不敏感", () => {
+    expect(isAdmin("Alice")).toBe(true);
+    expect(isAdmin("BOB")).toBe(true);
+  });
+
+  it("未配置 ADMIN_USERS 返回 false", () => {
+    vi.stubEnv("ADMIN_USERS", "");
+    expect(isAdmin("alice")).toBe(false);
   });
 });

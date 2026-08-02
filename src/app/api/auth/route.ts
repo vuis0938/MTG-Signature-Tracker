@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { hashPassword, verifyPassword, createToken } from "@/lib/auth";
+import { hashPassword, verifyPassword, createToken, needsHashUpgrade } from "@/lib/auth";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
 
 // 登录限流：15 分钟内最多 10 次尝试
@@ -11,8 +11,8 @@ const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const REGISTER_MAX_ATTEMPTS = 5;
 const REGISTER_WINDOW_MS = 60 * 60 * 1000;
 
-// Cookie 有效期：30 天（与 Token TTL 一致）
-const COOKIE_MAX_AGE = 30 * 24 * 60 * 60;
+// Cookie 有效期：7 天（与 Token TTL 一致）
+const COOKIE_MAX_AGE = 7 * 24 * 60 * 60;
 
 function setCookies(response: NextResponse, username: string) {
   const token = createToken(username);
@@ -68,8 +68,16 @@ export async function POST(request: NextRequest) {
     let isValid = false;
 
     if (storedPassword.includes(":")) {
-      // 新格式：salt:hash
+      // 哈希格式（新 iterations:salt:hash 或旧 salt:hash）
       isValid = verifyPassword(password, storedPassword);
+      // 如果哈希参数过旧，自动升级
+      if (isValid && needsHashUpgrade(storedPassword)) {
+        const hashed = hashPassword(password);
+        await supabase
+          .from("users")
+          .update({ password: hashed })
+          .eq("username", username);
+      }
     } else {
       // 旧格式：明文密码（兼容已注册用户）
       isValid = storedPassword === password;

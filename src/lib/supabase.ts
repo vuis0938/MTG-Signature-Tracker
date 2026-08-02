@@ -1,3 +1,4 @@
+import "server-only";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 // ─── 服务端专用 Client（使用 Service Role Key，绕过 RLS）─────

@@ -4,6 +4,7 @@ import { extractArtists, extractImageUrl } from "@/lib/scryfall-client";
 import { batchSearch, CardIdentifier, RateLimiter } from "@/lib/scryfall-client";
 import { parseMoxfieldFormat } from "@/lib/moxfield-parser";
 import { getUserFromRequest } from "@/lib/auth";
+import { rateLimit, getClientIP } from "@/lib/rate-limit";
 
 // ─── API Handler ──────────────────────────────────────────
 
@@ -16,6 +17,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
+  // 限流：防止 Scryfall API 滥用
+  const ip = getClientIP(request);
+  const limit = rateLimit(`add-cards:${ip}`, 10, 10 * 60 * 1000);
+  if (!limit.allowed) {
+    return NextResponse.json({ error: "操作过于频繁，请稍后再试" }, { status: 429 });
+  }
+
   try {
     const body = await request.json();
     const { deckId, text } = body as { deckId?: string; text?: string };
@@ -25,6 +33,9 @@ export async function POST(request: NextRequest) {
     }
     if (!text?.trim()) {
       return NextResponse.json({ error: "请粘贴套牌列表内容" }, { status: 400 });
+    }
+    if (text.length > 50000) {
+      return NextResponse.json({ error: "套牌内容过长（最多 50,000 字符）" }, { status: 400 });
     }
 
     // 验证套牌存在且属于当前用户

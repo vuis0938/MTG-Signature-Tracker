@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifyToken } from "@/lib/auth";
 
-// 不需要鉴权的路由
+// 不需要鉴权的路由（精确匹配）
 const PUBLIC_PATHS = ["/login", "/api/auth"];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 公开路由直接放行
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+  // 公开路由直接放行（精确匹配，避免 /api/auth-xxx 误匹配）
+  if (PUBLIC_PATHS.includes(pathname)) {
     return NextResponse.next();
   }
 
