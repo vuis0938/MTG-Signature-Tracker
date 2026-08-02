@@ -38,5 +38,12 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.10"
-  }
+  },
+  "browserslist": [
+    "ios >= 14",
+    "safari >= 14",
+    "chrome >= 87",
+    "firefox >= 78",
+    "edge >= 88"
+  ]
 }
