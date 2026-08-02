@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { delay, SCRYFALL_UA } from "@/lib/scryfall-client";
+import { getUserFromRequest } from "@/lib/auth";
 import type { ArtistCard } from "@/types";
 
 export async function GET(request: NextRequest) {
+  // 鉴权
+  const userName = getUserFromRequest(request);
+  if (!userName) {
+    return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const artist = searchParams.get("artist");

@@ -65,7 +65,13 @@ export async function POST(request: NextRequest) {
 }
 
 /** GET: 读取已保存的策展数据（含 taggedLines 用于恢复页面状态） */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // 鉴权
+  const userName = getUserFromRequest(request);
+  if (!userName) {
+    return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase

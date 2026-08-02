@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   hashPassword,
   verifyPassword,
@@ -77,15 +77,13 @@ describe("createToken", () => {
     expect(parts[1]).toBeTruthy();
   });
 
-  it("payload 是 base64url 编码的用户名", () => {
+  it("payload 包含用户名和过期时间", () => {
     const token = createToken("alice");
     const payload = token.split(".")[0];
-    const decoded = Buffer.from(payload, "base64url").toString("utf-8");
-    expect(decoded).toBe("alice");
-  });
-
-  it("同一用户名每次生成相同 token（HMAC 确定性）", () => {
-    expect(createToken("alice")).toBe(createToken("alice"));
+    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf-8"));
+    expect(decoded.u).toBe("alice");
+    expect(typeof decoded.e).toBe("number");
+    expect(decoded.e).toBeGreaterThan(Date.now());
   });
 
   it("不同用户名生成不同 token", () => {
@@ -144,12 +142,31 @@ describe("verifyToken", () => {
   it("篡改 payload 返回 null（签名不匹配）", () => {
     const token = createToken("alice");
     const [, signature] = token.split(".");
-    const forged = `${Buffer.from("bob").toString("base64url")}.${signature}`;
+    const forgedPayload = Buffer.from(JSON.stringify({ u: "bob", e: Date.now() + 1000000 })).toString("base64url");
+    const forged = `${forgedPayload}.${signature}`;
     expect(verifyToken(forged)).toBeNull();
   });
 
   it("完全伪造的 token 返回 null", () => {
     expect(verifyToken("fakepayload.fakesignature")).toBeNull();
+  });
+
+  it("过期 token 返回 null", () => {
+    const token = createToken("alice");
+    // 解码 payload，修改过期时间为过去，重新编码
+    const [payloadStr, signature] = token.split(".");
+    const payload = JSON.parse(Buffer.from(payloadStr, "base64url").toString("utf-8"));
+    payload.e = Date.now() - 1000; // 已过期
+    // 由于签名会不匹配，需要直接测试 verifyToken 逻辑
+    // 创建一个带有效签名但过期时间在过去的 token
+    const expiredPayloadStr = Buffer.from(JSON.stringify(payload)).toString("base64url");
+    const { createHmac } = require("crypto");
+    // TOKEN_SECRET 在开发环境有默认值
+    const expiredSignature = createHmac("sha256", "mtg-dev-secret-change-in-production")
+      .update(expiredPayloadStr)
+      .digest("base64url");
+    const expiredToken = `${expiredPayloadStr}.${expiredSignature}`;
+    expect(verifyToken(expiredToken)).toBeNull();
   });
 });
 

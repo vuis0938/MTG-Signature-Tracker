@@ -25,20 +25,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "缺少 set_code 或 collector_number" }, { status: 400 });
     }
 
-    // 验证卡牌归属权：通过 deck_id 关联到 decks 表检查 user_name
-    const { data: card } = await supabase
+    // 验证所有卡牌归属权：通过 deck_id 关联到 decks 表检查 user_name
+    const { data: ownedCards } = await supabase
       .from("cards")
       .select("id, deck:decks!inner(user_name)")
-      .eq("id", cardIds[0])
-      .single();
+      .in("id", cardIds);
 
-    if (!card) {
-      return NextResponse.json({ error: "卡牌不存在" }, { status: 404 });
+    if (!ownedCards || ownedCards.length !== cardIds.length) {
+      return NextResponse.json({ error: "部分卡牌不存在或无权操作" }, { status: 403 });
     }
 
-    const deckOwner = card.deck as unknown as { user_name: string } | null;
-    if (!deckOwner || deckOwner.user_name !== userName) {
-      return NextResponse.json({ error: "无权操作此卡牌" }, { status: 403 });
+    const allOwned = ownedCards.every((c) => {
+      const owner = c.deck as unknown as { user_name: string } | null;
+      return owner?.user_name === userName;
+    });
+    if (!allOwned) {
+      return NextResponse.json({ error: "无权操作部分卡牌" }, { status: 403 });
     }
 
     // 从 Scryfall 获取新印刷版本
@@ -78,8 +80,9 @@ export async function POST(request: NextRequest) {
       .in("id", cardIds);
 
     if (updateError) {
+      console.error("[SwitchPrinting] 数据库更新失败:", updateError.message);
       return NextResponse.json(
-        { error: `数据库更新失败: ${updateError.message}` },
+        { error: "数据库更新失败" },
         { status: 500 }
       );
     }

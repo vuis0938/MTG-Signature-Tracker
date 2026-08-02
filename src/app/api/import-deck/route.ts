@@ -56,7 +56,8 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (deckError || !deck) {
-      return NextResponse.json({ error: `创建套牌失败: ${deckError?.message}` }, { status: 500 });
+      console.error("[Import] 创建套牌失败:", deckError?.message);
+      return NextResponse.json({ error: "创建套牌失败，请重试" }, { status: 500 });
     }
 
     // ── 统一批量查询 Scryfall ──
@@ -147,7 +148,10 @@ export async function POST(request: NextRequest) {
       try {
         fetch(`${request.nextUrl.origin}/api/cache-printings`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Cookie: request.headers.get("cookie") || "",
+          },
           body: JSON.stringify({ cardNames: uniqueCardNames }),
         }).catch(() => {});
       } catch {}

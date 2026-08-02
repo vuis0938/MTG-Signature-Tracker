@@ -10,9 +10,12 @@ import { createHmac, randomBytes, pbkdf2Sync, timingSafeEqual } from "crypto";
 const ITERATIONS = 100_000;
 const KEY_LENGTH = 64;
 
-// 生产环境必须设置 TOKEN_SECRET，否则启动时报错
+// 生产环境必须设置 TOKEN_SECRET，否则运行时报错
 // 开发环境使用默认值方便本地调试
-const TOKEN_SECRET = (() => {
+// 使用懒加载避免 Next.js 构建时（无环境变量）模块求值失败
+let _tokenSecret: string | null = null;
+function getTokenSecret(): string {
+  if (_tokenSecret !== null) return _tokenSecret;
   const secret = process.env.TOKEN_SECRET;
   if (!secret) {
     if (process.env.NODE_ENV === "production") {
@@ -20,10 +23,12 @@ const TOKEN_SECRET = (() => {
         "生产环境必须设置 TOKEN_SECRET 环境变量（建议 32+ 字符随机字符串）"
       );
     }
-    return "mtg-dev-secret-change-in-production";
+    _tokenSecret = "mtg-dev-secret-change-in-production";
+  } else {
+    _tokenSecret = secret;
   }
-  return secret;
-})();
+  return _tokenSecret;
+}
 
 // ─── 密码哈希 ──────────────────────────────────────────────
 
@@ -49,21 +54,33 @@ export function verifyPassword(password: string, stored: string): boolean {
 
 // ─── Token 签名 ────────────────────────────────────────────
 
-/**
- * 生成签名 token（HMAC-SHA256）
- * 格式：base64(username).base64(hmac)
- * 无状态：无需 DB 存储，proxy 可直接验证签名
- */
-export function createToken(username: string): string {
-  const payload = Buffer.from(username).toString("base64url");
-  const signature = createHmac("sha256", TOKEN_SECRET)
-    .update(payload)
-    .digest("base64url");
-  return `${payload}.${signature}`;
+// Token 有效期：30 天
+const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+interface TokenPayload {
+  u: string; // username
+  e: number; // expiry timestamp (ms)
 }
 
 /**
- * 验证 token 并返回 username（无效则返回 null）
+ * 生成签名 token（HMAC-SHA256）
+ * 格式：base64(JSON{u,e}).base64(hmac)
+ * 无状态：无需 DB 存储，proxy 可直接验证签名
+ */
+export function createToken(username: string): string {
+  const payload: TokenPayload = {
+    u: username,
+    e: Date.now() + TOKEN_TTL_MS,
+  };
+  const payloadStr = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const signature = createHmac("sha256", getTokenSecret())
+    .update(payloadStr)
+    .digest("base64url");
+  return `${payloadStr}.${signature}`;
+}
+
+/**
+ * 验证 token 并返回 username（无效或过期则返回 null）
  * 可在 proxy 和 API 路由中使用
  */
 export function verifyToken(token: string | undefined | null): string | null {
@@ -71,9 +88,9 @@ export function verifyToken(token: string | undefined | null): string | null {
   const parts = token.split(".");
   if (parts.length !== 2) return null;
 
-  const [payload, signature] = parts;
-  const expectedSignature = createHmac("sha256", TOKEN_SECRET)
-    .update(payload)
+  const [payloadStr, signature] = parts;
+  const expectedSignature = createHmac("sha256", getTokenSecret())
+    .update(payloadStr)
     .digest("base64url");
 
   try {
@@ -85,7 +102,12 @@ export function verifyToken(token: string | undefined | null): string | null {
   }
 
   try {
-    return Buffer.from(payload, "base64url").toString("utf-8");
+    const payload = JSON.parse(Buffer.from(payloadStr, "base64url").toString("utf-8")) as TokenPayload;
+    // 检查过期时间
+    if (typeof payload.e !== "number" || Date.now() > payload.e) {
+      return null;
+    }
+    return payload.u;
   } catch {
     return null;
   }

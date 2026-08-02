@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { fetchMountainMageArtists } from "@/lib/mountain-mage";
 import { getSupabase } from "@/lib/supabase";
+import { getUserFromRequest } from "@/lib/auth";
 
 interface CuratedSection {
   name: string;
@@ -61,16 +62,22 @@ interface GraphqlResponse {
   };
 }
 
-async function graphql(query: string): Promise<GraphqlResponse> {
+async function graphql(query: string, variables?: Record<string, unknown>): Promise<GraphqlResponse> {
   const res = await fetch(GRAPHQL_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "User-Agent": UA },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query, variables }),
   });
   return res.json();
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // 鉴权
+  const userName = getUserFromRequest(request);
+  if (!userName) {
+    return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+
   const results: EventWithArtists[] = [];
 
   try {
@@ -100,10 +107,10 @@ export async function GET() {
 
     for (let i = 0; i < eventIds.length; i += BATCH) {
       const batch = eventIds.slice(i, i + BATCH);
-      const idsStr = batch.map((id) => `"${id}"`).join(", ");
 
       const artistData = await graphql(
-        `{ artistsByEventIds(eventIds: [${idsStr}]) { artistName eventId } }`
+        `query($ids: [ID!]!) { artistsByEventIds(eventIds: $ids) { artistName eventId } }`,
+        { ids: batch }
       );
 
       const mappings: EventArtist[] =

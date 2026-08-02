@@ -7,20 +7,27 @@ import { rateLimit, getClientIP } from "@/lib/rate-limit";
 const LOGIN_MAX_ATTEMPTS = 10;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
+// 注册限流：1 小时内最多 5 次
+const REGISTER_MAX_ATTEMPTS = 5;
+const REGISTER_WINDOW_MS = 60 * 60 * 1000;
+
+// Cookie 有效期：30 天（与 Token TTL 一致）
+const COOKIE_MAX_AGE = 30 * 24 * 60 * 60;
+
 function setCookies(response: NextResponse, username: string) {
   const token = createToken(username);
   response.cookies.set("auth_token", token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 365,
+    maxAge: COOKIE_MAX_AGE,
     path: "/",
   });
   response.cookies.set("user_name", username, {
     httpOnly: false,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 365,
+    maxAge: COOKIE_MAX_AGE,
     path: "/",
   });
 }
@@ -91,6 +98,16 @@ export async function POST(request: NextRequest) {
 // PUT: 注册
 export async function PUT(request: NextRequest) {
   try {
+    // 限流：防止批量注册
+    const ip = getClientIP(request);
+    const limit = rateLimit(`register:${ip}`, REGISTER_MAX_ATTEMPTS, REGISTER_WINDOW_MS);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "注册过于频繁，请稍后再试" },
+        { status: 429 }
+      );
+    }
+
     const { username, password } = await request.json();
 
     if (!username || !password) {

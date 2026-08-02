@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getUserFromRequest } from "@/lib/auth";
 
 // ─── LLM 清洗（DeepSeek 优先，Anthropic 备选） ─────────────
 
@@ -152,6 +153,12 @@ function parseWithRegex(rawText: string): string[] {
 // ─── API Handler ──────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
+  // 鉴权
+  const userName = getUserFromRequest(request);
+  if (!userName) {
+    return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { text } = body as { text?: string };

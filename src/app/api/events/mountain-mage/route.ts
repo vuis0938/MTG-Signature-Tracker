@@ -1,9 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { fetchMountainMageArtists } from "@/lib/mountain-mage";
+import { getUserFromRequest } from "@/lib/auth";
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  // 鉴权
+  const userName = getUserFromRequest(request);
+  if (!userName) {
+    return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
-  const debug = searchParams.get("debug") === "1";
   const refresh = searchParams.get("refresh") === "1";
 
   try {
@@ -23,17 +29,6 @@ export async function GET(request: Request) {
       cached: result.cached,
       stale: result.stale,
     };
-
-    // 调试模式：返回完整原始文本
-    if (debug) {
-      response.debug = {
-        rawText: result.rawText || null,
-        rawTextLength: result.rawText?.length || 0,
-        sectionCount: result.sections.length,
-        parsedCount: result.artists.length,
-        sections: result.sections,
-      };
-    }
 
     return NextResponse.json(response);
   } catch (error) {

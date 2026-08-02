@@ -66,8 +66,9 @@ export async function POST(request: NextRequest) {
     });
 
     if (insertError) {
+      console.error("[RetryCard] 写入失败:", insertError.message);
       return NextResponse.json(
-        { error: `写入失败: ${insertError.message}` },
+        { error: "写入失败" },
         { status: 500 }
       );
     }

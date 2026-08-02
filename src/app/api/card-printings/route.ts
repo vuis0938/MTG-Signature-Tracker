@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { delay, SCRYFALL_UA } from "@/lib/scryfall-client";
+import { getUserFromRequest } from "@/lib/auth";
 import type { Printing } from "@/types";
 
 /** 检查卡牌名称是否精确匹配目标（排除双面卡/裂片卡中仅一面同名的情况） */
@@ -8,6 +9,12 @@ function matchesCardName(card: Record<string, unknown>, target: string): boolean
 }
 
 export async function GET(request: NextRequest) {
+  // 鉴权
+  const userName = getUserFromRequest(request);
+  if (!userName) {
+    return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const cardName = searchParams.get("name");
