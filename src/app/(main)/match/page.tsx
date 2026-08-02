@@ -10,8 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { supabase } from "@/lib/supabase";
-import { getCurrentUser } from "@/lib/user";
 import { useDisplayMode } from "@/lib/display-mode";
 import { useToast } from "@/lib/toast-context";
 import { Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Sparkle, Palette, Package, Heart, Check, MoreHorizontal, Lightbulb } from "lucide-react";
@@ -96,32 +94,22 @@ export default function MatchPage() {
   async function fetchCardsByDeckIds(deckIds: string[]): Promise<CardEntry[]> {
     const currentDecks = decksRef.current;
     const deckMap = new Map(currentDecks.map((d) => [d.id, d.name]));
-    const cards: CardEntry[] = [];
 
-    for (const deckId of deckIds) {
-      try {
-        const { data, error } = await supabase
-          .from("cards")
-          .select("*")
-          .eq("deck_id", deckId);
-
-        const deckName = deckMap.get(deckId) || deckId;
-        if (error) {
-          console.error(`[查询] 套牌 "${deckName}" 查询失败:`, error.message);
-          continue;
-        }
-
-        if (data && data.length > 0) {
-          for (const card of data) {
-            cards.push({ ...(card as CardEntry), deck_name: deckName });
-          }
-        }
-      } catch (err: unknown) {
-        console.error(`[查询] 套牌查询异常:`, err);
+    try {
+      const res = await fetch("/api/cards/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deckIds }),
+      });
+      const data = await res.json();
+      if (data.success && data.cards) {
+        return data.cards as CardEntry[];
       }
+      return [];
+    } catch (err: unknown) {
+      console.error(`[查询] 套牌查询异常:`, err);
+      return [];
     }
-
-    return cards;
   }
 
   // ─── 事件处理 ──────────────────────────────────────────
@@ -256,17 +244,17 @@ export default function MatchPage() {
   }
 
   useEffect(() => {
-    supabase
-      .from("decks")
-      .select("id,name")
-      .eq("user_name", getCurrentUser())
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        if (data) {
-          setDecks(data);
-          setSelectedDecks(new Set(data.map((d) => d.id)));
+    fetch("/api/decks")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.decks) {
+          // 只需要 id 和 name
+          const deckList = data.decks.map((d: { id: string; name: string }) => ({ id: d.id, name: d.name }));
+          setDecks(deckList);
+          setSelectedDecks(new Set(deckList.map((d: { id: string }) => d.id)));
         }
-      });
+      })
+      .catch(() => {});
   }, []);
 
   // ─── 状态切换 ──────────────────────────────────────────
@@ -295,18 +283,25 @@ export default function MatchPage() {
 
     // 2. 先写数据库，成功后再更新 UI（避免乐观更新不一致）
     try {
-      const { error } = await supabase
-        .from("cards")
-        .update(updatePayload)
-        .eq("id", cardId);
-
-      if (error) {
-        console.error("[toggleStatus] 数据库更新失败:", error.message);
-        setMatchError(`状态更新失败: ${error.message}`);
+      const res = await fetch("/api/cards", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cardId,
+          status: newStatus,
+          is_signed: false,
+          event_name: newStatus === 3 ? currentEvent : null,
+          event_date: newStatus === 3 ? currentEventDate : null,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        console.error("[toggleStatus] 更新失败");
+        setMatchError("状态更新失败，请刷新页面重试");
         return;
       }
     } catch (err: unknown) {
-      console.error("[toggleStatus] 数据库更新异常:", err);
+      console.error("[toggleStatus] 网络异常:", err);
       setMatchError("状态更新失败，请刷新页面重试");
       return;
     }

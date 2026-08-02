@@ -15,8 +15,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { supabase } from "@/lib/supabase";
-import { getCurrentUser } from "@/lib/user";
 import { Upload, Trash2, ChevronDown, ChevronRight, Plus, RefreshCw, Loader2, Palette, Lightbulb, AlertTriangle, Heart, Check, MoreHorizontal } from "lucide-react";
 import {
   Dialog,
@@ -116,46 +114,18 @@ export default function DecksPage() {
   // ─── 加载套牌列表 ──────────────────────────────────────
 
   const loadDecks = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("decks")
-      .select("*")
-      .eq("user_name", getCurrentUser())
-      .order("created_at", { ascending: false });
-
-    if (!error && data) {
-      setDecks(data);
-
-      const statsMap: Record<string, DeckStats> = {};
-      await Promise.all(
-        data.map(async (deck) => {
-          const [{ count: total }, { count: unsigned }, { count: pending }] =
-            await Promise.all([
-              supabase
-                .from("cards")
-                .select("*", { count: "exact", head: true })
-                .eq("deck_id", deck.id),
-              supabase
-                .from("cards")
-                .select("*", { count: "exact", head: true })
-                .eq("deck_id", deck.id)
-                .in("status", [0, 3]),
-              supabase
-                .from("cards")
-                .select("*", { count: "exact", head: true })
-                .eq("deck_id", deck.id)
-                .eq("status", 1),
-            ]);
-          statsMap[deck.id] = {
-            total: total ?? 0,
-            unsigned: unsigned ?? 0,
-            pending: pending ?? 0,
-          };
-        })
-      );
-      setDeckStats(statsMap);
+    try {
+      const res = await fetch("/api/decks");
+      const data = await res.json();
+      if (data.success) {
+        setDecks(data.decks);
+        setDeckStats(data.stats || {});
+      }
+    } catch {
+      showToast("加载套牌失败，请刷新重试", "error");
     }
     setLoading(false);
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     loadDecks();
@@ -173,14 +143,14 @@ export default function DecksPage() {
 
     if (!cards[deckId]) {
       setCardsLoading(true);
-      const { data } = await supabase
-        .from("cards")
-        .select("*")
-        .eq("deck_id", deckId)
-        .order("artist_names");
-
-      if (data) {
-        setCards((prev) => ({ ...prev, [deckId]: data }));
+      try {
+        const res = await fetch(`/api/cards?deckId=${encodeURIComponent(deckId)}`);
+        const data = await res.json();
+        if (data.success && data.cards) {
+          setCards((prev) => ({ ...prev, [deckId]: data.cards }));
+        }
+      } catch {
+        showToast("加载卡牌失败，请重试", "error");
       }
       setCardsLoading(false);
     }
@@ -191,10 +161,15 @@ export default function DecksPage() {
   const deleteDeck = useCallback(async (deckId: string, deckName: string) => {
     if (!confirm(`确定删除套牌「${deckName}」吗？此操作不可撤销`)) return;
 
-    const { error } = await supabase.from("decks").delete().eq("id", deckId);
-
-    if (error) {
-      showToast("删除失败，请重试", "error");
+    try {
+      const res = await fetch(`/api/decks?deckId=${encodeURIComponent(deckId)}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!data.success) {
+        showToast(data.error || "删除失败，请重试", "error");
+        return;
+      }
+    } catch {
+      showToast("网络错误，请重试", "error");
       return;
     }
 
@@ -289,13 +264,10 @@ export default function DecksPage() {
         }
         await loadDecks();
         if (expandedDeck === retryingDeckId) {
-          const { data: freshCards } = await supabase
-            .from("cards")
-            .select("*")
-            .eq("deck_id", retryingDeckId)
-            .order("artist_names");
-          if (freshCards) {
-            setCards((prev) => ({ ...prev, [retryingDeckId]: freshCards }));
+          const res = await fetch(`/api/cards?deckId=${encodeURIComponent(retryingDeckId)}`);
+          const freshData = await res.json();
+          if (freshData.success && freshData.cards) {
+            setCards((prev) => ({ ...prev, [retryingDeckId]: freshData.cards }));
           }
         }
       } else {
@@ -314,13 +286,23 @@ export default function DecksPage() {
     const newStatus = (currentStatus + 1) % 3;
 
     // 先写数据库，成功后再更新 UI（避免乐观更新导致 UI 与 DB 不一致）
-    const { error } = await supabase
-      .from("cards")
-      .update({ status: newStatus, is_signed: newStatus === 2 })
-      .eq("id", cardId);
-
-    if (error) {
-      showToast("状态更新失败，请重试", "error");
+    try {
+      const res = await fetch("/api/cards", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cardId,
+          status: newStatus,
+          is_signed: newStatus === 2,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        showToast("状态更新失败，请重试", "error");
+        return;
+      }
+    } catch {
+      showToast("网络错误，请重试", "error");
       return;
     }
 
@@ -383,13 +365,10 @@ export default function DecksPage() {
         setAddCardsText("");
         await loadDecks();
         if (expandedDeck === addCardsOpen) {
-          const { data: freshCards } = await supabase
-            .from("cards")
-            .select("*")
-            .eq("deck_id", addCardsOpen)
-            .order("artist_names");
-          if (freshCards) {
-            setCards((prev) => ({ ...prev, [addCardsOpen]: freshCards }));
+          const res = await fetch(`/api/cards?deckId=${encodeURIComponent(addCardsOpen)}`);
+          const freshData = await res.json();
+          if (freshData.success && freshData.cards) {
+            setCards((prev) => ({ ...prev, [addCardsOpen]: freshData.cards }));
           }
         }
       } else {
@@ -528,10 +507,11 @@ export default function DecksPage() {
   async function handleDeleteCard(cardId: string) {
     setDeletingCard(cardId);
     try {
-      const { error } = await supabase.from("cards").delete().eq("id", cardId);
+      const res = await fetch(`/api/cards?cardId=${encodeURIComponent(cardId)}`, { method: "DELETE" });
+      const data = await res.json();
 
-      if (error) {
-        showToast(`删除失败: ${error.message}`, "error");
+      if (!data.success) {
+        showToast(data.error || "删除失败", "error");
         return;
       }
 
