@@ -14,8 +14,8 @@ import {
 // ═════════════════════════════════════════════════════════════
 
 describe("hashPassword", () => {
-  it("返回 iterations:salt:hash 格式", () => {
-    const result = hashPassword("mypassword");
+  it("返回 iterations:salt:hash 格式", async () => {
+    const result = await hashPassword("mypassword");
     expect(result).toContain(":");
     const parts = result.split(":");
     expect(parts).toHaveLength(3);
@@ -24,14 +24,14 @@ describe("hashPassword", () => {
     expect(parts[2]).toHaveLength(128); // 64 bytes hex = 128 chars
   });
 
-  it("每次调用生成不同 salt（非确定性）", () => {
-    const hash1 = hashPassword("mypassword");
-    const hash2 = hashPassword("mypassword");
+  it("每次调用生成不同 salt（非确定性）", async () => {
+    const hash1 = await hashPassword("mypassword");
+    const hash2 = await hashPassword("mypassword");
     expect(hash1).not.toBe(hash2);
   });
 
-  it("不同密码生成不同哈希", () => {
-    expect(hashPassword("password1")).not.toBe(hashPassword("password2"));
+  it("不同密码生成不同哈希", async () => {
+    expect(await hashPassword("password1")).not.toBe(await hashPassword("password2"));
   });
 });
 
@@ -40,45 +40,45 @@ describe("hashPassword", () => {
 // ═════════════════════════════════════════════════════════════
 
 describe("verifyPassword", () => {
-  it("正确密码返回 true", () => {
-    const stored = hashPassword("mypassword");
-    expect(verifyPassword("mypassword", stored)).toBe(true);
+  it("正确密码返回 true", async () => {
+    const stored = await hashPassword("mypassword");
+    expect(await verifyPassword("mypassword", stored)).toBe(true);
   });
 
-  it("错误密码返回 false", () => {
-    const stored = hashPassword("mypassword");
-    expect(verifyPassword("wrongpassword", stored)).toBe(false);
+  it("错误密码返回 false", async () => {
+    const stored = await hashPassword("mypassword");
+    expect(await verifyPassword("wrongpassword", stored)).toBe(false);
   });
 
-  it("空密码", () => {
-    const stored = hashPassword("");
-    expect(verifyPassword("", stored)).toBe(true);
-    expect(verifyPassword("notempty", stored)).toBe(false);
+  it("空密码", async () => {
+    const stored = await hashPassword("");
+    expect(await verifyPassword("", stored)).toBe(true);
+    expect(await verifyPassword("notempty", stored)).toBe(false);
   });
 
-  it("兼容旧格式 salt:hash（100,000 次迭代）", () => {
+  it("兼容旧格式 salt:hash（100,000 次迭代）", async () => {
     // 模拟旧格式哈希：iterations=100000
     const { pbkdf2Sync, randomBytes } = require("crypto");
     const salt = randomBytes(16).toString("hex");
     const hash = pbkdf2Sync("legacytest", salt, 100000, 64, "sha256").toString("hex");
     const legacyStored = `${salt}:${hash}`;
     // 旧格式应能验证成功
-    expect(verifyPassword("legacytest", legacyStored)).toBe(true);
-    expect(verifyPassword("wrong", legacyStored)).toBe(false);
+    expect(await verifyPassword("legacytest", legacyStored)).toBe(true);
+    expect(await verifyPassword("wrong", legacyStored)).toBe(false);
   });
 
-  it("格式错误的存储值返回 false", () => {
-    expect(verifyPassword("test", "invalidformat")).toBe(false);
-    expect(verifyPassword("test", "")).toBe(false);
-    expect(verifyPassword("test", "onlysalt:")).toBe(false);
+  it("格式错误的存储值返回 false", async () => {
+    expect(await verifyPassword("test", "invalidformat")).toBe(false);
+    expect(await verifyPassword("test", "")).toBe(false);
+    expect(await verifyPassword("test", "onlysalt:")).toBe(false);
   });
 
-  it("哈希值长度不匹配返回 false（防时序攻击异常）", () => {
-    expect(verifyPassword("test", "abcd:efgh")).toBe(false);
+  it("哈希值长度不匹配返回 false（防时序攻击异常）", async () => {
+    expect(await verifyPassword("test", "abcd:efgh")).toBe(false);
   });
 
-  it("三段格式但迭代次数无效返回 false", () => {
-    expect(verifyPassword("test", "abc:def:ghi")).toBe(false);
+  it("三段格式但迭代次数无效返回 false", async () => {
+    expect(await verifyPassword("test", "abc:def:ghi")).toBe(false);
   });
 });
 
@@ -87,8 +87,8 @@ describe("verifyPassword", () => {
 // ═════════════════════════════════════════════════════════════
 
 describe("needsHashUpgrade", () => {
-  it("新格式（600,000 次）不需要升级", () => {
-    const stored = hashPassword("test");
+  it("新格式（600,000 次）不需要升级", async () => {
+    const stored = await hashPassword("test");
     expect(needsHashUpgrade(stored)).toBe(false);
   });
 

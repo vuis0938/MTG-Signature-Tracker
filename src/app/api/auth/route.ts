@@ -83,10 +83,10 @@ export async function POST(request: NextRequest) {
 
     if (storedPassword.includes(":")) {
       // 哈希格式（新 iterations:salt:hash 或旧 salt:hash）
-      isValid = verifyPassword(password, storedPassword);
+      isValid = await verifyPassword(password, storedPassword);
       // 如果哈希参数过旧，自动升级
       if (isValid && needsHashUpgrade(storedPassword)) {
-        const hashed = hashPassword(password);
+        const hashed = await hashPassword(password);
         await supabase
           .from("users")
           .update({ password: hashed })
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
       isValid = storedPassword === password;
       // 自动升级为哈希
       if (isValid) {
-        const hashed = hashPassword(password);
+        const hashed = await hashPassword(password);
         await supabase
           .from("users")
           .update({ password: hashed })
@@ -156,7 +156,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "密码不能超过 64 个字符" }, { status: 400 });
     }
 
-    const hashedPassword = hashPassword(password);
+    const hashedPassword = await hashPassword(password);
 
     const { error } = await supabase
       .from("users")

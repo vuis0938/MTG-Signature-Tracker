@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import {
   Card,
   CardContent,
@@ -10,14 +11,33 @@ import {
 } from "@/components/ui/card";
 import {
   Dialog,
-  DialogHeader,
-  DialogTitle,
   DialogContent,
 } from "@/components/ui/dialog";
 import { Calendar, MapPin, Users, Loader2, Package, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEvents } from "@/lib/swr-hooks";
 import type { ArtistCard, CalendarEvent } from "@/types";
+
+// ─── 懒加载弹窗：首屏不打包，首次打开时下载 chunk ────────────
+// chunk 下载期间展示与数据加载一致的 spinner（当前打开弹窗本就有加载态，体验无差别）
+
+function DialogChunkFallback() {
+  return (
+    <Dialog open onOpenChange={() => {}}>
+      <DialogContent>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <span className="ml-2 text-sm text-muted-foreground">加载中...</span>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const ArtistGalleryDialog = dynamic(() => import("@/components/artist-gallery-dialog"), {
+  ssr: false,
+  loading: DialogChunkFallback,
+});
 
 interface EventsClientProps {
   fallbackEvents?: CalendarEvent[];
@@ -201,57 +221,15 @@ export default function EventsClient({ fallbackEvents }: EventsClientProps = {})
         {lastUpdated && ` · 上次更新：${lastUpdated}`}
       </p>
 
-      {/* ─── 画家卡牌画廊弹窗 ─── */}
-      <Dialog open={selectedArtist !== null} onOpenChange={() => { setSelectedArtist(null); setArtistCards([]); }} className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>{selectedArtist} 的卡牌</DialogTitle>
-        </DialogHeader>
-        {artistCardsLoading ? (
-          <DialogContent>
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-sm text-muted-foreground">加载中...</span>
-            </div>
-          </DialogContent>
-        ) : (
-          <DialogContent>
-            {artistCards.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                未找到该画家的卡牌
-              </p>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 max-h-[65vh] overflow-y-auto pr-2">
-                {artistCards.map((card) => (
-                  <div
-                    key={`${card.set}-${card.collector_number}`}
-                    className="rounded-lg border overflow-hidden bg-background"
-                    title={`${card.set_name} #${card.collector_number}`}
-                  >
-                    {card.image_url ? (
-                      <img
-                        src={card.image_url}
-                        alt={card.name}
-                        className="w-full"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
-                        {card.name}
-                      </div>
-                    )}
-                    <div className="p-1.5 text-xs">
-                      <p className="font-medium truncate">{card.name}</p>
-                      <p className="text-muted-foreground truncate">
-                        {card.set_name} #{card.collector_number}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </DialogContent>
-        )}
-      </Dialog>
+      {/* ─── 画家卡牌画廊弹窗（懒加载，打开时才下载 chunk）─── */}
+      {selectedArtist !== null && (
+        <ArtistGalleryDialog
+          artist={selectedArtist}
+          cards={artistCards}
+          loading={artistCardsLoading}
+          onClose={() => { setSelectedArtist(null); setArtistCards([]); }}
+        />
+      )}
     </div>
   );
 }

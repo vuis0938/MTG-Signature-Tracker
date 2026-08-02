@@ -55,7 +55,12 @@ export function useDecks(fallbackData?: DecksResponse) {
   const { data, error, isLoading, mutate: revalidate } = useSWR<DecksResponse>(
     "/api/decks",
     fetcher,
-    { ...FOCUS_REVALIDATION, fallbackData }
+    {
+      ...FOCUS_REVALIDATION,
+      fallbackData,
+      // 有 SSR fallback 时跳过挂载时重验证，避免双重拉取
+      revalidateOnMount: fallbackData ? false : true,
+    }
   );
   return { decks: data?.decks || [], stats: data?.stats || {}, error, isLoading, revalidate };
 }
@@ -89,7 +94,14 @@ export function useEvents(fallbackData?: EventsResponse) {
   const { data, error, isLoading, mutate: revalidate } = useSWR<EventsResponse>(
     "/api/events",
     fetcher,
-    { ...FOCUS_REVALIDATION, fallbackData }
+    {
+      ...FOCUS_REVALIDATION,
+      fallbackData,
+      // 有 SSR fallback 时跳过挂载时重验证，避免双重拉取
+      revalidateOnMount: fallbackData ? false : true,
+      // 活动数据成本高（GraphQL + DB），延长去重窗口
+      dedupingInterval: 30000,
+    }
   );
   return { events: data?.events || [], error, isLoading, revalidate };
 }

@@ -6,6 +6,23 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 // Service Role Key 仅存在服务端环境变量，绝不暴露给前端。
 let _serviceClient: SupabaseClient | null = null;
 
+/**
+ * 单次数据库请求超时（15s）
+ *
+ * 默认 fetch 无超时，Supabase 网络抖动时请求会无限挂起，
+ * 拖垮整个 API 路由的响应。超时后请求中止，路由快速返回错误。
+ */
+const SUPABASE_TIMEOUT_MS = 15000;
+
+const fetchWithTimeout: typeof fetch = (input, init) => {
+  const timeout = AbortSignal.timeout(SUPABASE_TIMEOUT_MS);
+  const signal =
+    init?.signal && typeof AbortSignal.any === "function"
+      ? AbortSignal.any([init.signal, timeout])
+      : timeout;
+  return fetch(input, { ...init, signal });
+};
+
 export function getSupabase(): SupabaseClient {
   if (!_serviceClient) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -41,6 +58,9 @@ export function getSupabase(): SupabaseClient {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
+      },
+      global: {
+        fetch: fetchWithTimeout,
       },
     });
   }

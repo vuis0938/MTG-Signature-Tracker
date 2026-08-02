@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
     const { data: decks, error } = await supabase
       .from("decks")
-      .select("*")
+      .select("id, name, source, created_at")
       .eq("user_name", userName)
       .order("created_at", { ascending: false });
 

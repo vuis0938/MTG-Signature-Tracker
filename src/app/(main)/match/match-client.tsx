@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { CardImage } from "@/components/card-image";
@@ -17,8 +18,6 @@ import { useDecks, useEvents } from "@/lib/swr-hooks";
 import { Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Sparkle, Palette, Package, Heart, Check, MoreHorizontal, Lightbulb } from "lucide-react";
 import {
   Dialog,
-  DialogHeader,
-  DialogTitle,
   DialogContent,
 } from "@/components/ui/dialog";
 
@@ -28,16 +27,39 @@ import type { Deck, DeckStats, CardEntry, FuzzyCardEntry, ArtistCard, CalendarEv
 import { normalizeArtists, buildNormalizedMap, findMatchingArtist, isSamePrinting, getNextStatus, matchAgainstArtists } from "@/lib/match-utils";
 import type { FuzzyApiResponse } from "@/lib/match-utils";
 
+// ─── 懒加载弹窗：首屏不打包，首次打开时下载 chunk ────────────
+// chunk 下载期间展示与数据加载一致的 spinner（当前打开弹窗本就有加载态，体验无差别）
+
+function DialogChunkFallback() {
+  return (
+    <Dialog open onOpenChange={() => {}}>
+      <DialogContent>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <span className="ml-2 text-sm text-muted-foreground">加载中...</span>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const ArtistGalleryDialog = dynamic(() => import("@/components/artist-gallery-dialog"), {
+  ssr: false,
+  loading: DialogChunkFallback,
+});
+
 // ─── 页面组件 ──────────────────────────────────────────────
 
 interface MatchClientProps {
   fallbackDecks?: Deck[];
   fallbackStats?: Record<string, DeckStats>;
+  fallbackEvents?: CalendarEvent[];
 }
 
 export default function MatchClient({
   fallbackDecks,
   fallbackStats,
+  fallbackEvents,
 }: MatchClientProps = {}) {
   // 名单解析
   const [rawText, setRawText] = useState("");
@@ -64,7 +86,12 @@ export default function MatchClient({
   }, [decks]);
 
   // 活动列表 — SWR 获取，跨页面共享缓存（与活动页共享 /api/events 缓存）
-  const { events } = useEvents();
+  // 使用 SSR fallback，首屏零加载
+  const eventsFallback =
+    fallbackEvents !== undefined
+      ? { success: true, events: fallbackEvents }
+      : undefined;
+  const { events } = useEvents(eventsFallback);
 
   // 匹配
   const [matching, setMatching] = useState(false);
@@ -248,16 +275,21 @@ export default function MatchClient({
 
   // ─── 状态切换 ──────────────────────────────────────────
 
-  function toggleStatus(cardId: string) {
-    // 1. 查找当前状态
+  function toggleStatus(cardIdOrIds: string | string[]) {
+    // 支持单卡与批量：合并的同款卡牌一次请求完成
+    const cardIds = Array.isArray(cardIdOrIds) ? cardIdOrIds : [cardIdOrIds];
+    if (cardIds.length === 0) return;
+    const idSet = new Set(cardIds);
+
+    // 1. 查找当前状态（合并的同款卡牌状态一致，取第一个命中的）
     let currentStatus = 0;
     for (const cards of matchedRef.current.values()) {
-      const found = cards.find((c) => c.id === cardId);
+      const found = cards.find((c) => idSet.has(c.id));
       if (found) { currentStatus = found.status; break; }
     }
     if (currentStatus === 0) {
       for (const entries of fuzzyMatchedRef.current.values()) {
-        const found = entries.find((e) => e.deckCard?.id === cardId);
+        const found = entries.find((e) => e.deckCard !== undefined && idSet.has(e.deckCard.id));
         if (found?.deckCard) { currentStatus = found.deckCard.status; break; }
       }
     }
@@ -277,7 +309,7 @@ export default function MatchClient({
         next.set(
           artist,
           cards.map((c) =>
-            c.id === cardId
+            idSet.has(c.id)
               ? { ...c, ...updatePayload }
               : c
           )
@@ -292,7 +324,7 @@ export default function MatchClient({
         next.set(
           artist,
           entries.map((e) =>
-            e.deckCard?.id === cardId
+            e.deckCard && idSet.has(e.deckCard.id)
               ? { ...e, deckCard: { ...e.deckCard, ...updatePayload } }
               : e
           )
@@ -301,12 +333,12 @@ export default function MatchClient({
       return next;
     });
 
-    // 3. 后台写入数据库，失败则回滚 UI
+    // 3. 后台写入数据库（单请求批量），失败则回滚 UI
     fetch("/api/cards", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        cardId,
+        cardIds,
         status: newStatus,
         is_signed: false,
         event_name: newStatus === 3 ? currentEvent : null,
@@ -329,7 +361,7 @@ export default function MatchClient({
               next.set(
                 artist,
                 cards.map((c) =>
-                  c.id === cardId ? { ...c, ...rollbackPayload } : c
+                  idSet.has(c.id) ? { ...c, ...rollbackPayload } : c
                 )
               );
             }
@@ -341,7 +373,7 @@ export default function MatchClient({
               next.set(
                 artist,
                 entries.map((e) =>
-                  e.deckCard?.id === cardId
+                  e.deckCard && idSet.has(e.deckCard.id)
                     ? { ...e, deckCard: { ...e.deckCard, ...rollbackPayload } }
                     : e
                 )
@@ -366,7 +398,7 @@ export default function MatchClient({
             next.set(
               artist,
               cards.map((c) =>
-                c.id === cardId ? { ...c, ...rollbackPayload } : c
+                idSet.has(c.id) ? { ...c, ...rollbackPayload } : c
               )
             );
           }
@@ -378,7 +410,7 @@ export default function MatchClient({
             next.set(
               artist,
               entries.map((e) =>
-                e.deckCard?.id === cardId
+                e.deckCard && idSet.has(e.deckCard.id)
                   ? { ...e, deckCard: { ...e.deckCard, ...rollbackPayload } }
                   : e
               )
@@ -471,8 +503,12 @@ export default function MatchClient({
   async function handleFuzzyMatch(deckIds: string[]) {
     const currentParsedArtists = parsedArtistsRef.current;
 
-    // 1. 查询套牌卡牌
-    const cards = await fetchCardsByDeckIds(deckIds);
+    // 1. 并行发起两个独立请求：套牌卡牌查询 + 模糊匹配 API
+    //    原先串行等待，总耗时 = 两者之和；并行后 = max(两者)
+    const [cards, fuzzyData] = await Promise.all([
+      fetchCardsByDeckIds(deckIds),
+      callFuzzyApi(deckIds),
+    ]);
 
     if (cards.length === 0) {
       setMatched(new Map());
@@ -483,9 +519,6 @@ export default function MatchClient({
 
     // 2. 构建精确匹配基线（保证模糊 ≥ 精确）
     const { artistCards, exactMatchedKeys, artistDbKeys, artistNormalizedMap } = buildExactBaseline(cards, currentParsedArtists);
-
-    // 3. 调用模糊匹配 API
-    const fuzzyData = await callFuzzyApi(deckIds);
 
     // 4. 构建扩展画家→卡牌映射
     const expandedArtistCards = buildExpandedArtistCards(cards, fuzzyData);
@@ -858,52 +891,15 @@ export default function MatchClient({
         />
       )}
 
-      {/* 画家卡牌画廊弹窗 */}
-      <Dialog
-        open={artistDialog !== null}
-        onOpenChange={() => { setArtistDialog(null); setArtistCards([]); }}
-        className="max-w-3xl"
-      >
-        <DialogHeader>
-          <DialogTitle>{artistDialog} 的卡牌</DialogTitle>
-        </DialogHeader>
-        {artistCardsLoading ? (
-          <DialogContent>
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-sm text-muted-foreground">加载中...</span>
-            </div>
-          </DialogContent>
-        ) : (
-          <DialogContent>
-            {artistCards.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">未找到该画家的卡牌</p>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 max-h-[65vh] overflow-y-auto pr-2">
-                {artistCards.map((card) => (
-                  <div
-                    key={card.set + "-" + card.collector_number}
-                    className="rounded-lg border overflow-hidden bg-background"
-                    title={card.set_name + " #" + card.collector_number}
-                  >
-                    {card.image_url ? (
-                      <CardImage src={card.image_url} alt={card.name} className="w-full" />
-                    ) : (
-                      <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
-                        {card.name}
-                      </div>
-                    )}
-                    <div className="p-1.5 text-xs">
-                      <p className="font-medium truncate">{card.name}</p>
-                      <p className="text-muted-foreground truncate">{card.set_name} #{card.collector_number}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </DialogContent>
-        )}
-      </Dialog>
+      {/* 画家卡牌画廊弹窗（懒加载，打开时才下载 chunk）*/}
+      {artistDialog !== null && (
+        <ArtistGalleryDialog
+          artist={artistDialog}
+          cards={artistCards}
+          loading={artistCardsLoading}
+          onClose={() => { setArtistDialog(null); setArtistCards([]); }}
+        />
+      )}
     </div>
   );
 }

@@ -45,7 +45,9 @@ export const config = {
      * 匹配所有路径，除了:
      * /_next (内部路由)
      * /favicon.ico (图标)
+     * 带静态资源扩展名的请求（图片/字体/样式等）— 不进入 proxy，
+     * 避免每个静态请求都触发一次边缘函数调用
      */
-    "/((?!_next|favicon.ico).*)",
+    "/((?!_next|favicon.ico|.*\\.(?:svg|png|jpe?g|gif|webp|avif|ico|css|js|map|woff2?|ttf|otf)$).*)",
   ],
 };

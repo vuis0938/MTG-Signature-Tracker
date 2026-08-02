@@ -3,6 +3,10 @@ import { getSupabase } from "@/lib/supabase";
 import { getUserFromRequest } from "@/lib/auth";
 import type { CardEntry } from "@/types";
 
+/** 只选渲染所需列，减少网络负载 */
+const CARD_SELECT_COLUMNS =
+  "id, deck_id, card_name, set_code, collector_number, artist_names, image_url, status, is_signed, event_name, event_date";
+
 // GET: 获取指定套牌的卡牌列表
 export async function GET(request: NextRequest) {
   const userName = getUserFromRequest(request);
@@ -32,7 +36,7 @@ export async function GET(request: NextRequest) {
 
     const { data: cards, error } = await supabase
       .from("cards")
-      .select("*")
+      .select(CARD_SELECT_COLUMNS)
       .eq("deck_id", deckId)
       .order("artist_names");
 
@@ -57,16 +61,22 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { cardId, status, is_signed, event_name, event_date } = body as {
+    const { cardId, cardIds: cardIdsRaw, status, is_signed, event_name, event_date } = body as {
       cardId?: string;
+      cardIds?: string[];
       status?: number;
       is_signed?: boolean;
       event_name?: string | null;
       event_date?: string | null;
     };
 
-    if (!cardId) {
+    // 统一为数组：支持单卡（cardId）与批量（cardIds）两种入参
+    const cardIds = cardIdsRaw ?? (cardId ? [cardId] : []);
+    if (cardIds.length === 0) {
       return NextResponse.json({ error: "缺少卡牌 ID" }, { status: 400 });
+    }
+    if (cardIds.length > 200) {
+      return NextResponse.json({ error: "批量操作数量过大" }, { status: 400 });
     }
     // 校验 status 合法范围
     if (status !== undefined && (![0, 1, 2, 3].includes(status))) {
@@ -79,14 +89,54 @@ export async function PATCH(request: NextRequest) {
 
     const supabase = getSupabase();
 
+    // ── 批量路径：多张卡牌一次归属校验 + 一次 UPDATE（替代 N 次单卡请求）──
+    if (cardIds.length > 1) {
+      const { data: ownedCards } = await supabase
+        .from("cards")
+        .select("id, deck:decks!inner(user_name)")
+        .in("id", cardIds);
+
+      if (!ownedCards || ownedCards.length === 0) {
+        return NextResponse.json({ error: "卡牌不存在" }, { status: 404 });
+      }
+      const allOwned =
+        ownedCards.length === cardIds.length &&
+        ownedCards.every(
+          (c) =>
+            (c.deck as unknown as { user_name: string } | null)?.user_name === userName
+        );
+      if (!allOwned) {
+        return NextResponse.json({ error: "无权操作部分卡牌" }, { status: 403 });
+      }
+
+      const batchUpdates: Record<string, unknown> = {};
+      if (status !== undefined) batchUpdates.status = status;
+      if (is_signed !== undefined) batchUpdates.is_signed = is_signed;
+      if (event_name !== undefined) batchUpdates.event_name = event_name;
+      if (event_date !== undefined) batchUpdates.event_date = event_date;
+
+      const { error: batchError } = await supabase
+        .from("cards")
+        .update(batchUpdates)
+        .in("id", cardIds);
+
+      if (batchError) {
+        console.error("[Cards API] 批量更新失败:", batchError.message);
+        return NextResponse.json({ error: "更新失败" }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
     // ── 快速路径：RPC 函数（单次 DB 往返，归属校验 + UPDATE 原子完成）──
     // 需要先在 Supabase 执行 supabase/migrations/001_optimize_card_toggle.sql
     // 如果 RPC 函数不存在则自动降级到下面的两次查询方式
+    const singleCardId = cardIds[0];
     if (status !== undefined && is_signed !== undefined) {
       const { data: rpcResult, error: rpcError } = await supabase.rpc(
         "update_card_with_ownership",
         {
-          p_card_id: cardId,
+          p_card_id: singleCardId,
           p_user_name: userName,
           p_status: status,
           p_is_signed: is_signed,
@@ -114,7 +164,7 @@ export async function PATCH(request: NextRequest) {
     const { data: card } = await supabase
       .from("cards")
       .select("id, deck:decks!inner(user_name)")
-      .eq("id", cardId)
+      .eq("id", singleCardId)
       .single();
 
     if (!card) {
@@ -136,7 +186,7 @@ export async function PATCH(request: NextRequest) {
     const { error: updateError } = await supabase
       .from("cards")
       .update(updates)
-      .eq("id", cardId);
+      .eq("id", singleCardId);
 
     if (updateError) {
       console.error("[Cards API] 更新失败:", updateError.message);

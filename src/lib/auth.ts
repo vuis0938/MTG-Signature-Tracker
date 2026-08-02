@@ -6,7 +6,12 @@
  */
 
 import "server-only";
-import { createHmac, randomBytes, pbkdf2Sync, timingSafeEqual } from "crypto";
+import { createHmac, randomBytes, pbkdf2, timingSafeEqual } from "crypto";
+import { promisify } from "util";
+
+// 异步 PBKDF2：600k 次迭代约阻塞事件循环 ~200ms，
+// 同步版本会让并发请求全部排队等待，异步版本释放事件循环
+const pbkdf2Async = promisify(pbkdf2);
 
 // OWASP 2023 建议 PBKDF2-SHA256 ≥ 600,000 次
 const ITERATIONS = 600_000;
@@ -39,9 +44,9 @@ function getTokenSecret(): string {
  * 哈希密码（返回 "iterations:salt:hash" 格式的字符串）
  * 迭代次数写入哈希，便于未来调整参数时兼容旧哈希
  */
-export function hashPassword(password: string): string {
+export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");
-  const hash = pbkdf2Sync(password, salt, ITERATIONS, KEY_LENGTH, "sha256").toString("hex");
+  const hash = (await pbkdf2Async(password, salt, ITERATIONS, KEY_LENGTH, "sha256")).toString("hex");
   return `${ITERATIONS}:${salt}:${hash}`;
 }
 
@@ -51,7 +56,7 @@ export function hashPassword(password: string): string {
  *   - 新格式 "iterations:salt:hash"
  *   - 旧格式 "salt:hash"（迭代次数默认 100,000）
  */
-export function verifyPassword(password: string, stored: string): boolean {
+export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const parts = stored.split(":");
   let iterations: number;
   let salt: string | undefined;
@@ -73,7 +78,7 @@ export function verifyPassword(password: string, stored: string): boolean {
   }
 
   if (!salt || !expectedHash) return false;
-  const hash = pbkdf2Sync(password, salt, iterations, KEY_LENGTH, "sha256").toString("hex");
+  const hash = (await pbkdf2Async(password, salt, iterations, KEY_LENGTH, "sha256")).toString("hex");
   // 使用 timingSafeEqual 防止时序攻击
   try {
     return timingSafeEqual(Buffer.from(hash), Buffer.from(expectedHash));
@@ -168,10 +173,26 @@ export function getUserFromRequest(request: { cookies: { get: (name: string) => 
 /**
  * 检查用户是否为管理员
  * 通过环境变量 ADMIN_USERS 配置（逗号分隔的用户名列表）
+ * 模块级缓存解析结果（Set.has O(1)），避免每次调用重复 split
  */
+let _adminSet: Set<string> | null | undefined;
+
 export function isAdmin(userName: string): boolean {
-  const adminUsers = process.env.ADMIN_USERS;
-  if (!adminUsers) return false;
-  const admins = adminUsers.split(",").map((u) => u.trim().toLowerCase());
-  return admins.includes(userName.trim().toLowerCase());
+  // 测试环境 env 会被动态 stub，跳过缓存
+  if (process.env.NODE_ENV === "test" || process.env.VITEST) {
+    const adminUsers = process.env.ADMIN_USERS;
+    if (!adminUsers) return false;
+    return adminUsers
+      .split(",")
+      .map((u) => u.trim().toLowerCase())
+      .includes(userName.trim().toLowerCase());
+  }
+
+  if (_adminSet === undefined) {
+    const adminUsers = process.env.ADMIN_USERS;
+    _adminSet = adminUsers
+      ? new Set(adminUsers.split(",").map((u) => u.trim().toLowerCase()))
+      : null;
+  }
+  return _adminSet !== null && _adminSet.has(userName.trim().toLowerCase());
 }

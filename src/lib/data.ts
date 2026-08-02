@@ -9,6 +9,10 @@ import "server-only";
 import { getSupabase } from "@/lib/supabase";
 import type { Deck, DeckStats, CardEntry } from "@/types";
 
+/** 卡牌渲染所需列（与 CardEntry 类型一一对应，避免 SELECT * 拉取冗余字段） */
+const CARD_SELECT_COLUMNS =
+  "id, deck_id, card_name, set_code, collector_number, artist_names, image_url, status, is_signed, event_name, event_date";
+
 /**
  * 获取用户套牌列表（含卡牌统计）
  *
@@ -22,7 +26,7 @@ export async function getDecksWithStats(
 
   const { data: decks, error } = await supabase
     .from("decks")
-    .select("*")
+    .select("id, name, source, created_at")
     .eq("user_name", userName)
     .order("created_at", { ascending: false });
 
@@ -77,7 +81,7 @@ export async function getDecksWithCards(
 
   const { data: decks, error } = await supabase
     .from("decks")
-    .select("*")
+    .select("id, name, source, created_at")
     .eq("user_name", userName)
     .order("created_at", { ascending: false });
 
@@ -90,11 +94,11 @@ export async function getDecksWithCards(
     return { decks: [], stats: {}, cardsByDeck: {} };
   }
 
-  // 单条查询拉取所有卡牌的完整数据
+  // 单条查询拉取所有卡牌（只选渲染所需列，减少网络负载）
   const deckIds = decks.map((d) => d.id);
   const { data: allCards } = await supabase
     .from("cards")
-    .select("*")
+    .select(CARD_SELECT_COLUMNS)
     .in("deck_id", deckIds)
     .order("artist_names");
 

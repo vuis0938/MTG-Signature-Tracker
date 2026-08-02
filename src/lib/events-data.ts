@@ -6,6 +6,7 @@
  */
 
 import "server-only";
+import { unstable_cache } from "next/cache";
 import { fetchMountainMageArtists } from "@/lib/mountain-mage";
 import { getSupabase } from "@/lib/supabase";
 import type { CalendarEvent } from "@/types";
@@ -230,7 +231,7 @@ async function fetchCustomEvents(): Promise<EventWithArtists[]> {
  * 供 API 路由和 Server Component 共享。
  * 任何数据源失败不影响其他数据源。
  */
-export async function getEvents(): Promise<EventWithArtists[]> {
+async function _getEvents(): Promise<EventWithArtists[]> {
   const [mtgacResult, mmResult, customResult] = await Promise.allSettled([
     fetchMtgacEvents(),
     fetchMountainMageEvents(),
@@ -269,3 +270,15 @@ export async function getEvents(): Promise<EventWithArtists[]> {
 
   return results;
 }
+
+/**
+ * 服务端缓存版本：5 分钟 TTL，跨请求共享
+ *
+ * MTGAC GraphQL 是外部 API，调用昂贵且数据变更不频繁。
+ * 通过 unstable_cache 避免每次请求都打 GraphQL。
+ */
+export const getEvents = unstable_cache(
+  _getEvents,
+  ["events-list"],
+  { revalidate: 300, tags: ["events"] }
+);

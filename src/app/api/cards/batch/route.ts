@@ -3,6 +3,10 @@ import { getSupabase } from "@/lib/supabase";
 import { getUserFromRequest } from "@/lib/auth";
 import type { CardEntry } from "@/types";
 
+/** 只选渲染所需列，减少网络负载 */
+const CARD_SELECT_COLUMNS =
+  "id, deck_id, card_name, set_code, collector_number, artist_names, image_url, status, is_signed, event_name, event_date";
+
 // POST: 批量查询多个套牌的所有卡牌（用于活动匹配页面）
 export async function POST(request: NextRequest) {
   const userName = getUserFromRequest(request);
@@ -38,10 +42,10 @@ export async function POST(request: NextRequest) {
     const deckMap = new Map(ownedDecks.map((d) => [d.id, d.name]));
     const validDeckIds = Array.from(deckMap.keys());
 
-    // 查询所有卡牌
+    // 查询所有卡牌（只选渲染所需列，减少网络负载）
     const { data: cards, error } = await supabase
       .from("cards")
-      .select("*")
+      .select(CARD_SELECT_COLUMNS)
       .in("deck_id", validDeckIds);
 
     if (error) {

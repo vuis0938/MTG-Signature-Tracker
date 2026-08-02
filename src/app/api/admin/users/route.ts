@@ -144,7 +144,7 @@ export async function PATCH(request: NextRequest) {
     if (body.action === "reset_password") {
       // 生成随机 12 位临时密码
       const tempPassword = randomBytes(6).toString("base64url").slice(0, 12);
-      const hashedPassword = hashPassword(tempPassword);
+      const hashedPassword = await hashPassword(tempPassword);
 
       const { error: updateError } = await supabase
         .from("users")
