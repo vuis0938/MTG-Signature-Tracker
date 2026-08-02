@@ -15,6 +15,7 @@
     "@supabase/supabase-js": "^2.110.8",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "core-js": "^3.49.0",
     "fuse.js": "^7.5.0",
     "lucide-react": "^1.26.0",
     "next": "16.2.11",
@@ -40,10 +41,12 @@
     "vitest": "^4.1.10"
   },
   "browserslist": [
-    "ios >= 14",
-    "safari >= 14",
-    "chrome >= 87",
-    "firefox >= 78",
-    "edge >= 88"
+    "ios >= 12",
+    "safari >= 12",
+    "chrome >= 72",
+    "firefox >= 68",
+    "edge >= 79",
+    "and_chr >= 72",
+    "samsung >= 10"
   ]
 }
