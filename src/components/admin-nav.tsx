@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Users, ScrollText, Tag, ArrowLeft, Calendar, Database, UserCheck } from "lucide-react";
+import { LayoutDashboard, Users, ScrollText, Tag, ArrowLeft, Calendar, Database, UserCheck, Megaphone, Download } from "lucide-react";
 
 const adminNavItems = [
   { href: "/admin/dashboard", label: "仪表盘", icon: LayoutDashboard },
@@ -11,6 +11,8 @@ const adminNavItems = [
   { href: "/admin/events", label: "活动管理", icon: Calendar },
   { href: "/admin/artists", label: "画家别名", icon: UserCheck },
   { href: "/admin/cache", label: "缓存管理", icon: Database },
+  { href: "/admin/announcements", label: "系统公告", icon: Megaphone },
+  { href: "/admin/export", label: "数据导出", icon: Download },
   { href: "/admin/audit-log", label: "审计日志", icon: ScrollText },
   { href: "/verify", label: "策展管理", icon: Tag },
 ] as const;
@@ -26,7 +28,7 @@ export function AdminNav() {
           <h1 className="text-base font-semibold">管理后台</h1>
           <p className="text-xs text-muted-foreground mt-0.5">MTG 签绘管家</p>
         </div>
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {adminNavItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
             return (

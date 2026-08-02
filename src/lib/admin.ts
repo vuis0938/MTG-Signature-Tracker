@@ -37,7 +37,11 @@ export type AdminAction =
   | "cache_clear_all"
   | "cache_delete"
   | "artist_alias_add"
-  | "artist_alias_delete";
+  | "artist_alias_delete"
+  | "announcement_create"
+  | "announcement_update"
+  | "announcement_delete"
+  | "data_export";
 
 /**
  * 记录管理员操作到审计日志表

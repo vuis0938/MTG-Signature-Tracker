@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { verifyToken } from "@/lib/auth";
+import { verifyToken, isAdmin } from "@/lib/auth";
 
 // 不需要鉴权的路由（精确匹配）
 const PUBLIC_PATHS = ["/login", "/api/auth"];
@@ -28,6 +28,12 @@ export function proxy(request: NextRequest) {
   if (!userName) {
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // 管理后台路由：非管理员重定向到主站（纵深防御层）
+  if (pathname.startsWith("/admin") && !isAdmin(userName)) {
+    const decksUrl = new URL("/decks", request.url);
+    return NextResponse.redirect(decksUrl);
   }
 
   return NextResponse.next();

@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/toast-context";
-import { Search, Ban, CheckCircle, KeyRound, Loader2 } from "lucide-react";
+import { Search, Ban, CheckCircle, KeyRound, Loader2, Eye } from "lucide-react";
 
 interface UserItem {
   username: string;
@@ -164,7 +164,11 @@ export default function UsersPage() {
                 <tbody>
                   {filtered.map((user) => (
                     <tr key={user.username} className="border-b last:border-0 hover:bg-muted/30">
-                      <td className="px-4 py-3 font-medium">{user.username}</td>
+                      <td className="px-4 py-3 font-medium">
+                        <a href={`/admin/users/detail?username=${encodeURIComponent(user.username)}`} className="hover:text-primary hover:underline">
+                          {user.username}
+                        </a>
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground">{formatDate(user.createdAt)}</td>
                       <td className="px-4 py-3 text-muted-foreground">{formatDate(user.lastActiveAt)}</td>
                       <td className="px-4 py-3 text-center">{user.deckCount}</td>
@@ -184,6 +188,11 @@ export default function UsersPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
+                          <a href={`/admin/users/detail?username=${encodeURIComponent(user.username)}`}>
+                            <Button variant="ghost" size="sm" title="查看详情">
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                          </a>
                           {user.isBanned ? (
                             <Button
                               variant="ghost"
