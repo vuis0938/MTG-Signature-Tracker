@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { CardImage } from "@/components/card-image";
 import {
   Card,
   CardContent,
@@ -824,7 +825,7 @@ export default function MatchClient() {
                     title={card.set_name + " #" + card.collector_number}
                   >
                     {card.image_url ? (
-                      <img src={card.image_url} alt={card.name} className="w-full" loading="lazy" />
+                      <CardImage src={card.image_url} alt={card.name} className="w-full" />
                     ) : (
                       <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
                         {card.name}
@@ -1057,7 +1058,7 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
                       >
                         <div className={isInDeck && status >= 1 ? "opacity-75" : ""}>
                           {v.image_url ? (
-                            <img src={v.image_url} alt={v.card_name} className="w-full" loading="lazy" />
+                            <CardImage src={v.image_url} alt={v.card_name} className="w-full" />
                           ) : (
                             <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
                               {v.card_name}
@@ -1136,7 +1137,7 @@ function CardThumbnail({
       >
         <div className={status >= 1 ? "opacity-75" : ""}>
           {imageUrl ? (
-            <img src={imageUrl} alt={cardName} className="w-full" loading="lazy" />
+            <CardImage src={imageUrl} alt={cardName} className="w-full" />
           ) : (
             <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
               {cardName}

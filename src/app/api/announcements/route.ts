@@ -26,9 +26,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, announcements: [] });
     }
 
-    return NextResponse.json({ success: true, announcements: data || [] });
+    return NextResponse.json(
+      { success: true, announcements: data || [] },
+      { headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=600" } }
+    );
   } catch (err) {
     console.error("[Announcements API]", err);
-    return NextResponse.json({ success: true, announcements: [] });
+    return NextResponse.json(
+      { success: true, announcements: [] },
+      { headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=600" } }
+    );
   }
 }

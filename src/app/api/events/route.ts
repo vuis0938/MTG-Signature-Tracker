@@ -232,5 +232,8 @@ export async function GET(request: NextRequest) {
     return 0;
   });
 
-  return NextResponse.json({ success: true, events: results });
+  return NextResponse.json(
+    { success: true, events: results },
+    { headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=300" } }
+  );
 }

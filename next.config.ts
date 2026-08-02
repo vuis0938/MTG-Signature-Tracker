@@ -10,6 +10,14 @@ const nextConfig: NextConfig = {
       dynamic: 300,
     },
   },
+  images: {
+    // 卡牌图片来自 Scryfall CDN，配置 remotePatterns 允许 next/image 优化
+    remotePatterns: [
+      { protocol: "https", hostname: "cards.scryfall.io" },
+      { protocol: "https", hostname: "**.scryfall.io" },
+    ],
+    formats: ["image/avif", "image/webp"],
+  },
   async headers() {
     return [
       {

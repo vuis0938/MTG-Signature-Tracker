@@ -3,6 +3,7 @@
 import { useState, useCallback, type ReactNode } from "react";
 import { useToast } from "@/lib/toast-context";
 import { useDisplayMode } from "@/lib/display-mode";
+import { CardImage } from "@/components/card-image";
 import { useDecks } from "@/lib/swr-hooks";
 import { useDeckLayout } from "@/lib/deck-layout";
 import { Button } from "@/components/ui/button";
@@ -940,7 +941,7 @@ function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleSt
       >
         <div className={hasOverlay ? "opacity-75" : ""}>
           {card.image_url ? (
-            <img src={card.image_url} alt={card.card_name} className="w-full" loading="lazy" />
+            <CardImage src={card.image_url} alt={card.card_name} className="w-full" />
           ) : (
             <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
               {card.card_name}
