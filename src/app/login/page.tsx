@@ -73,9 +73,12 @@ export default function LoginPage() {
               <Label htmlFor="username">用户名</Label>
               <Input
                 id="username"
-                placeholder="请输入用户名"
+                placeholder="4-30 位字母或数字"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
+                minLength={4}
+                maxLength={30}
+                pattern="[a-zA-Z0-9]+"
                 autoFocus
                 required
               />
@@ -85,9 +88,11 @@ export default function LoginPage() {
               <Input
                 id="password"
                 type="password"
-                placeholder="请输入密码"
+                placeholder="8-64 位字符"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                minLength={8}
+                maxLength={64}
                 required
               />
             </div>

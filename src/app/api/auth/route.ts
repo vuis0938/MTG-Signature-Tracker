@@ -121,11 +121,17 @@ export async function PUT(request: NextRequest) {
     if (!username || !password) {
       return NextResponse.json({ error: "请输入用户名和密码" }, { status: 400 });
     }
-    if (username.length < 2 || username.length > 30) {
-      return NextResponse.json({ error: "用户名需 2-30 个字符" }, { status: 400 });
+    if (username.length < 4 || username.length > 30) {
+      return NextResponse.json({ error: "用户名需 4-30 个字符" }, { status: 400 });
     }
-    if (password.length < 6) {
-      return NextResponse.json({ error: "密码至少 6 个字符" }, { status: 400 });
+    if (!/^[a-zA-Z0-9]+$/.test(username)) {
+      return NextResponse.json({ error: "用户名只能包含字母和数字" }, { status: 400 });
+    }
+    if (password.length < 8) {
+      return NextResponse.json({ error: "密码至少 8 个字符" }, { status: 400 });
+    }
+    if (password.length > 64) {
+      return NextResponse.json({ error: "密码不能超过 64 个字符" }, { status: 400 });
     }
 
     const hashedPassword = hashPassword(password);
