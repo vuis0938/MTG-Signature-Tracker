@@ -29,10 +29,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "用户不存在" }, { status: 404 });
     }
 
-    // 2. 用户套牌列表
+    // 2. 用户套牌列表（使用 select("*") 避免列名不存在导致整条查询失败）
     const { data: decks, error: decksError } = await supabase
       .from("decks")
-      .select("id, name, created_at, updated_at")
+      .select("*")
       .eq("user_name", username)
       .order("created_at", { ascending: false });
 
@@ -74,19 +74,28 @@ export async function GET(request: NextRequest) {
     const totalUnsigned = Object.values(cardsByDeck).reduce((sum, d) => sum + d.unsigned, 0);
 
     // 5. 热门画家（该用户收藏最多的画家）
+    // cards 表的画家字段是 artist_names（TEXT[] 数组），不是 artist
     let topArtists: { name: string; count: number }[] = [];
     if (deckIds.length > 0) {
-      const { data: artistCards } = await supabase
+      const { data: artistCards, error: artistError } = await supabase
         .from("cards")
-        .select("artist")
-        .in("deck_id", deckIds)
-        .not("artist", "is", null);
+        .select("artist_names")
+        .in("deck_id", deckIds);
+
+      if (artistError) {
+        console.error("[Admin User Detail API] 画家查询失败:", artistError.message);
+      }
 
       if (artistCards) {
         const artistCount: Record<string, number> = {};
         for (const c of artistCards) {
-          if (c.artist) {
-            artistCount[c.artist] = (artistCount[c.artist] || 0) + 1;
+          const names = c.artist_names;
+          if (Array.isArray(names)) {
+            for (const name of names) {
+              if (name) {
+                artistCount[name] = (artistCount[name] || 0) + 1;
+              }
+            }
           }
         }
         topArtists = Object.entries(artistCount)
@@ -96,12 +105,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const decksWithStats = (decks || []).map((d) => ({
-      ...d,
-      cardCount: cardsByDeck[d.id]?.total || 0,
-      signedCount: cardsByDeck[d.id]?.signed || 0,
-      pendingCount: cardsByDeck[d.id]?.pending || 0,
-      unsignedCount: cardsByDeck[d.id]?.unsigned || 0,
+    const decksWithStats = (decks || []).map((d: Record<string, unknown>) => ({
+      id: d.id,
+      name: d.name,
+      created_at: d.created_at,
+      updated_at: d.updated_at || d.created_at,
+      cardCount: cardsByDeck[d.id as string]?.total || 0,
+      signedCount: cardsByDeck[d.id as string]?.signed || 0,
+      pendingCount: cardsByDeck[d.id as string]?.pending || 0,
+      unsignedCount: cardsByDeck[d.id as string]?.unsigned || 0,
     }));
 
     return NextResponse.json({

@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     if (dataType === "all" || dataType === "decks") {
       const { data: decks } = await supabase
         .from("decks")
-        .select("id, name, user_name, created_at, updated_at")
+        .select("*")
         .order("created_at", { ascending: false });
       exportData.decks = decks || [];
     }
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     if (dataType === "all" || dataType === "cards") {
       const { data: cards } = await supabase
         .from("cards")
-        .select("id, deck_id, card_name, set_code, collector_number, artist, status, printing_info, created_at, updated_at")
+        .select("*")
         .order("created_at", { ascending: false })
         .limit(50000);
       exportData.cards = cards || [];
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
       }
       if (dataType === "decks" && Array.isArray(exportData.decks)) {
         const rows = exportData.decks as Record<string, unknown>[];
-        const headers = ["id", "name", "user_name", "created_at", "updated_at"];
+        const headers = ["id", "name", "user_name", "created_at"];
         const csv = [
           headers.join(","),
           ...rows.map((r) => headers.map((h) => String(r[h] ?? "")).join(",")),
