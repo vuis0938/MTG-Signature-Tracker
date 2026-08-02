@@ -9,12 +9,15 @@ export async function GET(request: NextRequest) {
   }
 
   const adminUsersEnv = process.env.ADMIN_USERS;
+  const cookieName = request.cookies.get("user_name")?.value;
 
   return NextResponse.json({
-    currentUser: userName,
+    jwtUser: userName,
+    cookieUser: cookieName || "(无 user_name cookie)",
+    cookieUserIsAdmin: cookieName ? isAdmin(cookieName) : false,
     adminUsersEnvExists: !!adminUsersEnv,
     adminUsersEnvValue: adminUsersEnv || "(未设置)",
-    isAdminResult: isAdmin(userName),
+    jwtUserIsAdmin: isAdmin(userName),
     nodeEnv: process.env.NODE_ENV,
   });
 }
