@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { getUserFromRequest } from "@/lib/auth";
+import type { NextRequest } from "next/server";
 
 interface CuratedSection {
   name: string;
@@ -14,7 +16,13 @@ interface TaggedLine {
   artistName: string;
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  // 鉴权：策展是管理操作，必须登录
+  const userName = getUserFromRequest(request);
+  if (!userName) {
+    return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+
   try {
     const body: {
       sections: CuratedSection[];

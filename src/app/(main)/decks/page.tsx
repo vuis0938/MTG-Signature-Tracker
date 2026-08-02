@@ -191,7 +191,13 @@ export default function DecksPage() {
   const deleteDeck = useCallback(async (deckId: string, deckName: string) => {
     if (!confirm(`确定删除套牌「${deckName}」吗？此操作不可撤销`)) return;
 
-    await supabase.from("decks").delete().eq("id", deckId);
+    const { error } = await supabase.from("decks").delete().eq("id", deckId);
+
+    if (error) {
+      showToast("删除失败，请重试", "error");
+      return;
+    }
+
     setDecks((prev) => prev.filter((d) => d.id !== deckId));
     setCards((prev) => {
       const next = { ...prev };
@@ -199,7 +205,8 @@ export default function DecksPage() {
       return next;
     });
     if (expandedDeck === deckId) setExpandedDeck(null);
-  }, [expandedDeck]);
+    showToast("套牌已删除", "success");
+  }, [expandedDeck, showToast]);
 
   // ─── 导入套牌 ──────────────────────────────────────────
 
@@ -306,6 +313,17 @@ export default function DecksPage() {
   async function toggleStatus(cardId: string, currentStatus: number, deckId: string) {
     const newStatus = (currentStatus + 1) % 3;
 
+    // 先写数据库，成功后再更新 UI（避免乐观更新导致 UI 与 DB 不一致）
+    const { error } = await supabase
+      .from("cards")
+      .update({ status: newStatus, is_signed: newStatus === 2 })
+      .eq("id", cardId);
+
+    if (error) {
+      showToast("状态更新失败，请重试", "error");
+      return;
+    }
+
     setCards((prev) => {
       const updated = { ...prev };
       if (updated[deckId]) {
@@ -335,11 +353,6 @@ export default function DecksPage() {
       }
       return stats;
     });
-
-    await supabase
-      .from("cards")
-      .update({ status: newStatus, is_signed: newStatus === 2 })
-      .eq("id", cardId);
   }
 
   // ─── 添加卡牌到套牌 ──────────────────────────────────
@@ -794,7 +807,7 @@ function DeckListItem({
                     {stats.total - stats.unsigned - stats.pending > 0 &&
                       <span> · {stats.total - stats.unsigned - stats.pending} 已签</span>}
                     <br />
-                    签绘进度 {Math.round(((stats.total - stats.unsigned - stats.pending) / stats.total) * 100)}% · 上次更新 {new Date(deck.created_at!).toLocaleDateString("zh-CN")}
+                    签绘进度 {stats.total > 0 ? Math.round(((stats.total - stats.unsigned - stats.pending) / stats.total) * 100) : 0}% · 上次更新 {new Date(deck.created_at!).toLocaleDateString("zh-CN")}
                   </>
                 )}
               </CardDescription>

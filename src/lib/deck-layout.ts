@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 
 const STORAGE_KEY = "mtg-deck-layout";
 export type DeckLayout = "default" | "compact" | "list";
@@ -17,18 +17,18 @@ const LAYOUTS: DeckLayout[] = ["default", "compact", "list"];
  * 通过 localStorage 持久化，默认 default。
  */
 export function useDeckLayout() {
-  const [layout, setLayout] = useState<DeckLayout>("default");
-
-  useEffect(() => {
+  const [layout, setLayout] = useState<DeckLayout>(() => {
+    if (typeof window === "undefined") return "default";
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored && LAYOUTS.includes(stored as DeckLayout)) {
-        setLayout(stored as DeckLayout);
+        return stored as DeckLayout;
       }
     } catch {
       // localStorage 不可用时忽略
     }
-  }, []);
+    return "default";
+  });
 
   const setLayoutPersisted = useCallback((next: DeckLayout) => {
     setLayout(next);

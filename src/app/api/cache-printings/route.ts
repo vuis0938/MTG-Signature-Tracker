@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { fetchAllPrintings, delay } from "@/lib/scryfall-client";
+import { getUserFromRequest } from "@/lib/auth";
 
 /**
  * POST /api/cache-printings
  * 接收一组去重卡牌名，从 Scryfall 拉取所有印刷版本并写入 card_printings 表
  */
 export async function POST(request: NextRequest) {
+  // 鉴权
+  const userName = getUserFromRequest(request);
+  if (!userName) {
+    return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { cardNames } = body as { cardNames?: string[] };

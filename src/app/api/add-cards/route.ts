@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { extractArtists, extractImageUrl } from "@/lib/scryfall";
+import { extractArtists, extractImageUrl } from "@/lib/scryfall-client";
 import { batchSearch, CardIdentifier, RateLimiter } from "@/lib/scryfall-client";
 import { parseMoxfieldFormat } from "@/lib/moxfield-parser";
+import { getUserFromRequest } from "@/lib/auth";
 
 // ─── API Handler ──────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
   const t0 = Date.now();
+
+  // 鉴权：从签名 token 中提取用户名
+  const userName = getUserFromRequest(request);
+  if (!userName) {
+    return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
 
   try {
     const body = await request.json();
@@ -20,11 +27,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "请粘贴套牌列表内容" }, { status: 400 });
     }
 
-    // 验证套牌存在
+    // 验证套牌存在且属于当前用户
     const { data: deck, error: deckError } = await supabase
       .from("decks")
       .select("id")
       .eq("id", deckId)
+      .eq("user_name", userName)
       .single();
 
     if (deckError || !deck) {

@@ -3,14 +3,21 @@ import { supabase } from "@/lib/supabase";
 import {
   extractArtists,
   extractImageUrl,
-} from "@/lib/scryfall";
+} from "@/lib/scryfall-client";
 import { batchSearch, CardIdentifier, RateLimiter } from "@/lib/scryfall-client";
 import { parseMoxfieldFormat, detectFormat } from "@/lib/moxfield-parser";
+import { getUserFromRequest } from "@/lib/auth";
 
 // ─── API Handler ──────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
   const t0 = Date.now();
+
+  // 鉴权：从签名 token 中提取用户名
+  const userName = getUserFromRequest(request);
+  if (!userName) {
+    return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
 
   try {
     const body = await request.json();
@@ -42,7 +49,6 @@ export async function POST(request: NextRequest) {
     };
 
     // ── 创建套牌 ──
-    const userName = request.cookies.get("user_name")?.value || "默认用户";
     const { data: deck, error: deckError } = await supabase
       .from("decks")
       .insert({ name: name.trim(), source: formatLabels[detectedFormat] || "Copy for Moxfield", user_name: userName })

@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { getUserFromRequest } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
+  // 鉴权
+  const userName = getUserFromRequest(request);
+  if (!userName) {
+    return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+
   try {
-    const userName = request.cookies.get("user_name")?.value || "默认用户";
 
     const { data: decks } = await supabase
       .from("decks")

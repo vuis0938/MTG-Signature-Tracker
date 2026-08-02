@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { extractArtists, extractImageUrl, ScryfallCard } from "@/lib/scryfall";
-
-const SCRYFALL_UA = "MTG-Signature-Tracker/1.0";
+import { extractArtists, extractImageUrl, ScryfallCard, SCRYFALL_UA } from "@/lib/scryfall-client";
+import { getUserFromRequest } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
+  // 鉴权
+  const userName = getUserFromRequest(request);
+  if (!userName) {
+    return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { cardIds, setCode, collectorNumber } = body as {
@@ -20,15 +25,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "缺少 set_code 或 collector_number" }, { status: 400 });
     }
 
-    // 查询第一张卡牌数据（用于验证存在性）
-    const { data: existingCard, error: cardError } = await supabase
+    // 验证卡牌归属权：通过 deck_id 关联到 decks 表检查 user_name
+    const { data: card } = await supabase
       .from("cards")
-      .select("*")
+      .select("id, deck:decks!inner(user_name)")
       .eq("id", cardIds[0])
       .single();
 
-    if (cardError || !existingCard) {
+    if (!card) {
       return NextResponse.json({ error: "卡牌不存在" }, { status: 404 });
+    }
+
+    const deckOwner = card.deck as unknown as { user_name: string } | null;
+    if (!deckOwner || deckOwner.user_name !== userName) {
+      return NextResponse.json({ error: "无权操作此卡牌" }, { status: 403 });
     }
 
     // 从 Scryfall 获取新印刷版本

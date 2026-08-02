@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { ScryfallCard, extractArtists, extractImageUrl } from "@/lib/scryfall";
+import { ScryfallCard, extractArtists, extractImageUrl } from "@/lib/scryfall-client";
 import { SCRYFALL_UA } from "@/lib/scryfall-client";
+import { getUserFromRequest } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
+  // 鉴权
+  const userName = getUserFromRequest(request);
+  if (!userName) {
+    return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { deckId, cardName, setCode, collectorNumber } = body as {
@@ -15,6 +22,18 @@ export async function POST(request: NextRequest) {
 
     if (!deckId || !cardName) {
       return NextResponse.json({ error: "缺少参数" }, { status: 400 });
+    }
+
+    // 验证套牌属于当前用户
+    const { data: deck } = await supabase
+      .from("decks")
+      .select("id")
+      .eq("id", deckId)
+      .eq("user_name", userName)
+      .single();
+
+    if (!deck) {
+      return NextResponse.json({ error: "套牌不存在" }, { status: 404 });
     }
 
     // 模糊搜索

@@ -6,7 +6,79 @@
  */
 
 import { Printing } from "@/types";
-import type { ScryfallCard } from "@/lib/scryfall";
+
+// ─── 类型定义 ──────────────────────────────────────────────
+
+/** Scryfall 返回的卡牌数据结构（关键字段） */
+export interface ScryfallCard {
+  id: string;
+  name: string;
+  set_name: string;
+  set: string; // set code
+  collector_number: string;
+  artist: string;
+  image_uris?: {
+    normal: string;
+    small: string;
+    png: string;
+  };
+  card_faces?: Array<{
+    artist: string;
+    image_uris?: { normal: string; small: string; png: string };
+  }>;
+}
+
+// ─── 工具函数 ──────────────────────────────────────────────
+
+/**
+ * 解析画家名，拆分合作画师
+ * 例: "John Avon & Kev Walker" → ["John Avon", "Kev Walker"]
+ * 例: "Mark Tedin and John Avon" → ["Mark Tedin", "John Avon"]
+ * 例: "Alayna Danner, John Avon" → ["Alayna Danner", "John Avon"]
+ */
+export function splitArtists(raw: string): string[] {
+  if (!raw) return ["Unknown Artist"];
+
+  return raw
+    .split(/\s*&\s*|\s+and\s+|\s*,\s*/i)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * 从 ScryfallCard 提取统一的画家数组
+ * 处理普通卡和双面牌
+ */
+export function extractArtists(card: ScryfallCard): string[] {
+  const artistSet = new Set<string>();
+
+  // 正面画家
+  if (card.artist) {
+    splitArtists(card.artist).forEach((a) => artistSet.add(a));
+  }
+
+  // 双面牌的背面画家
+  if (card.card_faces) {
+    for (const face of card.card_faces) {
+      if (face.artist) {
+        splitArtists(face.artist).forEach((a) => artistSet.add(a));
+      }
+    }
+  }
+
+  const artists = Array.from(artistSet);
+  return artists.length > 0 ? artists : ["Unknown Artist"];
+}
+
+/**
+ * 从 ScryfallCard 提取最好的图片 URL
+ */
+export function extractImageUrl(card: ScryfallCard): string | null {
+  if (card.image_uris?.normal) return card.image_uris.normal;
+  if (card.image_uris?.png) return card.image_uris.png;
+  if (card.card_faces?.[0]?.image_uris?.normal) return card.card_faces[0].image_uris.normal;
+  return null;
+}
 
 // ─── 常量 ──────────────────────────────────────────────────
 

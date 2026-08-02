@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { fetchAllPrintings, delay } from "@/lib/scryfall-client";
+import { getUserFromRequest } from "@/lib/auth";
 import type { Printing } from "@/types";
 
 interface FuzzyCardResult {
@@ -10,6 +11,12 @@ interface FuzzyCardResult {
 }
 
 export async function POST(request: NextRequest) {
+  // 鉴权
+  const userName = getUserFromRequest(request);
+  if (!userName) {
+    return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { deckIds } = body as { deckIds?: string[] };
@@ -18,10 +25,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "缺少套牌 ID" }, { status: 400 });
     }
 
+    // 验证所有套牌属于当前用户
+    const { data: ownedDecks } = await supabase
+      .from("decks")
+      .select("id")
+      .in("id", deckIds)
+      .eq("user_name", userName);
+
+    if (!ownedDecks || ownedDecks.length === 0) {
+      return NextResponse.json({ error: "无权访问这些套牌" }, { status: 403 });
+    }
+
+    // 只查询属于当前用户的套牌
+    const validDeckIds = ownedDecks.map((d) => d.id);
+
     const { data: cards } = await supabase
       .from("cards")
       .select("card_name, deck_id")
-      .in("deck_id", deckIds);
+      .in("deck_id", validDeckIds);
 
     if (!cards || cards.length === 0) {
       return NextResponse.json({

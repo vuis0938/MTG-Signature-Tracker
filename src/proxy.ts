@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { verifyToken } from "@/lib/auth";
 
 // 不需要鉴权的路由
 const PUBLIC_PATHS = ["/login", "/api/auth"];
@@ -21,8 +22,10 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 检查 auth_token cookie（登录 API 已验证过密码）
-  if (!request.cookies.get("auth_token")?.value) {
+  // 校验 auth_token 签名有效性（HMAC-SHA256），伪造或篡改的 token 拒绝访问
+  const token = request.cookies.get("auth_token")?.value;
+  const userName = verifyToken(token);
+  if (!userName) {
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
   }

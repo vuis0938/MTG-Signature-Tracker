@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Loader2, Save, Tag, Edit3, RefreshCw } from "lucide-react";
+import { useToast } from "@/lib/toast-context";
 
 type LineTag = "section" | "artist" | "ignore" | "terminate";
 
@@ -132,6 +133,7 @@ function preClassify(rawText: string): TaggedLine[] {
 // ─── 页面组件 ──────────────────────────────────────────────
 
 export default function VerifyPage() {
+  const { toast: showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -281,9 +283,11 @@ export default function VerifyPage() {
       const data = await res.json();
       if (data.success) {
         setSaved(true);
+      } else {
+        showToast("保存失败，请重试", "error");
       }
     } catch {
-      // ignore
+      showToast("网络错误，请重试", "error");
     } finally {
       setSaving(false);
     }

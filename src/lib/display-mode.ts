@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 
 const STORAGE_KEY = "mtg-card-display-mode";
 export type DisplayMode = "individual" | "grouped";
@@ -14,19 +14,17 @@ export type DisplayMode = "individual" | "grouped";
  * 通过 localStorage 持久化，跨页面、跨会话保持。
  */
 export function useDisplayMode() {
-  const [mode, setMode] = useState<DisplayMode>("grouped");
-
-  // 初始化时从 localStorage 读取，覆盖默认值
-  useEffect(() => {
+  const [mode, setMode] = useState<DisplayMode>(() => {
+    if (typeof window === "undefined") return "grouped";
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored === "individual") setMode("individual");
-      else if (stored === "grouped") setMode("grouped");
-      // 没存过就用默认 grouped，不覆盖
+      if (stored === "individual") return "individual";
+      if (stored === "grouped") return "grouped";
     } catch {
       // localStorage 不可用时忽略
     }
-  }, []);
+    return "grouped";
+  });
 
   const toggle = useCallback(() => {
     setMode((prev) => {
