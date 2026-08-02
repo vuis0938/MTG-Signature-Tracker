@@ -263,30 +263,10 @@ export default function DecksClient() {
 
   // ─── 三态切换 ──────────────────────────────────────────
 
-  async function toggleStatus(cardId: string, currentStatus: number, deckId: string) {
+  function toggleStatus(cardId: string, currentStatus: number, deckId: string) {
     const newStatus = (currentStatus + 1) % 3;
 
-    // 先写数据库，成功后再更新 UI（避免乐观更新导致 UI 与 DB 不一致）
-    try {
-      const res = await fetch("/api/cards", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cardId,
-          status: newStatus,
-          is_signed: newStatus === 2,
-        }),
-      });
-      const data = await res.json();
-      if (!data.success) {
-        showToast("状态更新失败，请重试", "error");
-        return;
-      }
-    } catch {
-      showToast("网络错误，请重试", "error");
-      return;
-    }
-
+    // 1. 乐观更新：立即更新 UI，用户零延迟感知
     setCards((prev) => {
       const updated = { ...prev };
       if (updated[deckId]) {
@@ -297,27 +277,79 @@ export default function DecksClient() {
       return updated;
     });
 
-    // 乐观更新 SWR 缓存中的统计（不触发服务端请求，API 已写入数据库）
-    revalidate((cacheData) => {
-      if (!cacheData) return cacheData;
-      const stats = { ...cacheData.stats };
-      if (stats[deckId]) {
-        const delta: Record<number, { u: number; p: number }> = {
-          0: { u: 1, p: 0 },
-          1: { u: 0, p: 1 },
-          2: { u: 0, p: 0 },
-          3: { u: 1, p: 0 },
-        };
-        const old = delta[currentStatus] ?? { u: 0, p: 0 };
-        const now = delta[newStatus] ?? { u: 0, p: 0 };
-        stats[deckId] = {
+    // 乐观更新 SWR 缓存中的统计（不触发服务端请求）
+    const applyStatsDelta = (stats: Record<string, DeckStats>, fromStatus: number, toStatus: number) => {
+      if (!stats[deckId]) return stats;
+      const delta: Record<number, { u: number; p: number }> = {
+        0: { u: 1, p: 0 },
+        1: { u: 0, p: 1 },
+        2: { u: 0, p: 0 },
+        3: { u: 1, p: 0 },
+      };
+      const old = delta[fromStatus] ?? { u: 0, p: 0 };
+      const now = delta[toStatus] ?? { u: 0, p: 0 };
+      return {
+        ...stats,
+        [deckId]: {
           ...stats[deckId],
           unsigned: stats[deckId].unsigned - old.u + now.u,
           pending: stats[deckId].pending - old.p + now.p,
-        };
-      }
-      return { ...cacheData, stats };
+        },
+      };
+    };
+
+    revalidate((cacheData) => {
+      if (!cacheData) return cacheData;
+      return { ...cacheData, stats: applyStatsDelta({ ...cacheData.stats }, currentStatus, newStatus) };
     }, false);
+
+    // 2. 后台写入数据库，失败则回滚 UI
+    fetch("/api/cards", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cardId,
+        status: newStatus,
+        is_signed: newStatus === 2,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.success) {
+          // 回滚到旧状态
+          setCards((prev) => {
+            const updated = { ...prev };
+            if (updated[deckId]) {
+              updated[deckId] = updated[deckId].map((c) =>
+                c.id === cardId ? { ...c, status: currentStatus, is_signed: currentStatus === 2 } : c
+              );
+            }
+            return updated;
+          });
+          revalidate((cacheData) => {
+            if (!cacheData) return cacheData;
+            return { ...cacheData, stats: applyStatsDelta({ ...cacheData.stats }, newStatus, currentStatus) };
+          }, false);
+          showToast("状态更新失败，请重试", "error");
+        }
+      })
+      .catch(() => {
+        // 网络异常，回滚
+        setCards((prev) => {
+          const updated = { ...prev };
+          if (updated[deckId]) {
+            updated[deckId] = updated[deckId].map((c) =>
+              c.id === cardId ? { ...c, status: currentStatus, is_signed: currentStatus === 2 } : c
+            );
+          }
+          return updated;
+        });
+        revalidate((cacheData) => {
+          if (!cacheData) return cacheData;
+          return { ...cacheData, stats: applyStatsDelta({ ...cacheData.stats }, newStatus, currentStatus) };
+        }, false);
+        showToast("网络错误，状态已恢复", "error");
+      });
   }
 
   // ─── 添加卡牌到套牌 ──────────────────────────────────

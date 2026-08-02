@@ -256,7 +256,7 @@ export default function MatchClient() {
 
   // ─── 状态切换 ──────────────────────────────────────────
 
-  async function toggleStatus(cardId: string) {
+  function toggleStatus(cardId: string) {
     // 1. 查找当前状态
     let currentStatus = 0;
     for (const cards of matchedRef.current.values()) {
@@ -278,32 +278,7 @@ export default function MatchClient() {
       event_date: newStatus === 3 ? currentEventDate : null,
     };
 
-    // 2. 先写数据库，成功后再更新 UI（避免乐观更新不一致）
-    try {
-      const res = await fetch("/api/cards", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cardId,
-          status: newStatus,
-          is_signed: false,
-          event_name: newStatus === 3 ? currentEvent : null,
-          event_date: newStatus === 3 ? currentEventDate : null,
-        }),
-      });
-      const data = await res.json();
-      if (!data.success) {
-        console.error("[toggleStatus] 更新失败");
-        setMatchError("状态更新失败，请刷新页面重试");
-        return;
-      }
-    } catch (err: unknown) {
-      console.error("[toggleStatus] 网络异常:", err);
-      setMatchError("状态更新失败，请刷新页面重试");
-      return;
-    }
-
-    // 3. 数据库写入成功后更新 UI
+    // 2. 乐观更新：立即更新 UI，用户零延迟感知
     setMatched((prev) => {
       const next = new Map(prev);
       for (const [artist, cards] of next) {
@@ -333,6 +308,94 @@ export default function MatchClient() {
       }
       return next;
     });
+
+    // 3. 后台写入数据库，失败则回滚 UI
+    fetch("/api/cards", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cardId,
+        status: newStatus,
+        is_signed: false,
+        event_name: newStatus === 3 ? currentEvent : null,
+        event_date: newStatus === 3 ? currentEventDate : null,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.success) {
+          // 回滚到旧状态
+          const rollbackPayload = {
+            status: currentStatus,
+            is_signed: false,
+            event_name: currentStatus === 3 ? currentEvent : null,
+            event_date: currentStatus === 3 ? currentEventDate : null,
+          };
+          setMatched((prev) => {
+            const next = new Map(prev);
+            for (const [artist, cards] of next) {
+              next.set(
+                artist,
+                cards.map((c) =>
+                  c.id === cardId ? { ...c, ...rollbackPayload } : c
+                )
+              );
+            }
+            return next;
+          });
+          setFuzzyMatched((prev) => {
+            const next = new Map(prev);
+            for (const [artist, entries] of next) {
+              next.set(
+                artist,
+                entries.map((e) =>
+                  e.deckCard?.id === cardId
+                    ? { ...e, deckCard: { ...e.deckCard, ...rollbackPayload } }
+                    : e
+                )
+              );
+            }
+            return next;
+          });
+          setMatchError("状态更新失败，请重试");
+        }
+      })
+      .catch(() => {
+        // 网络异常，回滚
+        const rollbackPayload = {
+          status: currentStatus,
+          is_signed: false,
+          event_name: currentStatus === 3 ? currentEvent : null,
+          event_date: currentStatus === 3 ? currentEventDate : null,
+        };
+        setMatched((prev) => {
+          const next = new Map(prev);
+          for (const [artist, cards] of next) {
+            next.set(
+              artist,
+              cards.map((c) =>
+                c.id === cardId ? { ...c, ...rollbackPayload } : c
+              )
+            );
+          }
+          return next;
+        });
+        setFuzzyMatched((prev) => {
+          const next = new Map(prev);
+          for (const [artist, entries] of next) {
+            next.set(
+              artist,
+              entries.map((e) =>
+                e.deckCard?.id === cardId
+                  ? { ...e, deckCard: { ...e.deckCard, ...rollbackPayload } }
+                  : e
+              )
+            );
+          }
+          return next;
+        });
+        setMatchError("网络异常，状态已恢复");
+      });
   }
 
   // ─── 匹配入口 ──────────────────────────────────────────

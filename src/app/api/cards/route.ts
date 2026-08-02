@@ -79,7 +79,38 @@ export async function PATCH(request: NextRequest) {
 
     const supabase = getSupabase();
 
-    // 验证卡牌归属权：通过 deck_id 关联到 decks 表检查 user_name
+    // ── 快速路径：RPC 函数（单次 DB 往返，归属校验 + UPDATE 原子完成）──
+    // 需要先在 Supabase 执行 supabase/migrations/001_optimize_card_toggle.sql
+    // 如果 RPC 函数不存在则自动降级到下面的两次查询方式
+    if (status !== undefined && is_signed !== undefined) {
+      const { data: rpcResult, error: rpcError } = await supabase.rpc(
+        "update_card_with_ownership",
+        {
+          p_card_id: cardId,
+          p_user_name: userName,
+          p_status: status,
+          p_is_signed: is_signed,
+          p_event_name: event_name ?? null,
+          p_event_date: event_date ?? null,
+        }
+      );
+
+      // RPC 调用成功
+      if (!rpcError && rpcResult && rpcResult.length > 0) {
+        const result = rpcResult[0] as { success: boolean; error: string | null };
+        if (result.success) {
+          return NextResponse.json({ success: true });
+        }
+        const errStatus = result.error === "卡牌不存在" ? 404 : 403;
+        return NextResponse.json(
+          { error: result.error || "更新失败" },
+          { status: errStatus }
+        );
+      }
+      // RPC 失败（函数不存在等）→ 降级到两次查询方式
+    }
+
+    // ── 降级路径：两次 DB 查询（SELECT 归属校验 + UPDATE）──
     const { data: card } = await supabase
       .from("cards")
       .select("id, deck:decks!inner(user_name)")
