@@ -13,8 +13,20 @@ const typeConfig: Record<string, { icon: typeof Info; className: string }> = {
   maintenance: { icon: Wrench, className: "bg-red-50 border-red-200 text-red-900 dark:bg-red-950/30 dark:border-red-900 dark:text-red-200" },
 };
 
-export function AnnouncementBanner() {
-  const { announcements } = useAnnouncements();
+interface AnnouncementItem {
+  id: string;
+  title: string;
+  content: string;
+  type: string;
+  created_at: string;
+}
+
+export function AnnouncementBanner({ fallbackAnnouncements }: { fallbackAnnouncements?: AnnouncementItem[] }) {
+  const fallbackData =
+    fallbackAnnouncements !== undefined
+      ? { success: true, announcements: fallbackAnnouncements }
+      : undefined;
+  const { announcements } = useAnnouncements(fallbackData);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   // 从 localStorage 恢复已关闭的公告 ID

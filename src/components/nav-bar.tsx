@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { useUser } from "@/lib/user-context";
 import {
   Layers,
   GitCompare,
@@ -36,9 +35,8 @@ const navItems = [
   },
 ] as const;
 
-export function NavBar() {
+export function NavBar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
-  const { isAdmin } = useUser();
 
   // 合并管理员入口
   const items = isAdmin

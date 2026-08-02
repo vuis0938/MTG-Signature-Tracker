@@ -7,7 +7,7 @@
 
 import "server-only";
 import { getSupabase } from "@/lib/supabase";
-import type { Deck, DeckStats } from "@/types";
+import type { Deck, DeckStats, CardEntry } from "@/types";
 
 /**
  * 获取用户套牌列表（含卡牌统计）
@@ -57,4 +57,104 @@ export async function getDecksWithStats(
   }
 
   return { decks, stats };
+}
+
+/**
+ * 获取用户套牌列表 + 所有卡牌（完整数据）
+ *
+ * 供 Server Component 预取使用，一次拉取所有数据传入客户端，
+ * 消除首屏加载和展开套牌时的加载等待。
+ * 套牌统计从完整卡牌数据中聚合，无需额外查询。
+ */
+export async function getDecksWithCards(
+  userName: string
+): Promise<{
+  decks: Deck[];
+  stats: Record<string, DeckStats>;
+  cardsByDeck: Record<string, CardEntry[]>;
+}> {
+  const supabase = getSupabase();
+
+  const { data: decks, error } = await supabase
+    .from("decks")
+    .select("*")
+    .eq("user_name", userName)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("[data] 查询套牌失败:", error.message);
+    return { decks: [], stats: {}, cardsByDeck: {} };
+  }
+
+  if (!decks || decks.length === 0) {
+    return { decks: [], stats: {}, cardsByDeck: {} };
+  }
+
+  // 单条查询拉取所有卡牌的完整数据
+  const deckIds = decks.map((d) => d.id);
+  const { data: allCards } = await supabase
+    .from("cards")
+    .select("*")
+    .in("deck_id", deckIds)
+    .order("artist_names");
+
+  // 按套牌分组 + 聚合统计
+  const stats: Record<string, DeckStats> = {};
+  const cardsByDeck: Record<string, CardEntry[]> = {};
+  for (const deck of decks) {
+    stats[deck.id] = { total: 0, unsigned: 0, pending: 0 };
+    cardsByDeck[deck.id] = [];
+  }
+  if (allCards) {
+    for (const card of allCards) {
+      const s = stats[card.deck_id];
+      const list = cardsByDeck[card.deck_id];
+      if (s) {
+        s.total++;
+        if (card.status === 1) s.pending++;
+        else if (card.status === 0 || card.status === 3) s.unsigned++;
+      }
+      if (list) list.push(card as CardEntry);
+    }
+  }
+
+  return { decks, stats, cardsByDeck };
+}
+
+// ─── 公告 ──────────────────────────────────────────────────
+
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  type: string;
+  created_at: string;
+}
+
+/**
+ * 获取当前生效的公告
+ *
+ * 供 Server Component 预取，消除公告横幅的布局抖动。
+ */
+export async function getAnnouncements(): Promise<Announcement[]> {
+  try {
+    const supabase = getSupabase();
+    const now = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from("announcements")
+      .select("id, title, content, type, created_at")
+      .eq("active", true)
+      .or(`expires_at.is.null,expires_at.gt.${now}`)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("[data] 查询公告失败:", error.message);
+      return [];
+    }
+
+    return data || [];
+  } catch {
+    return [];
+  }
 }

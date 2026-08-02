@@ -66,8 +66,23 @@ function mergeIdenticalCards(
 
 // ─── 页面组件 ──────────────────────────────────────────────
 
-export default function DecksClient() {
-  const { decks, stats: deckStats, revalidate, isLoading } = useDecks();
+interface DecksClientProps {
+  fallbackDecks?: Deck[];
+  fallbackStats?: Record<string, DeckStats>;
+  fallbackCards?: Record<string, CardEntry[]>;
+}
+
+export default function DecksClient({
+  fallbackDecks,
+  fallbackStats,
+  fallbackCards,
+}: DecksClientProps = {}) {
+  // 使用服务端预取数据作为 SWR fallback，首屏零加载
+  const fallbackData =
+    fallbackDecks !== undefined
+      ? { success: true, decks: fallbackDecks, stats: fallbackStats || {} }
+      : undefined;
+  const { decks, stats: deckStats, revalidate, isLoading } = useDecks(fallbackData);
 
   // 导入表单状态
   const [showImport, setShowImport] = useState(false);
@@ -87,9 +102,9 @@ export default function DecksClient() {
   const [retryingDeckId, setRetryingDeckId] = useState<string | null>(null);
   const [retryingCard, setRetryingCard] = useState<string | null>(null);
 
-  // 展开的套牌 + 卡牌数据
+  // 展开的套牌 + 卡牌数据（用服务端预取数据初始化，展开套牌时零加载）
   const [expandedDeck, setExpandedDeck] = useState<string | null>(null);
-  const [cards, setCards] = useState<Record<string, CardEntry[]>>({});
+  const [cards, setCards] = useState<Record<string, CardEntry[]>>(fallbackCards || {});
   const [cardsLoading, setCardsLoading] = useState(false);
 
   // 添加卡牌弹窗
@@ -244,14 +259,18 @@ export default function DecksClient() {
         } else {
           showToast(`「${cardName}」导入成功`, "success");
         }
-        await revalidate();
-        if (expandedDeck === retryingDeckId) {
-          const res = await fetch(`/api/cards?deckId=${encodeURIComponent(retryingDeckId)}`);
-          const freshData = await res.json();
-          if (freshData.success && freshData.cards) {
-            setCards((prev) => ({ ...prev, [retryingDeckId]: freshData.cards }));
-          }
-        }
+        // 并行刷新：decks 列表 + 当前展开套牌的卡牌（原先串行）
+        const refreshCards = expandedDeck === retryingDeckId
+          ? fetch(`/api/cards?deckId=${encodeURIComponent(retryingDeckId)}`)
+              .then((r) => r.json())
+              .then((d) => {
+                if (d.success && d.cards) {
+                  setCards((prev) => ({ ...prev, [retryingDeckId]: d.cards }));
+                }
+              })
+              .catch(() => {})
+          : Promise.resolve();
+        await Promise.all([revalidate(), refreshCards]);
       } else {
         showToast(`${cardName}: ${data.error}`, "error");
       }
@@ -397,14 +416,18 @@ export default function DecksClient() {
         showToast(msg, "success");
         setAddCardsOpen(null);
         setAddCardsText("");
-        await revalidate();
-        if (expandedDeck === addCardsOpen) {
-          const res = await fetch(`/api/cards?deckId=${encodeURIComponent(addCardsOpen)}`);
-          const freshData = await res.json();
-          if (freshData.success && freshData.cards) {
-            setCards((prev) => ({ ...prev, [addCardsOpen]: freshData.cards }));
-          }
-        }
+        // 并行刷新：decks 列表 + 当前展开套牌的卡牌（原先串行）
+        const refreshCards = expandedDeck === addCardsOpen
+          ? fetch(`/api/cards?deckId=${encodeURIComponent(addCardsOpen)}`)
+              .then((r) => r.json())
+              .then((d) => {
+                if (d.success && d.cards) {
+                  setCards((prev) => ({ ...prev, [addCardsOpen]: d.cards }));
+                }
+              })
+              .catch(() => {})
+          : Promise.resolve();
+        await Promise.all([revalidate(), refreshCards]);
       } else {
         showToast(data.error, "error");
       }

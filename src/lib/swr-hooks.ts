@@ -110,11 +110,11 @@ interface AnnouncementsResponse {
 }
 
 /** 系统公告 — 全局共享缓存，1 分钟内不重复请求 */
-export function useAnnouncements() {
+export function useAnnouncements(fallbackData?: AnnouncementsResponse) {
   const { data, error } = useSWR<AnnouncementsResponse>(
     "/api/announcements",
     fetcher,
-    { ...FOCUS_REVALIDATION, dedupingInterval: 60000 }
+    { ...FOCUS_REVALIDATION, dedupingInterval: 60000, fallbackData }
   );
   return { announcements: data?.announcements || [], error };
 }

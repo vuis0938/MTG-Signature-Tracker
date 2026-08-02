@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { delay, SCRYFALL_UA } from "@/lib/scryfall-client";
 import { getUserFromRequest } from "@/lib/auth";
+import { getSupabase } from "@/lib/supabase";
 import type { Printing } from "@/types";
 
 /** 检查卡牌名称是否精确匹配目标（排除双面卡/裂片卡中仅一面同名的情况） */
@@ -24,6 +25,26 @@ export async function GET(request: NextRequest) {
     }
 
     const target = cardName.trim();
+
+    // ── 1. 优先查缓存表 ──────────────────────────────────
+    const supabase = getSupabase();
+    const { data: cached } = await supabase
+      .from("card_printings")
+      .select("printings")
+      .eq("card_name", target)
+      .single();
+
+    if (cached?.printings && Array.isArray(cached.printings) && cached.printings.length > 0) {
+      return NextResponse.json({
+        success: true,
+        cardName: target,
+        printings: cached.printings as Printing[],
+        count: cached.printings.length,
+        cached: true,
+      });
+    }
+
+    // ── 2. 缓存未命中，查 Scryfall ──────────────────────
     const allPrintings: Printing[] = [];
     let pageUrl = `https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(target)}"+unique:prints&order=released`;
 
@@ -62,11 +83,29 @@ export async function GET(request: NextRequest) {
       pageUrl = data.has_more ? data.next_page : null;
     }
 
+    // ── 3. 写入缓存表（fire-and-forget） ────────────────
+    if (allPrintings.length > 0) {
+      const allArtists = [...new Set(allPrintings.map((p) => p.artist))];
+      supabase
+        .from("card_printings")
+        .upsert({
+          card_name: target,
+          printings: allPrintings as unknown[],
+          all_artists: allArtists,
+        })
+        .then(({ error }) => {
+          if (error) {
+            console.warn(`[Printings] 缓存写入失败 ${target}:`, error.message);
+          }
+        });
+    }
+
     return NextResponse.json({
       success: true,
       cardName: target,
       printings: allPrintings,
       count: allPrintings.length,
+      cached: false,
     });
   } catch (error) {
     console.error("[Printings]", error);

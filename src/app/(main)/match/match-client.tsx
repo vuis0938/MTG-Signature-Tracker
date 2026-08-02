@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card";
 import { useDisplayMode } from "@/lib/display-mode";
 import { useToast } from "@/lib/toast-context";
-import { useDecks } from "@/lib/swr-hooks";
+import { useDecks, useEvents } from "@/lib/swr-hooks";
 import { Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Sparkle, Palette, Package, Heart, Check, MoreHorizontal, Lightbulb } from "lucide-react";
 import {
   Dialog,
@@ -24,21 +24,34 @@ import {
 
 // ─── 类型定义 ──────────────────────────────────────────────
 
-import type { Deck, CardEntry, FuzzyCardEntry, ArtistCard, CalendarEvent } from "@/types";
+import type { Deck, DeckStats, CardEntry, FuzzyCardEntry, ArtistCard, CalendarEvent } from "@/types";
 import { normalizeArtists, buildNormalizedMap, findMatchingArtist, isSamePrinting, getNextStatus, matchAgainstArtists } from "@/lib/match-utils";
 import type { FuzzyApiResponse } from "@/lib/match-utils";
 
 // ─── 页面组件 ──────────────────────────────────────────────
 
-export default function MatchClient() {
+interface MatchClientProps {
+  fallbackDecks?: Deck[];
+  fallbackStats?: Record<string, DeckStats>;
+}
+
+export default function MatchClient({
+  fallbackDecks,
+  fallbackStats,
+}: MatchClientProps = {}) {
   // 名单解析
   const [rawText, setRawText] = useState("");
   const [parsing, setParsing] = useState(false);
+  const [parseProgress, setParseProgress] = useState("");
   const [parsedArtists, setParsedArtists] = useState<string[]>([]);
   const [parseMethod, setParseMethod] = useState("");
 
-  // 套牌选择 — SWR 获取，跨页面共享缓存
-  const { decks } = useDecks();
+  // 套牌选择 — SWR 获取，跨页面共享缓存（使用 SSR fallback 首屏零加载）
+  const fallbackData =
+    fallbackDecks !== undefined
+      ? { success: true, decks: fallbackDecks, stats: fallbackStats || {} }
+      : undefined;
+  const { decks } = useDecks(fallbackData);
   const [selectedDecks, setSelectedDecks] = useState<Set<string>>(new Set());
 
   // decks 加载后默认全选（仅首次，避免用户取消全选后被重新全选）
@@ -50,9 +63,8 @@ export default function MatchClient() {
     }
   }, [decks]);
 
-  // 活动列表
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [loadingEvents, setLoadingEvents] = useState(false);
+  // 活动列表 — SWR 获取，跨页面共享缓存（与活动页共享 /api/events 缓存）
+  const { events } = useEvents();
 
   // 匹配
   const [matching, setMatching] = useState(false);
@@ -85,7 +97,6 @@ export default function MatchClient() {
   const fuzzyModeRef = useRef(fuzzyMode);
   fuzzyModeRef.current = fuzzyMode;
   const matchingRef = useRef(false);
-  const eventsLoadedRef = useRef(false);
   const matchedRef = useRef(matched);
   matchedRef.current = matched;
   const fuzzyMatchedRef = useRef(fuzzyMatched);
@@ -165,25 +176,6 @@ export default function MatchClient() {
     return null;
   }
 
-  async function loadEvents(): Promise<CalendarEvent[]> {
-    if (eventsLoadedRef.current) return events;
-    setLoadingEvents(true);
-    try {
-      const res = await fetch("/api/events");
-      const data = await res.json();
-      if (data.success) {
-        setEvents(data.events);
-        eventsLoadedRef.current = true;
-        return data.events as CalendarEvent[];
-      }
-    } catch {
-      eventsLoadedRef.current = false;
-    } finally {
-      setLoadingEvents(false);
-    }
-    return [];
-  }
-
   function selectEvent(eventId: string) {
     const event = events.find((e) => e.id === eventId);
     if (!event) return;
@@ -219,10 +211,8 @@ export default function MatchClient() {
   async function handleParse() {
     if (!rawText.trim()) return;
     setParsing(true);
+    setParseProgress("正在解析名单...");
     try {
-      // 确保活动列表已加载（用于后续重合度检测）
-      const currentEvents = eventsLoadedRef.current ? events : await loadEvents();
-
       const res = await fetch("/api/parse-artists", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -235,7 +225,8 @@ export default function MatchClient() {
         resetMatchState();
 
         // 检测解析的画家名单是否与已有活动高度重合
-        const matchedEvent = detectMatchingEvent(data.artists, currentEvents);
+        setParseProgress("正在匹配活动...");
+        const matchedEvent = detectMatchingEvent(data.artists, events);
         if (matchedEvent) {
           setCurrentEvent(matchedEvent.name);
           setCurrentEventDate(new Date(matchedEvent.startDate).toLocaleDateString("zh-CN"));
@@ -251,6 +242,7 @@ export default function MatchClient() {
       setMatchError("解析失败，请检查名单格式后重试");
     } finally {
       setParsing(false);
+      setParseProgress("");
     }
   }
 
@@ -736,10 +728,9 @@ export default function MatchClient() {
             className="w-full px-3 py-2 rounded-lg border bg-background text-sm appearance-none whitespace-normal overflow-hidden bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23666%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-[length:12px] bg-[right_8px_center] bg-no-repeat pr-8"
             defaultValue=""
             onChange={(e) => { if (e.target.value) selectEvent(e.target.value); }}
-            onFocus={() => { if (events.length === 0) loadEvents(); }}
           >
             <option value="" disabled>
-              {loadingEvents ? "加载中..." : "选择活动自动填充画家名单..."}
+              选择活动自动填充画家名单...
             </option>
             {events.map((e) => (
               <option key={e.id} value={e.id}>
@@ -764,7 +755,13 @@ export default function MatchClient() {
                 <Search className="h-4 w-4 mr-2" />
                 智能解析
               </Button>
-            {parseMethod && (
+            {parsing && parseProgress && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                {parseProgress}
+              </span>
+            )}
+            {!parsing && parseMethod && (
               <span className="text-xs text-muted-foreground">
                 已解析 {parsedArtists.length} 位画家 ({parseMethod})
               </span>
