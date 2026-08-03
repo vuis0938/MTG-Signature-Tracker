@@ -214,13 +214,12 @@ export default function LoginPage() {
                           <option key={q} value={q}>{q}</option>
                         ))}
                       </select>
-                      <p className="text-xs text-muted-foreground">用于忘记密码时验证身份</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="securityAnswer">安全问题答案</Label>
                       <Input
                         id="securityAnswer"
-                        placeholder="请输入答案"
+                        placeholder="凭此问题找回密码"
                         value={securityAnswer}
                         onChange={(e) => setSecurityAnswer(e.target.value)}
                         required
