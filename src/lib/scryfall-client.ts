@@ -72,10 +72,12 @@ export function extractArtists(card: ScryfallCard): string[] {
 
 /**
  * 从 ScryfallCard 提取最好的图片 URL
+ * 优先使用 small 尺寸（146×204），缩略图场景足够且传输量减少约 70%
  */
 export function extractImageUrl(card: ScryfallCard): string | null {
+  if (card.image_uris?.small) return card.image_uris.small;
   if (card.image_uris?.normal) return card.image_uris.normal;
-  if (card.image_uris?.png) return card.image_uris.png;
+  if (card.card_faces?.[0]?.image_uris?.small) return card.card_faces[0].image_uris.small;
   if (card.card_faces?.[0]?.image_uris?.normal) return card.card_faces[0].image_uris.normal;
   return null;
 }
@@ -570,7 +572,9 @@ export async function fetchAllPrintings(
           card.card_faces?.[0]?.artist ||
           "Unknown";
         const imageUrl =
+          card.image_uris?.small ||
           card.image_uris?.normal ||
+          card.card_faces?.[0]?.image_uris?.small ||
           card.card_faces?.[0]?.image_uris?.normal ||
           null;
 

@@ -18,6 +18,10 @@ import Image from "next/image";
 const DEFAULT_SIZES =
   "(max-width: 640px) 45vw, (max-width: 768px) 30vw, (max-width: 1024px) 22vw, 17vw";
 
+// 通用模糊占位图：zinc-700 色块，5:7 比例，next/image 会自动 blur 处理
+const BLUR_PLACEHOLDER =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='14'%3E%3Crect width='10' height='14' fill='%233f3f46'/%3E%3C/svg%3E";
+
 export function CardImage({
   src,
   alt,
@@ -55,7 +59,8 @@ export function CardImage({
         sizes={sizes}
         className="object-cover"
         loading="lazy"
-        placeholder="empty"
+        placeholder="blur"
+        blurDataURL={BLUR_PLACEHOLDER}
         onError={() => setErrored(true)}
       />
     </span>
