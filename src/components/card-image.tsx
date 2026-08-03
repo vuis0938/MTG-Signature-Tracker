@@ -11,6 +11,10 @@ import Image from "next/image";
  * 防布局抖动（CLS，aspect-[5/7] 占位）。
  *
  * MTG 卡牌标准比例 5:7（约 488x680）。
+ *
+ * size 属性：数据库统一存 normal 尺寸 URL，
+ * 弹窗场景传 size="small" 自动转换为 small 尺寸（146×204），
+ * 减少弹窗内大量图片的传输量。
  */
 
 // 覆盖两类展示场景：结果网格（移动端 3 列 ≈ 33vw）
@@ -27,20 +31,25 @@ export function CardImage({
   alt,
   className,
   sizes = DEFAULT_SIZES,
+  size = "normal",
 }: {
   src: string;
   alt: string;
   className?: string;
   sizes?: string;
+  size?: "normal" | "small";
 }) {
   const [errored, setErrored] = useState(false);
+
+  // 弹窗场景用 small 尺寸：URL 中 /normal/ 替换为 /small/
+  const imageSrc = size === "small" ? src.replace("/normal/", "/small/") : src;
 
   // next/image 优化失败时，降级为普通 img 标签直接加载原图
   if (errored) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={src}
+        src={imageSrc}
         alt={alt}
         className={className}
         loading="lazy"
@@ -53,7 +62,7 @@ export function CardImage({
       className={"block relative aspect-[5/7] overflow-hidden " + (className ?? "")}
     >
       <Image
-        src={src}
+        src={imageSrc}
         alt={alt}
         fill
         sizes={sizes}

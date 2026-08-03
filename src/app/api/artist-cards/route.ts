@@ -113,10 +113,10 @@ export async function GET(request: NextRequest) {
           set_name: card.set_name,
           collector_number: card.collector_number,
           image_url:
-            card.image_uris?.small ||
             card.image_uris?.normal ||
-            card.card_faces?.[0]?.image_uris?.small ||
+            card.image_uris?.small ||
             card.card_faces?.[0]?.image_uris?.normal ||
+            card.card_faces?.[0]?.image_uris?.small ||
             null,
           released_at: card.released_at,
         });

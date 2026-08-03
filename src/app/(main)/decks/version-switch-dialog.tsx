@@ -91,6 +91,7 @@ export default function VersionSwitchDialog({
                       src={printing.image_url}
                       alt={printing.set_name + " #" + printing.collector_number}
                       className="w-full rounded-t-lg"
+                      size="small"
                     />
                   ) : (
                     <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center text-xs text-muted-foreground">
