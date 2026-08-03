@@ -18,7 +18,7 @@ import { useDisplayMode } from "@/lib/display-mode";
 import { useDeckLayout, type DeckLayout } from "@/lib/deck-layout";
 import { useThemeColor } from "@/lib/use-theme-color";
 import { useUser } from "@/lib/user-context";
-import { LogOut, Download, Trash2, User, Info, Layout, Columns, List, Layers, Rows3, PanelsTopLeft, Palette, KeyRound, Bug, Send } from "lucide-react";
+import { LogOut, Download, Trash2, User, Info, Layout, Columns, List, Layers, Rows3, PanelsTopLeft, Palette, KeyRound, Bug, Send, Database } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -384,7 +384,7 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Download className="h-4 w-4" />
+            <Database className="h-4 w-4" />
             数据管理
           </CardTitle>
           <CardDescription>备份与清除数据</CardDescription>
