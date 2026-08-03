@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { hashPassword, verifyPassword, createToken, needsHashUpgrade, isAdmin } from "@/lib/auth";
+import { hashPassword, verifyPassword, createToken, needsHashUpgrade, isAdmin, hashSecurityAnswer, SECURITY_QUESTIONS } from "@/lib/auth";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
 
 // 登录限流：15 分钟内最多 10 次尝试
@@ -138,7 +138,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const { username, password } = await request.json();
+    const { username, password, securityQuestion, securityAnswer } = await request.json();
 
     if (!username || !password) {
       return NextResponse.json({ error: "请输入用户名和密码" }, { status: 400 });
@@ -155,12 +155,28 @@ export async function PUT(request: NextRequest) {
     if (password.length > 64) {
       return NextResponse.json({ error: "密码不能超过 64 个字符" }, { status: 400 });
     }
+    // 安全校验：安全问题必填
+    if (!securityQuestion || !SECURITY_QUESTIONS.includes(securityQuestion)) {
+      return NextResponse.json({ error: "请选择一个安全问题" }, { status: 400 });
+    }
+    if (!securityAnswer || securityAnswer.trim().length < 1) {
+      return NextResponse.json({ error: "请填写安全问题答案" }, { status: 400 });
+    }
+    if (securityAnswer.trim().length > 100) {
+      return NextResponse.json({ error: "安全问题答案不能超过 100 个字符" }, { status: 400 });
+    }
 
     const hashedPassword = await hashPassword(password);
+    const hashedAnswer = hashSecurityAnswer(securityAnswer);
 
     const { error } = await supabase
       .from("users")
-      .insert({ username: username.trim(), password: hashedPassword });
+      .insert({
+        username: username.trim(),
+        password: hashedPassword,
+        security_question: securityQuestion,
+        security_answer: hashedAnswer,
+      });
 
     if (error) {
       if (error.code === "23505") {

@@ -3,10 +3,11 @@
  *
  * - 密码哈希：PBKDF2-SHA256（Node.js 内置 crypto，无需额外依赖）
  * - Token 签名：HMAC-SHA256（无状态，无需 sessions 表）
+ * - 安全问题答案哈希：SHA-256 + salt（答案空间小，用 PBKDF2 也挡不住暴力枚举）
  */
 
 import "server-only";
-import { createHmac, randomBytes, pbkdf2, timingSafeEqual } from "crypto";
+import { createHmac, randomBytes, pbkdf2, timingSafeEqual, createHash } from "crypto";
 import { promisify } from "util";
 
 // 异步 PBKDF2：600k 次迭代约阻塞事件循环 ~200ms，
@@ -195,4 +196,48 @@ export function isAdmin(userName: string): boolean {
       : null;
   }
   return _adminSet !== null && _adminSet.has(userName.trim().toLowerCase());
+}
+
+// ─── 安全问题 ──────────────────────────────────────────────
+
+/** 可选的安全问题列表（从共享文件导入，客户端可复用） */
+export { SECURITY_QUESTIONS } from "@/lib/security-questions";
+
+/**
+ * 哈希安全问题答案
+ *
+ * 答案先做规范化（trim + 转小写），再用 SHA-256 + salt 哈希。
+ * 格式："salt:hash"
+ *
+ * 安全说明：安全问题答案空间远小于密码，主要起"比无找回机制好"的作用。
+ * 配合 API 层的速率限制（每 IP 每小时 5 次）防止暴力枚举。
+ */
+export function hashSecurityAnswer(answer: string): string {
+  const normalized = answer.trim().toLowerCase();
+  const salt = randomBytes(16).toString("hex");
+  const hash = createHash("sha256")
+    .update(salt + normalized)
+    .digest("hex");
+  return `${salt}:${hash}`;
+}
+
+/**
+ * 验证安全问题答案
+ */
+export function verifySecurityAnswer(answer: string, stored: string): boolean {
+  const parts = stored.split(":");
+  if (parts.length !== 2) return false;
+  const [salt, expectedHash] = parts;
+  if (!salt || !expectedHash) return false;
+
+  const normalized = answer.trim().toLowerCase();
+  const hash = createHash("sha256")
+    .update(salt + normalized)
+    .digest("hex");
+
+  try {
+    return timingSafeEqual(Buffer.from(hash), Buffer.from(expectedHash));
+  } catch {
+    return false;
+  }
 }

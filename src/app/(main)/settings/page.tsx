@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/lib/toast-context";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -15,7 +17,7 @@ import { useDisplayMode } from "@/lib/display-mode";
 import { useDeckLayout, type DeckLayout } from "@/lib/deck-layout";
 import { useThemeColor } from "@/lib/use-theme-color";
 import { useUser } from "@/lib/user-context";
-import { LogOut, Download, Trash2, User, Info, Layout, Columns, List, Layers, Rows3, PanelsTopLeft, Palette } from "lucide-react";
+import { LogOut, Download, Trash2, User, Info, Layout, Columns, List, Layers, Rows3, PanelsTopLeft, Palette, KeyRound } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -24,6 +26,12 @@ export default function SettingsPage() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [changingPwd, setChangingPwd] = useState(false);
+  const [oldPwd, setOldPwd] = useState("");
+  const [newPwd, setNewPwd] = useState("");
+  const [confirmPwd, setConfirmPwd] = useState("");
+  const [pwdError, setPwdError] = useState("");
+  const [pwdSuccess, setPwdSuccess] = useState("");
   const { toast: showToast } = useToast();
   const { mode: displayMode, toggle: toggleDisplayMode } = useDisplayMode();
   const { layout: deckLayout, setLayout: setDeckLayout } = useDeckLayout();
@@ -95,6 +103,42 @@ export default function SettingsPage() {
     }
   }
 
+  // ─── 修改密码 ───
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setPwdError("");
+    setPwdSuccess("");
+
+    if (newPwd !== confirmPwd) {
+      setPwdError("两次输入的新密码不一致");
+      return;
+    }
+
+    setChangingPwd(true);
+
+    try {
+      const res = await fetch("/api/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ oldPassword: oldPwd, newPassword: newPwd }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setPwdSuccess("密码修改成功");
+        setOldPwd("");
+        setNewPwd("");
+        setConfirmPwd("");
+      } else {
+        setPwdError(data.error || "修改失败");
+      }
+    } catch {
+      setPwdError("网络错误，请重试");
+    } finally {
+      setChangingPwd(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -134,6 +178,63 @@ export default function SettingsPage() {
               {loggingOut ? "退出中..." : "退出登录"}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* 修改密码 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <KeyRound className="h-4 w-4" />
+            修改密码
+          </CardTitle>
+          <CardDescription>需要验证旧密码</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleChangePassword} className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="oldPwd">旧密码</Label>
+              <Input
+                id="oldPwd"
+                type="password"
+                placeholder="请输入当前密码"
+                value={oldPwd}
+                onChange={(e) => setOldPwd(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newPwd">新密码</Label>
+              <Input
+                id="newPwd"
+                type="password"
+                placeholder="至少 8 个字符"
+                value={newPwd}
+                onChange={(e) => setNewPwd(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPwd">确认新密码</Label>
+              <Input
+                id="confirmPwd"
+                type="password"
+                placeholder="请再次输入新密码"
+                value={confirmPwd}
+                onChange={(e) => setConfirmPwd(e.target.value)}
+                required
+              />
+            </div>
+            {pwdError && (
+              <p className="text-sm text-destructive">{pwdError}</p>
+            )}
+            {pwdSuccess && (
+              <p className="text-sm text-green-600">{pwdSuccess}</p>
+            )}
+            <Button type="submit" variant="outline" size="sm" disabled={changingPwd}>
+              {changingPwd ? "修改中..." : "确认修改"}
+            </Button>
+          </form>
         </CardContent>
       </Card>
 
