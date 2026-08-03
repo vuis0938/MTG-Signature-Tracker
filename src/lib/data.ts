@@ -6,6 +6,7 @@
  */
 
 import "server-only";
+import { unstable_cache } from "next/cache";
 import { getSupabase } from "@/lib/supabase";
 import type { Deck, DeckStats, CardEntry } from "@/types";
 
@@ -136,11 +137,12 @@ export interface Announcement {
 }
 
 /**
- * 获取当前生效的公告
+ * 获取当前生效的公告（带服务端缓存）
  *
+ * 公告变更频率极低，缓存 5 分钟减少 DB 查询。
  * 供 Server Component 预取，消除公告横幅的布局抖动。
  */
-export async function getAnnouncements(): Promise<Announcement[]> {
+async function _getAnnouncements(): Promise<Announcement[]> {
   try {
     const supabase = getSupabase();
     const now = new Date().toISOString();
@@ -162,3 +164,9 @@ export async function getAnnouncements(): Promise<Announcement[]> {
     return [];
   }
 }
+
+export const getAnnouncements = unstable_cache(
+  _getAnnouncements,
+  ["announcements"],
+  { revalidate: 300 }
+);

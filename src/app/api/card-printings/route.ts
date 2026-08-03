@@ -48,8 +48,11 @@ export async function GET(request: NextRequest) {
     const allPrintings: Printing[] = [];
     let pageUrl = `https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(target)}"+unique:prints&order=released`;
 
+    let isFirstPage = true;
     while (pageUrl) {
-      await delay(100);
+      // Scryfall 限速：请求间隔 ≥100ms，但首页无需等待
+      if (!isFirstPage) await delay(100);
+      isFirstPage = false;
       const res = await fetch(pageUrl, {
         headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
       });

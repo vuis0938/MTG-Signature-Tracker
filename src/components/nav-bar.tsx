@@ -47,7 +47,7 @@ export function NavBar({ isAdmin = false }: { isAdmin?: boolean }) {
     <>
       {/* 桌面端：顶部导航 */}
       <header className="hidden md:flex h-14 items-center gap-4 border-b bg-background px-6 sticky top-0 z-50">
-        <Link href="/decks" className="flex items-center gap-2 font-semibold">
+        <Link href="/decks" prefetch={true} className="flex items-center gap-2 font-semibold">
           <Palette className="h-5 w-5 text-primary" />
           MTG 签绘管家
         </Link>
@@ -58,6 +58,7 @@ export function NavBar({ isAdmin = false }: { isAdmin?: boolean }) {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={true}
                 className={cn(
                   "inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors",
                   isActive
@@ -82,6 +83,7 @@ export function NavBar({ isAdmin = false }: { isAdmin?: boolean }) {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={true}
                 className={cn(
                   "flex flex-col items-center justify-center gap-0.5 w-full h-full transition-colors",
                   isActive

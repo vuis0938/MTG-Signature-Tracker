@@ -33,16 +33,16 @@ export function Dialog({ open, onOpenChange, children, className }: DialogProps)
 
   return (
     <div className="fixed inset-0 z-50">
-      {/* 背景遮罩 — 阻止点击穿透 */}
+      {/* 背景遮罩 — 阻止点击穿透 + 淡入动画 */}
       <div
-        className="fixed inset-0 bg-black/50"
+        className="fixed inset-0 bg-black/50 animate-in fade-in-0 duration-200"
         onClick={() => onOpenChange(false)}
       />
       {/* 弹窗内容 */}
       <div className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
         <div
           className={cn(
-            "relative bg-background rounded-xl border shadow-lg w-full max-h-[85vh] overflow-y-auto pr-2 pointer-events-auto",
+            "relative bg-background rounded-xl border shadow-lg w-full max-h-[85vh] overflow-y-auto pr-2 pointer-events-auto animate-in fade-in-0 zoom-in-95 duration-200",
             className || "max-w-lg"
           )}
           onClick={(e) => e.stopPropagation()}

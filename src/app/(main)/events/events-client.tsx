@@ -16,6 +16,7 @@ import {
 import { Calendar, MapPin, Users, Loader2, Package, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEvents } from "@/lib/swr-hooks";
+import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import type { ArtistCard, CalendarEvent } from "@/types";
 
 // ─── 懒加载弹窗：首屏不打包，首次打开时下载 chunk ────────────
@@ -57,6 +58,11 @@ export default function EventsClient({ fallbackEvents }: EventsClientProps = {})
   const [artistCards, setArtistCards] = useState<ArtistCard[]>([]);
   const [artistCardsLoading, setArtistCardsLoading] = useState(false);
 
+  // 页面加载后空闲时预加载弹窗 chunk
+  useEffect(() => {
+    preloadDialogChunks();
+  }, []);
+
   // 首次加载完成后记录更新时间
   useEffect(() => {
     if (!loading) {
@@ -96,18 +102,19 @@ export default function EventsClient({ fallbackEvents }: EventsClientProps = {})
     return "时间待定";
   };
 
-  // 点击画家名，加载其所有卡牌
+  // 点击画家名，加载其所有卡牌（优先取 hover 预加载的缓存）
   async function handleArtistClick(artist: string) {
     setSelectedArtist(artist);
     setArtistCards([]);
     setArtistCardsLoading(true);
 
     try {
-      const res = await fetch(`/api/artist-cards?artist=${encodeURIComponent(artist)}`);
-      const data = await res.json();
+      const data = await getPreloadedData<{ success: boolean; cards?: ArtistCard[] }>(
+        `/api/artist-cards?artist=${encodeURIComponent(artist)}`
+      );
 
       if (data.success) {
-        setArtistCards(data.cards);
+        setArtistCards(data.cards || []);
       } else {
         setArtistCards([]);
       }
@@ -202,6 +209,7 @@ export default function EventsClient({ fallbackEvents }: EventsClientProps = {})
                               e.stopPropagation();
                               handleArtistClick(artist);
                             }}
+                            onMouseEnter={() => preloadData(`/api/artist-cards?artist=${encodeURIComponent(artist)}`)}
                           >
                             {artist}
                           </Button>

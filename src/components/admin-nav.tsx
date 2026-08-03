@@ -35,6 +35,7 @@ export function AdminNav() {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={true}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors",
                   isActive
@@ -51,6 +52,7 @@ export function AdminNav() {
         <div className="px-3 py-4 border-t">
           <Link
             href="/decks"
+            prefetch={true}
             className="flex items-center gap-3 px-3 py-2 text-sm text-muted-foreground hover:text-foreground rounded-md transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -65,6 +67,7 @@ export function AdminNav() {
           <span className="text-sm font-semibold">管理后台</span>
           <Link
             href="/decks"
+            prefetch={true}
             className="flex items-center gap-1 text-xs text-muted-foreground"
           >
             <ArrowLeft className="h-3 w-3" />
@@ -78,6 +81,7 @@ export function AdminNav() {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={true}
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md whitespace-nowrap transition-colors",
                   isActive

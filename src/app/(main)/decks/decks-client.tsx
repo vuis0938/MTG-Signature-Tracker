@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef, memo, type ReactNode } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect, memo, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useToast } from "@/lib/toast-context";
+import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import { useDisplayMode } from "@/lib/display-mode";
 import { CardImage } from "@/components/card-image";
 import { useDecks } from "@/lib/swr-hooks";
@@ -105,6 +106,11 @@ export default function DecksClient({
       ? { success: true, decks: fallbackDecks, stats: fallbackStats || {} }
       : undefined;
   const { decks, stats: deckStats, revalidate, isLoading } = useDecks(fallbackData);
+
+  // 页面加载后空闲时预加载弹窗 chunk，后续打开弹窗零等待
+  useEffect(() => {
+    preloadDialogChunks();
+  }, []);
 
   // 导入表单状态
   const [showImport, setShowImport] = useState(false);
@@ -487,11 +493,13 @@ export default function DecksClient({
     setPrintingsLoading(true);
 
     try {
-      const res = await fetch(`/api/card-printings?name=${encodeURIComponent(card.card_name)}`);
-      const data = await res.json();
+      // 优先取 hover 预加载的缓存数据（命中时零延迟）
+      const data = await getPreloadedData<{ success: boolean; printings?: Printing[]; error?: string }>(
+        `/api/card-printings?name=${encodeURIComponent(card.card_name)}`
+      );
 
       if (data.success) {
-        setPrintings(data.printings);
+        setPrintings(data.printings || []);
       } else {
         showToast(`加载印刷版本失败: ${data.error}`, "error");
         setSwitchCard(null);
@@ -1099,6 +1107,7 @@ const CardThumbnail = memo(function CardThumbnail({ card, deckId, count = 1, all
       {/* 合并按钮：数量 + 切换版本 — 右上角，圆角与卡牌一致 */}
       <button
         onClick={(e) => { e.stopPropagation(); onLoadPrintings(card, allIds); }}
+        onMouseEnter={() => preloadData(`/api/card-printings?name=${encodeURIComponent(card.card_name)}`)}
         className={"absolute top-0.5 right-0.5 z-20 " + (isCompact ? "h-5 sm:h-6" : "h-6") + " bg-background/80 border border-border shadow-sm flex items-center justify-center gap-0.5 px-1 rounded-lg hover:bg-accent hover:scale-105 transition-all"}
         title="切换印刷版本"
       >

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { useDisplayMode } from "@/lib/display-mode";
 import { useToast } from "@/lib/toast-context";
+import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import { useDecks, useEvents } from "@/lib/swr-hooks";
 import { Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Sparkle, Palette, Package, Heart, Check, MoreHorizontal, Lightbulb } from "lucide-react";
 import {
@@ -113,6 +114,11 @@ export default function MatchClient({
 
   // Toast
   const { toast: showToast } = useToast();
+
+  // 页面加载后空闲时预加载弹窗 chunk
+  useEffect(() => {
+    preloadDialogChunks();
+  }, []);
 
   // Ref 锁定最新状态，避免闭包陷阱
   const selectedDecksRef = useRef(selectedDecks);
@@ -220,10 +226,12 @@ export default function MatchClient({
     setArtistCardsLoading(true);
 
     try {
-      const res = await fetch(`/api/artist-cards?artist=${encodeURIComponent(artist)}`);
-      const data = await res.json();
+      // 优先取 hover 预加载的缓存数据（命中时零延迟）
+      const data = await getPreloadedData<{ success: boolean; cards?: ArtistCard[] }>(
+        `/api/artist-cards?artist=${encodeURIComponent(artist)}`
+      );
       if (data.success) {
-        setArtistCards(data.cards);
+        setArtistCards(data.cards || []);
       } else {
         setArtistCards([]);
       }
@@ -810,6 +818,7 @@ export default function MatchClient({
                   size="sm"
                   className="border-border text-muted-foreground hover:bg-accent"
                   onClick={() => handleArtistClick(a)}
+                  onMouseEnter={() => preloadData(`/api/artist-cards?artist=${encodeURIComponent(a)}`)}
                 >
                   {a}
                 </Button>
