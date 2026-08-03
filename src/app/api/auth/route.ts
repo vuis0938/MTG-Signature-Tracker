@@ -133,7 +133,7 @@ export async function PUT(request: NextRequest) {
     const limit = rateLimit(`register:${ip}`, REGISTER_MAX_ATTEMPTS, REGISTER_WINDOW_MS);
     if (!limit.allowed) {
       return NextResponse.json(
-        { error: "注册过于频繁，请稍后再试" },
+        { error: "操作频繁，请稍后再试" },
         { status: 429 }
       );
     }
