@@ -283,7 +283,7 @@ export default function SettingsPage() {
                 <p className="text-sm text-destructive">{pwdError}</p>
               )}
               <div className="flex gap-2">
-                <Button type="submit" variant="outline" size="sm" disabled={changingPwd}>
+                <Button type="submit" size="sm" disabled={changingPwd}>
                   {changingPwd ? "修改中..." : "确认修改"}
                 </Button>
                 <Button
@@ -481,8 +481,8 @@ export default function SettingsPage() {
                 <p className="text-sm text-destructive">{feedbackError}</p>
               )}
               <div className="flex gap-2">
-                <Button type="submit" variant="outline" size="sm" disabled={submittingFeedback}>
-                  {submittingFeedback ? "提交中..." : "提交"}
+                <Button type="submit" size="sm" disabled={submittingFeedback}>
+                  {submittingFeedback ? "提交中..." : "确认提交"}
                 </Button>
                 <Button
                   type="button"
