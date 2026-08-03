@@ -8,9 +8,6 @@ const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 60 * 60 * 1000;
 
 // GET: 根据用户名获取安全问题
-// 防枚举：无论用户名是否存在都返回 200，不存在时返回固定假问题
-const FAKE_QUESTION = "你最珍贵的签绘卡是哪张？";
-
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const username = searchParams.get("username");
@@ -25,10 +22,15 @@ export async function GET(request: NextRequest) {
     .eq("username", username.trim())
     .single();
 
-  // 防枚举：用户不存在或未设置安全问题都返回固定问题
-  const question = user?.security_question || FAKE_QUESTION;
+  if (!user) {
+    return NextResponse.json({ error: "用户不存在" }, { status: 404 });
+  }
 
-  return NextResponse.json({ success: true, question });
+  if (!user.security_question) {
+    return NextResponse.json({ error: "该账号未设置安全问题，请联系管理员重置密码" }, { status: 400 });
+  }
+
+  return NextResponse.json({ success: true, question: user.security_question });
 }
 
 // POST: 验证安全问题答案并重置密码
@@ -63,9 +65,12 @@ export async function POST(request: NextRequest) {
       .eq("username", username.trim())
       .single();
 
-    // 防枚举：用户不存在或未设置安全问题，统一返回"答案不正确"
-    if (!user || !user.security_answer) {
-      return NextResponse.json({ error: "安全问题答案不正确" }, { status: 401 });
+    // 用户不存在或未设置安全问题
+    if (!user) {
+      return NextResponse.json({ error: "用户不存在" }, { status: 404 });
+    }
+    if (!user.security_answer) {
+      return NextResponse.json({ error: "该账号未设置安全问题，请联系管理员重置密码" }, { status: 400 });
     }
 
     // 验证安全问题答案
