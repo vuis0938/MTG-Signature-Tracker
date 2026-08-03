@@ -54,7 +54,7 @@ export default function ArtistGalleryDialog({
                   title={card.set_name + " #" + card.collector_number}
                 >
                   {card.image_url ? (
-                    <CardImage src={card.image_url} alt={card.name} className="w-full" size="small" />
+                    <CardImage src={card.image_url} alt={card.name} className="w-full" />
                   ) : (
                     <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
                       {card.name}
