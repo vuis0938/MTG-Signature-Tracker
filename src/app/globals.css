@@ -154,13 +154,16 @@
 }
 
 /* ─── iOS 15 color-mix() 回退 ─────────────────────────────────────
-   Tailwind v4 用 color-mix(in oklab, var(--color-x) N%, transparent)
-   生成透明度工具类。iOS 15.0–16.1 不支持 color-mix()，
-   @csstools/postcss-color-mix-function 无法解析 var()，
-   此处通过 RGB 通道变量 + rgba() 提供回退。
+   Tailwind v4 生成透明度工具类时，先用 var(--color)（100% 不透明）
+   作为基础回退，再用 @supports (color:color-mix(...)) 包裹正确的
+   color-mix 版本。iOS 15 不支持 color-mix，只剩 100% 回退 → 遮挡文字。
+
+   解决方案：此处用 rgba(var(--xxx-rgb), alpha) 直接覆盖。
+   这些规则不在任何 @layer 中，级联优先级高于 Tailwind 的 layered
+   utilities，能可靠覆盖 Tailwind 的错误基础回退。
+   rgba() 是全浏览器兼容的，视觉效果与 color-mix 一致。
    暗色模式只需覆盖 --xxx-rgb 即可自动适配。
    ─────────────────────────────────────────────────────────────── */
-@supports not (color: color-mix(in oklab, red, red)) {
 .bg-primary\/10{background-color:rgba(var(--primary-rgb),0.1)}
 .hover\:bg-primary\/10:hover{background-color:rgba(var(--primary-rgb),0.1)}
 .focus-visible\:bg-primary\/10:focus-visible{background-color:rgba(var(--primary-rgb),0.1)}
@@ -578,4 +581,3 @@
 .focus-visible\:ring-secondary\/50:focus-visible{--tw-ring-color:rgba(var(--secondary-rgb),0.5)}
 .aria-invalid\:ring-secondary\/50:is([aria-invalid]){--tw-ring-color:rgba(var(--secondary-rgb),0.5)}
 *{outline-color:rgba(var(--ring-rgb),0.5)}
-}
