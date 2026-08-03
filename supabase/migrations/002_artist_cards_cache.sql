@@ -23,6 +23,9 @@ CREATE TABLE IF NOT EXISTS artist_cards (
 -- 按画家名查询的索引（主键已覆盖，此处显式声明）
 CREATE INDEX IF NOT EXISTS idx_artist_cards_name ON artist_cards (artist_name);
 
+-- 启用 RLS：服务端 service role key 自动绕过，客户端 anon key 被拦截
+ALTER TABLE artist_cards ENABLE ROW LEVEL SECURITY;
+
 -- 自动更新 updated_at
 -- 使用 $BODY$ 替代 $$ 作为美元引用分隔符，避免 Supabase SQL Editor 解析问题
 CREATE OR REPLACE FUNCTION update_artist_cards_timestamp()
