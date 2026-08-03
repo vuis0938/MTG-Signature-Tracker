@@ -29,12 +29,26 @@ export async function POST(request: NextRequest) {
     }
 
     // 验证所有卡牌归属权：通过 deck_id 关联到 decks 表检查 user_name
-    const { data: ownedCards } = await supabase
+    const { data: ownedCards, error: queryError } = await supabase
       .from("cards")
       .select("id, deck:decks!inner(user_name)")
       .in("id", cardIds);
 
-    if (!ownedCards || ownedCards.length !== cardIds.length) {
+    if (queryError) {
+      console.error("[SwitchPrinting] 归属查询失败:", queryError.message, "cardIds:", cardIds);
+      return NextResponse.json({ error: "服务器异常，请稍后再试" }, { status: 500 });
+    }
+
+    if (!ownedCards || ownedCards.length === 0) {
+      console.warn("[SwitchPrinting] 未找到任何卡牌, cardIds:", cardIds);
+      return NextResponse.json({ error: "卡牌不存在" }, { status: 404 });
+    }
+
+    // 检查是否所有 cardIds 都找到了对应的卡牌
+    const foundIds = new Set(ownedCards.map((c) => c.id));
+    const missingIds = cardIds.filter((id) => !foundIds.has(id));
+    if (missingIds.length > 0) {
+      console.warn("[SwitchPrinting] 部分卡牌未找到或 join 失败, missing:", missingIds, "found:", ownedCards.length, "expected:", cardIds.length);
       return NextResponse.json({ error: "部分卡牌不存在或无权操作" }, { status: 403 });
     }
 
