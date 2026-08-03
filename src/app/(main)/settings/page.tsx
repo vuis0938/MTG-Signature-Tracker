@@ -443,7 +443,7 @@ export default function SettingsPage() {
               size="sm"
               onClick={() => { setShowFeedbackForm(true); setFeedbackSuccess(""); setFeedbackError(""); }}
             >
-              <Bug className="h-4 w-4 mr-2" />
+              <Send className="h-4 w-4 mr-2" />
               提交反馈
             </Button>
           ) : (
@@ -481,8 +481,7 @@ export default function SettingsPage() {
                 <p className="text-sm text-destructive">{feedbackError}</p>
               )}
               <div className="flex gap-2">
-                <Button type="submit" size="sm" disabled={submittingFeedback}>
-                  <Send className="h-4 w-4 mr-2" />
+                <Button type="submit" variant="outline" size="sm" disabled={submittingFeedback}>
                   {submittingFeedback ? "提交中..." : "提交"}
                 </Button>
                 <Button
