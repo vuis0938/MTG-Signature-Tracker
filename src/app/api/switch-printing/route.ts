@@ -28,34 +28,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "缺少 set_code 或 collector_number" }, { status: 400 });
     }
 
-    // 验证所有卡牌归属权：通过 deck_id 关联到 decks 表检查 user_name
-    const { data: ownedCards, error: queryError } = await supabase
+    // 验证所有卡牌归属权：先查 cards 拿到 deck_id，再查 decks 验证归属
+    // 不使用 join（避免外键关系名不一致导致查询报错）
+    const { data: cards, error: cardsError } = await supabase
       .from("cards")
-      .select("id, deck:decks!inner(user_name)")
+      .select("id, deck_id")
       .in("id", cardIds);
 
-    if (queryError) {
-      console.error("[SwitchPrinting] 归属查询失败:", queryError.message, "cardIds:", cardIds);
+    if (cardsError) {
+      console.error("[SwitchPrinting] 卡牌查询失败:", cardsError.message, "cardIds:", cardIds);
       return NextResponse.json({ error: "服务器异常，请稍后再试" }, { status: 500 });
     }
 
-    if (!ownedCards || ownedCards.length === 0) {
+    if (!cards || cards.length === 0) {
       console.warn("[SwitchPrinting] 未找到任何卡牌, cardIds:", cardIds);
       return NextResponse.json({ error: "卡牌不存在" }, { status: 404 });
     }
 
-    // 检查是否所有 cardIds 都找到了对应的卡牌
-    const foundIds = new Set(ownedCards.map((c) => c.id));
+    // 检查是否所有 cardIds 都找到了
+    const foundIds = new Set(cards.map((c) => c.id));
     const missingIds = cardIds.filter((id) => !foundIds.has(id));
     if (missingIds.length > 0) {
-      console.warn("[SwitchPrinting] 部分卡牌未找到或 join 失败, missing:", missingIds, "found:", ownedCards.length, "expected:", cardIds.length);
-      return NextResponse.json({ error: "部分卡牌不存在或无权操作" }, { status: 403 });
+      console.warn("[SwitchPrinting] 部分卡牌未找到, missing:", missingIds);
+      return NextResponse.json({ error: "部分卡牌不存在" }, { status: 404 });
     }
 
-    const allOwned = ownedCards.every((c) => {
-      const owner = c.deck as unknown as { user_name: string } | null;
-      return owner?.user_name === userName;
-    });
+    // 查询所属套牌的 user_name 验证归属权
+    const deckIds = [...new Set(cards.map((c) => c.deck_id))];
+    const { data: decks, error: decksError } = await supabase
+      .from("decks")
+      .select("id, user_name")
+      .in("id", deckIds);
+
+    if (decksError) {
+      console.error("[SwitchPrinting] 套牌查询失败:", decksError.message);
+      return NextResponse.json({ error: "服务器异常，请稍后再试" }, { status: 500 });
+    }
+
+    const deckOwners = new Map(decks?.map((d) => [d.id, d.user_name]));
+    const allOwned = cards.every((c) => deckOwners.get(c.deck_id) === userName);
     if (!allOwned) {
       return NextResponse.json({ error: "无权操作部分卡牌" }, { status: 403 });
     }
