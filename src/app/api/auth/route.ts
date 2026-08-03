@@ -180,7 +180,7 @@ export async function PUT(request: NextRequest) {
 
     if (error) {
       if (error.code === "23505") {
-        return NextResponse.json({ error: "该用户名已被注册" }, { status: 409 });
+        return NextResponse.json({ error: "此用户名已存在" }, { status: 409 });
       }
       return NextResponse.json({ error: "注册失败，请重试" }, { status: 500 });
     }
