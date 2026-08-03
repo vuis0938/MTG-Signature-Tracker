@@ -41,7 +41,9 @@ export type AdminAction =
   | "announcement_create"
   | "announcement_update"
   | "announcement_delete"
-  | "data_export";
+  | "data_export"
+  | "feedback_read"
+  | "feedback_delete";
 
 /**
  * 记录管理员操作到审计日志表

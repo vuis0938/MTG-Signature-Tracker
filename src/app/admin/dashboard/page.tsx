@@ -40,6 +40,8 @@ const actionLabels: Record<string, { label: string; color: string }> = {
   announcement_create: { label: "发布公告", color: "text-indigo-600" },
   announcement_update: { label: "更新公告", color: "text-indigo-600" },
   announcement_delete: { label: "删除公告", color: "text-red-600" },
+  feedback_read: { label: "反馈已读", color: "text-teal-600" },
+  feedback_delete: { label: "删除反馈", color: "text-red-600" },
   data_export: { label: "数据导出", color: "text-gray-600" },
 };
 

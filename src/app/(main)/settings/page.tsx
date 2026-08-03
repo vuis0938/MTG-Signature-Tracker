@@ -6,6 +6,7 @@ import { useToast } from "@/lib/toast-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Card,
   CardContent,
@@ -17,7 +18,7 @@ import { useDisplayMode } from "@/lib/display-mode";
 import { useDeckLayout, type DeckLayout } from "@/lib/deck-layout";
 import { useThemeColor } from "@/lib/use-theme-color";
 import { useUser } from "@/lib/user-context";
-import { LogOut, Download, Trash2, User, Info, Layout, Columns, List, Layers, Rows3, PanelsTopLeft, Palette, KeyRound } from "lucide-react";
+import { LogOut, Download, Trash2, User, Info, Layout, Columns, List, Layers, Rows3, PanelsTopLeft, Palette, KeyRound, Bug, Send } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -33,6 +34,13 @@ export default function SettingsPage() {
   const [confirmPwd, setConfirmPwd] = useState("");
   const [pwdError, setPwdError] = useState("");
   const [pwdSuccess, setPwdSuccess] = useState("");
+  // 反馈表单状态
+  const [showFeedbackForm, setShowFeedbackForm] = useState(false);
+  const [feedbackCategory, setFeedbackCategory] = useState("bug");
+  const [feedbackContent, setFeedbackContent] = useState("");
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [feedbackError, setFeedbackError] = useState("");
+  const [feedbackSuccess, setFeedbackSuccess] = useState("");
   const { toast: showToast } = useToast();
   const { mode: displayMode, toggle: toggleDisplayMode } = useDisplayMode();
   const { layout: deckLayout, setLayout: setDeckLayout } = useDeckLayout();
@@ -138,6 +146,44 @@ export default function SettingsPage() {
       setPwdError("网络错误，请重试");
     } finally {
       setChangingPwd(false);
+    }
+  }
+
+  // ─── 提交反馈 ───
+  async function handleSubmitFeedback(e: React.FormEvent) {
+    e.preventDefault();
+    setFeedbackError("");
+    setFeedbackSuccess("");
+
+    if (feedbackContent.trim().length < 5) {
+      setFeedbackError("反馈内容至少 5 个字符");
+      return;
+    }
+    if (feedbackContent.length > 1000) {
+      setFeedbackError("反馈内容不能超过 1000 个字符");
+      return;
+    }
+
+    setSubmittingFeedback(true);
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: feedbackCategory, content: feedbackContent }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFeedbackSuccess(data.message || "反馈已提交，感谢您的支持");
+        setFeedbackContent("");
+        setShowFeedbackForm(false);
+        showToast("反馈已提交，感谢您的支持", "success");
+      } else {
+        setFeedbackError(data.error || "提交失败");
+      }
+    } catch {
+      setFeedbackError("网络错误，请重试");
+    } finally {
+      setSubmittingFeedback(false);
     }
   }
 
@@ -375,6 +421,85 @@ export default function SettingsPage() {
               {clearing ? "清除中..." : "清除"}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* 反馈与建议 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Bug className="h-4 w-4" />
+            反馈与建议
+          </CardTitle>
+          <CardDescription>遇到 Bug 或有功能建议？告诉我们</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {feedbackSuccess && !showFeedbackForm && (
+            <p className="text-sm text-green-600">{feedbackSuccess}</p>
+          )}
+          {!showFeedbackForm ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setShowFeedbackForm(true); setFeedbackSuccess(""); setFeedbackError(""); }}
+            >
+              <Bug className="h-4 w-4 mr-2" />
+              提交反馈
+            </Button>
+          ) : (
+            <form onSubmit={handleSubmitFeedback} className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="feedbackCategory">反馈类别</Label>
+                <select
+                  id="feedbackCategory"
+                  value={feedbackCategory}
+                  onChange={(e) => setFeedbackCategory(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="bug">Bug 反馈</option>
+                  <option value="suggestion">功能建议</option>
+                  <option value="other">其他</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="feedbackContent">反馈内容</Label>
+                <Textarea
+                  id="feedbackContent"
+                  value={feedbackContent}
+                  onChange={(e) => setFeedbackContent(e.target.value)}
+                  placeholder="请详细描述遇到的问题或建议..."
+                  rows={4}
+                  maxLength={1000}
+                  required
+                  autoFocus
+                />
+                <p className="text-xs text-muted-foreground text-right">
+                  {feedbackContent.length}/1000
+                </p>
+              </div>
+              {feedbackError && (
+                <p className="text-sm text-destructive">{feedbackError}</p>
+              )}
+              <div className="flex gap-2">
+                <Button type="submit" size="sm" disabled={submittingFeedback}>
+                  <Send className="h-4 w-4 mr-2" />
+                  {submittingFeedback ? "提交中..." : "提交"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowFeedbackForm(false);
+                    setFeedbackContent("");
+                    setFeedbackError("");
+                  }}
+                >
+                  取消
+                </Button>
+              </div>
+            </form>
+          )}
         </CardContent>
       </Card>
 
