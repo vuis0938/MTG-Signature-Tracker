@@ -27,6 +27,7 @@ export default function SettingsPage() {
   const [exporting, setExporting] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [changingPwd, setChangingPwd] = useState(false);
+  const [showPwdForm, setShowPwdForm] = useState(false);
   const [oldPwd, setOldPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
@@ -129,6 +130,7 @@ export default function SettingsPage() {
         setOldPwd("");
         setNewPwd("");
         setConfirmPwd("");
+        setShowPwdForm(false);
       } else {
         setPwdError(data.error || "修改失败");
       }
@@ -191,50 +193,78 @@ export default function SettingsPage() {
           <CardDescription>验证旧密码后设置新密码</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleChangePassword} className="space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor="oldPwd">旧密码</Label>
-              <Input
-                id="oldPwd"
-                type="password"
-                placeholder="请输入当前密码"
-                value={oldPwd}
-                onChange={(e) => setOldPwd(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="newPwd">新密码</Label>
-              <Input
-                id="newPwd"
-                type="password"
-                placeholder="至少 8 个字符"
-                value={newPwd}
-                onChange={(e) => setNewPwd(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirmPwd">确认新密码</Label>
-              <Input
-                id="confirmPwd"
-                type="password"
-                placeholder="请再次输入新密码"
-                value={confirmPwd}
-                onChange={(e) => setConfirmPwd(e.target.value)}
-                required
-              />
-            </div>
-            {pwdError && (
-              <p className="text-sm text-destructive">{pwdError}</p>
-            )}
-            {pwdSuccess && (
-              <p className="text-sm text-green-600">{pwdSuccess}</p>
-            )}
-            <Button type="submit" variant="outline" size="sm" disabled={changingPwd}>
-              {changingPwd ? "修改中..." : "确认修改"}
+          {pwdSuccess && !showPwdForm && (
+            <p className="text-sm text-green-600 mb-3">{pwdSuccess}</p>
+          )}
+          {!showPwdForm ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setShowPwdForm(true); setPwdSuccess(""); setPwdError(""); }}
+            >
+              <KeyRound className="h-4 w-4 mr-2" />
+              修改密码
             </Button>
-          </form>
+          ) : (
+            <form onSubmit={handleChangePassword} className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="oldPwd">旧密码</Label>
+                <Input
+                  id="oldPwd"
+                  type="password"
+                  placeholder="请输入当前密码"
+                  value={oldPwd}
+                  onChange={(e) => setOldPwd(e.target.value)}
+                  autoFocus
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="newPwd">新密码</Label>
+                <Input
+                  id="newPwd"
+                  type="password"
+                  placeholder="请输入新密码"
+                  value={newPwd}
+                  onChange={(e) => setNewPwd(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPwd">确认新密码</Label>
+                <Input
+                  id="confirmPwd"
+                  type="password"
+                  placeholder="请再次输入新密码"
+                  value={confirmPwd}
+                  onChange={(e) => setConfirmPwd(e.target.value)}
+                  required
+                />
+              </div>
+              {pwdError && (
+                <p className="text-sm text-destructive">{pwdError}</p>
+              )}
+              <div className="flex gap-2">
+                <Button type="submit" variant="outline" size="sm" disabled={changingPwd}>
+                  {changingPwd ? "修改中..." : "确认修改"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowPwdForm(false);
+                    setOldPwd("");
+                    setNewPwd("");
+                    setConfirmPwd("");
+                    setPwdError("");
+                  }}
+                >
+                  取消
+                </Button>
+              </div>
+            </form>
+          )}
         </CardContent>
       </Card>
 
