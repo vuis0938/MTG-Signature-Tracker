@@ -24,13 +24,14 @@ CREATE TABLE IF NOT EXISTS artist_cards (
 CREATE INDEX IF NOT EXISTS idx_artist_cards_name ON artist_cards (artist_name);
 
 -- 自动更新 updated_at
+-- 使用 $BODY$ 替代 $$ 作为美元引用分隔符，避免 Supabase SQL Editor 解析问题
 CREATE OR REPLACE FUNCTION update_artist_cards_timestamp()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER AS $BODY$
 BEGIN
   NEW.updated_at = now();
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$BODY$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trg_artist_cards_updated ON artist_cards;
 CREATE TRIGGER trg_artist_cards_updated
