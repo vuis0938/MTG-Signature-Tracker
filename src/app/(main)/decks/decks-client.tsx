@@ -35,8 +35,12 @@ import type { Deck, CardEntry, DeckStats, Printing } from "@/types";
 function DialogChunkFallback() {
   return (
     <Dialog open onOpenChange={() => {}}>
+      <DialogHeader>
+        <DialogTitle>加载中...</DialogTitle>
+        <DialogDescription>正在准备数据</DialogDescription>
+      </DialogHeader>
       <DialogContent>
-        <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
+        <div className="flex items-center justify-center gap-2 py-8 min-h-[200px] text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />
           <span className="text-sm">加载中...</span>
         </div>

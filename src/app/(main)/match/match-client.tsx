@@ -20,6 +20,8 @@ import { Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Sparkle
 import {
   Dialog,
   DialogContent,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 
 // ─── 类型定义 ──────────────────────────────────────────────
@@ -33,9 +35,12 @@ import type { FuzzyApiResponse } from "@/lib/match-utils";
 
 function DialogChunkFallback() {
   return (
-    <Dialog open onOpenChange={() => {}}>
+    <Dialog open onOpenChange={() => {}} className="max-w-3xl">
+      <DialogHeader>
+        <DialogTitle>加载中...</DialogTitle>
+      </DialogHeader>
       <DialogContent>
-        <div className="flex items-center justify-center py-12">
+        <div className="flex items-center justify-center py-12 min-h-[200px]">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           <span className="ml-2 text-sm text-muted-foreground">加载中...</span>
         </div>

@@ -12,6 +12,8 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Calendar, MapPin, Users, Loader2, Package, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,9 +26,12 @@ import type { ArtistCard, CalendarEvent } from "@/types";
 
 function DialogChunkFallback() {
   return (
-    <Dialog open onOpenChange={() => {}}>
+    <Dialog open onOpenChange={() => {}} className="max-w-3xl">
+      <DialogHeader>
+        <DialogTitle>加载中...</DialogTitle>
+      </DialogHeader>
       <DialogContent>
-        <div className="flex items-center justify-center py-12">
+        <div className="flex items-center justify-center py-12 min-h-[200px]">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           <span className="ml-2 text-sm text-muted-foreground">加载中...</span>
         </div>
