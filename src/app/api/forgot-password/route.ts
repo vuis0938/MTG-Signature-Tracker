@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
   if (!limit.allowed) {
     const waitMin = Math.ceil((limit.resetAt - Date.now()) / 60000);
     return NextResponse.json(
-      { error: `操作过于频繁，请 ${waitMin} 分钟后再试` },
+      { error: `尝试次数过多，请 ${waitMin} 分钟后再试` },
       { status: 429 }
     );
   }
