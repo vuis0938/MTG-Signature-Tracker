@@ -22,6 +22,11 @@ CREATE TABLE IF NOT EXISTS feedback (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 启用行级安全（RLS）
+-- 不创建任何 policy：anon / authenticated key 完全无法访问此表
+-- 所有读写均通过服务端 API 路由使用 Service Role Key（绕过 RLS）
+ALTER TABLE feedback ENABLE ROW LEVEL SECURITY;
+
 -- 未读反馈计数索引（管理员角标高频查询）
 CREATE INDEX IF NOT EXISTS feedback_is_read_idx ON feedback(is_read) WHERE is_read = FALSE;
 
