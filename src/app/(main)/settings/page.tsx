@@ -155,7 +155,7 @@ export default function SettingsPage() {
             <User className="h-4 w-4" />
             账户信息
           </CardTitle>
-          <CardDescription>当前登录账户</CardDescription>
+          <CardDescription>当前登录账户与安全设置</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between">
@@ -180,91 +180,82 @@ export default function SettingsPage() {
               {loggingOut ? "退出中..." : "退出登录"}
             </Button>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* 修改密码 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <KeyRound className="h-4 w-4" />
-            修改密码
-          </CardTitle>
-          <CardDescription>验证旧密码后设置新密码</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {pwdSuccess && !showPwdForm && (
-            <p className="text-sm text-green-600 mb-3">{pwdSuccess}</p>
-          )}
-          {!showPwdForm ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => { setShowPwdForm(true); setPwdSuccess(""); setPwdError(""); }}
-            >
-              <KeyRound className="h-4 w-4 mr-2" />
-              修改密码
-            </Button>
-          ) : (
-            <form onSubmit={handleChangePassword} className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="oldPwd">旧密码</Label>
-                <Input
-                  id="oldPwd"
-                  type="password"
-                  placeholder="请输入当前密码"
-                  value={oldPwd}
-                  onChange={(e) => setOldPwd(e.target.value)}
-                  autoFocus
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="newPwd">新密码</Label>
-                <Input
-                  id="newPwd"
-                  type="password"
-                  placeholder="请输入新密码"
-                  value={newPwd}
-                  onChange={(e) => setNewPwd(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirmPwd">确认新密码</Label>
-                <Input
-                  id="confirmPwd"
-                  type="password"
-                  placeholder="请再次输入新密码"
-                  value={confirmPwd}
-                  onChange={(e) => setConfirmPwd(e.target.value)}
-                  required
-                />
-              </div>
-              {pwdError && (
-                <p className="text-sm text-destructive">{pwdError}</p>
-              )}
-              <div className="flex gap-2">
-                <Button type="submit" variant="outline" size="sm" disabled={changingPwd}>
-                  {changingPwd ? "修改中..." : "确认修改"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setShowPwdForm(false);
-                    setOldPwd("");
-                    setNewPwd("");
-                    setConfirmPwd("");
-                    setPwdError("");
-                  }}
-                >
-                  取消
-                </Button>
-              </div>
-            </form>
-          )}
+          {/* 修改密码 */}
+          <div className="border-t pt-3">
+            {pwdSuccess && !showPwdForm && (
+              <p className="text-sm text-green-600 mb-3">{pwdSuccess}</p>
+            )}
+            {!showPwdForm ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { setShowPwdForm(true); setPwdSuccess(""); setPwdError(""); }}
+              >
+                <KeyRound className="h-4 w-4 mr-2" />
+                修改密码
+              </Button>
+            ) : (
+              <form onSubmit={handleChangePassword} className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="oldPwd">旧密码</Label>
+                  <Input
+                    id="oldPwd"
+                    type="password"
+                    placeholder="请输入当前密码"
+                    value={oldPwd}
+                    onChange={(e) => setOldPwd(e.target.value)}
+                    autoFocus
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="newPwd">新密码</Label>
+                  <Input
+                    id="newPwd"
+                    type="password"
+                    placeholder="请输入新密码"
+                    value={newPwd}
+                    onChange={(e) => setNewPwd(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPwd">确认新密码</Label>
+                  <Input
+                    id="confirmPwd"
+                    type="password"
+                    placeholder="请再次输入新密码"
+                    value={confirmPwd}
+                    onChange={(e) => setConfirmPwd(e.target.value)}
+                    required
+                  />
+                </div>
+                {pwdError && (
+                  <p className="text-sm text-destructive">{pwdError}</p>
+                )}
+                <div className="flex gap-2">
+                  <Button type="submit" variant="outline" size="sm" disabled={changingPwd}>
+                    {changingPwd ? "修改中..." : "确认修改"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowPwdForm(false);
+                      setOldPwd("");
+                      setNewPwd("");
+                      setConfirmPwd("");
+                      setPwdError("");
+                    }}
+                  >
+                    取消
+                  </Button>
+                </div>
+              </form>
+            )}
+          </div>
         </CardContent>
       </Card>
 
