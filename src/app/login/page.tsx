@@ -208,7 +208,13 @@ export default function LoginPage() {
                         id="securityQuestion"
                         value={securityQuestion}
                         onChange={(e) => setSecurityQuestion(e.target.value)}
-                        className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                        className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base md:text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30 appearance-none cursor-pointer bg-no-repeat pr-8"
+                        style={{
+                          backgroundImage:
+                            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")",
+                          backgroundPosition: "right 0.5rem center",
+                          backgroundSize: "1rem",
+                        }}
                         required
                       >
                         <option value="" disabled>凭此问题找回密码</option>
