@@ -9,28 +9,41 @@ const WINDOW_MS = 60 * 60 * 1000;
 
 // GET: 根据用户名获取安全问题
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const username = searchParams.get("username");
+  try {
+    const { searchParams } = new URL(request.url);
+    const username = searchParams.get("username");
 
-  if (!username?.trim()) {
-    return NextResponse.json({ error: "请输入用户名" }, { status: 400 });
+    if (!username?.trim()) {
+      return NextResponse.json({ error: "请输入用户名" }, { status: 400 });
+    }
+
+    const { data: user, error } = await supabase
+      .from("users")
+      .select("security_question")
+      .eq("username", username.trim())
+      .single();
+
+    // .single() 在无匹配行时返回 PGRST116，视为用户不存在
+    if (error) {
+      if (error.code === "PGRST116") {
+        return NextResponse.json({ error: "用户不存在" }, { status: 404 });
+      }
+      throw error;
+    }
+
+    if (!user) {
+      return NextResponse.json({ error: "用户不存在" }, { status: 404 });
+    }
+
+    if (!user.security_question) {
+      return NextResponse.json({ error: "未设置安全问题，请联系管理员" }, { status: 400 });
+    }
+
+    return NextResponse.json({ success: true, question: user.security_question });
+  } catch (error) {
+    console.error("[ForgotPassword] GET error:", error);
+    return NextResponse.json({ error: "服务器异常，请稍后再试" }, { status: 500 });
   }
-
-  const { data: user } = await supabase
-    .from("users")
-    .select("security_question")
-    .eq("username", username.trim())
-    .single();
-
-  if (!user) {
-    return NextResponse.json({ error: "用户不存在" }, { status: 404 });
-  }
-
-  if (!user.security_question) {
-    return NextResponse.json({ error: "未设置安全问题，请联系管理员" }, { status: 400 });
-  }
-
-  return NextResponse.json({ success: true, question: user.security_question });
 }
 
 // POST: 验证安全问题答案并重置密码
@@ -59,13 +72,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "新密码不能超过 64 个字符" }, { status: 400 });
     }
 
-    const { data: user } = await supabase
+    const { data: user, error: dbError } = await supabase
       .from("users")
       .select("security_question, security_answer")
       .eq("username", username.trim())
       .single();
 
     // 用户不存在或未设置安全问题
+    if (dbError) {
+      if (dbError.code === "PGRST116") {
+        return NextResponse.json({ error: "用户不存在" }, { status: 404 });
+      }
+      throw dbError;
+    }
     if (!user) {
       return NextResponse.json({ error: "用户不存在" }, { status: 404 });
     }
@@ -87,11 +106,12 @@ export async function POST(request: NextRequest) {
       .eq("username", username.trim());
 
     if (error) {
-      return NextResponse.json({ error: "重置失败，请重试" }, { status: 500 });
+      return NextResponse.json({ error: "操作失败" }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, message: "密码重置成功，请重新登录" });
-  } catch {
+  } catch (error) {
+    console.error("[ForgotPassword] POST error:", error);
     return NextResponse.json({ error: "请求格式错误" }, { status: 400 });
   }
 }

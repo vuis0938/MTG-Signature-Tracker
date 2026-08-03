@@ -22,7 +22,7 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [securityQuestion, setSecurityQuestion] = useState<string>(SECURITY_QUESTIONS[0]);
+  const [securityQuestion, setSecurityQuestion] = useState<string>("");
   const [securityAnswer, setSecurityAnswer] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -209,7 +209,9 @@ export default function LoginPage() {
                         value={securityQuestion}
                         onChange={(e) => setSecurityQuestion(e.target.value)}
                         className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                        required
                       >
+                        <option value="" disabled>凭此问题找回密码</option>
                         {SECURITY_QUESTIONS.map((q) => (
                           <option key={q} value={q}>{q}</option>
                         ))}
@@ -219,7 +221,7 @@ export default function LoginPage() {
                       <Label htmlFor="securityAnswer">安全问题答案</Label>
                       <Input
                         id="securityAnswer"
-                        placeholder="凭此问题找回密码"
+                        placeholder="请输入答案"
                         value={securityAnswer}
                         onChange={(e) => setSecurityAnswer(e.target.value)}
                         required
