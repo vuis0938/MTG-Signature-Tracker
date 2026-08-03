@@ -188,7 +188,7 @@ export default function SettingsPage() {
             <KeyRound className="h-4 w-4" />
             修改密码
           </CardTitle>
-          <CardDescription>需要验证旧密码</CardDescription>
+          <CardDescription>验证旧密码后设置新密码</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleChangePassword} className="space-y-3">

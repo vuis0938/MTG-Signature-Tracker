@@ -127,7 +127,7 @@ export default function LoginPage() {
 
       const data = await res.json();
       if (data.success) {
-        setSuccess("密码重置成功！请使用新密码登录。");
+        setSuccess("密码重置成功，请重新登录");
         setMode("login");
         setPassword("");
         setConfirmPassword("");
@@ -214,7 +214,7 @@ export default function LoginPage() {
                           <option key={q} value={q}>{q}</option>
                         ))}
                       </select>
-                      <p className="text-xs text-muted-foreground">忘记密码时通过此问题找回</p>
+                      <p className="text-xs text-muted-foreground">用于忘记密码时验证身份</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="securityAnswer">安全问题答案</Label>

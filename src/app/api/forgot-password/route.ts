@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (!user.security_question) {
-    return NextResponse.json({ error: "该账号未设置安全问题，请联系管理员重置密码" }, { status: 400 });
+    return NextResponse.json({ error: "未设置安全问题，请联系管理员" }, { status: 400 });
   }
 
   return NextResponse.json({ success: true, question: user.security_question });
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
   if (!limit.allowed) {
     const waitMin = Math.ceil((limit.resetAt - Date.now()) / 60000);
     return NextResponse.json(
-      { error: `尝试次数过多，请 ${waitMin} 分钟后再试` },
+      { error: `操作过于频繁，请 ${waitMin} 分钟后再试` },
       { status: 429 }
     );
   }
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     const { username, securityAnswer, newPassword } = await request.json();
 
     if (!username?.trim() || !securityAnswer?.trim() || !newPassword) {
-      return NextResponse.json({ error: "请填写所有字段" }, { status: 400 });
+      return NextResponse.json({ error: "请填写完整信息" }, { status: 400 });
     }
     if (newPassword.length < 8) {
       return NextResponse.json({ error: "新密码至少 8 个字符" }, { status: 400 });
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "用户不存在" }, { status: 404 });
     }
     if (!user.security_answer) {
-      return NextResponse.json({ error: "该账号未设置安全问题，请联系管理员重置密码" }, { status: 400 });
+      return NextResponse.json({ error: "未设置安全问题，请联系管理员" }, { status: 400 });
     }
 
     // 验证安全问题答案
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "重置失败，请重试" }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, message: "密码重置成功，请使用新密码登录" });
+    return NextResponse.json({ success: true, message: "密码重置成功，请重新登录" });
   } catch {
     return NextResponse.json({ error: "请求格式错误" }, { status: 400 });
   }

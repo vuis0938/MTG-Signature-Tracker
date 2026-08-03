@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     if (!limit.allowed) {
       const waitMin = Math.ceil((limit.resetAt - Date.now()) / 60000);
       return NextResponse.json(
-        { error: `尝试次数过多，请 ${waitMin} 分钟后再试` },
+        { error: `操作过于频繁，请 ${waitMin} 分钟后再试` },
         { status: 429 }
       );
     }
@@ -133,7 +133,7 @@ export async function PUT(request: NextRequest) {
     const limit = rateLimit(`register:${ip}`, REGISTER_MAX_ATTEMPTS, REGISTER_WINDOW_MS);
     if (!limit.allowed) {
       return NextResponse.json(
-        { error: "操作频繁，请稍后再试" },
+        { error: "操作过于频繁，请稍后再试" },
         { status: 429 }
       );
     }
@@ -160,10 +160,10 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "请选择一个安全问题" }, { status: 400 });
     }
     if (!securityAnswer || securityAnswer.trim().length < 1) {
-      return NextResponse.json({ error: "请填写安全问题答案" }, { status: 400 });
+      return NextResponse.json({ error: "请输入安全问题答案" }, { status: 400 });
     }
     if (securityAnswer.trim().length > 100) {
-      return NextResponse.json({ error: "安全问题答案不能超过 100 个字符" }, { status: 400 });
+      return NextResponse.json({ error: "安全问题答案过长（最多 100 字符）" }, { status: 400 });
     }
 
     const hashedPassword = await hashPassword(password);
