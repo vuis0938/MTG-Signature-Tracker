@@ -66,6 +66,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("[Cards Batch API]", error);
-    return NextResponse.json({ error: "服务器异常" }, { status: 500 });
+    return NextResponse.json({ error: "服务器异常，请稍后再试" }, { status: 500 });
   }
 }

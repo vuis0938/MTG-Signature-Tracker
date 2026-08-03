@@ -115,7 +115,7 @@ export default function EventsPage() {
         showToast(data.error || "操作失败", "error");
       }
     } catch {
-      showToast("网络错误", "error");
+      showToast("网络错误，请重试", "error");
     } finally {
       setActionLoading(null);
     }

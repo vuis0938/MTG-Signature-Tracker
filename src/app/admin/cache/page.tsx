@@ -77,7 +77,7 @@ export default function CachePage() {
         showToast(data.error || "删除失败", "error");
       }
     } catch {
-      showToast("网络错误", "error");
+      showToast("网络错误，请重试", "error");
     } finally {
       setActionLoading(null);
     }
@@ -96,7 +96,7 @@ export default function CachePage() {
         showToast(data.error || "清空失败", "error");
       }
     } catch {
-      showToast("网络错误", "error");
+      showToast("网络错误，请重试", "error");
     } finally {
       setActionLoading(null);
     }

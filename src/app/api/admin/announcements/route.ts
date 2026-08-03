@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, announcements: data || [] });
   } catch (err) {
     console.error("[Admin Announcements API]", err);
-    return NextResponse.json({ error: "服务器异常" }, { status: 500 });
+    return NextResponse.json({ error: "服务器异常，请稍后再试" }, { status: 500 });
   }
 }
 
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, announcement: data });
   } catch (err) {
     console.error("[Admin Announcements API POST]", err);
-    return NextResponse.json({ error: "服务器异常" }, { status: 500 });
+    return NextResponse.json({ error: "服务器异常，请稍后再试" }, { status: 500 });
   }
 }
 
@@ -117,7 +117,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[Admin Announcements API PATCH]", err);
-    return NextResponse.json({ error: "服务器异常" }, { status: 500 });
+    return NextResponse.json({ error: "服务器异常，请稍后再试" }, { status: 500 });
   }
 }
 
@@ -146,6 +146,6 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[Admin Announcements API DELETE]", err);
-    return NextResponse.json({ error: "服务器异常" }, { status: 500 });
+    return NextResponse.json({ error: "服务器异常，请稍后再试" }, { status: 500 });
   }
 }

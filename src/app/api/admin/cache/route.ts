@@ -117,6 +117,6 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "缺少参数" }, { status: 400 });
   } catch (err) {
     console.error("[Admin Cache API DELETE]", err);
-    return NextResponse.json({ error: "服务器异常" }, { status: 500 });
+    return NextResponse.json({ error: "服务器异常，请稍后再试" }, { status: 500 });
   }
 }

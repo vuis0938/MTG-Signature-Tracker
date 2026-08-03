@@ -74,7 +74,7 @@ export default function LoginPage() {
         setError(data.error || "操作失败");
       }
     } catch {
-      setError("网络错误，请检查连接后重试");
+      setError("网络错误，请重试");
     } finally {
       setLoading(false);
     }
@@ -96,7 +96,7 @@ export default function LoginPage() {
         setError(data.error || "操作失败");
       }
     } catch {
-      setError("网络错误，请检查连接后重试");
+      setError("网络错误，请重试");
     } finally {
       setLoading(false);
     }
@@ -134,10 +134,10 @@ export default function LoginPage() {
         setSecurityAnswer("");
         setForgotStep(1);
       } else {
-        setError(data.error || "重置失败");
+        setError(data.error || "操作失败");
       }
     } catch {
-      setError("网络错误，请检查连接后重试");
+      setError("网络错误，请重试");
     } finally {
       setLoading(false);
     }

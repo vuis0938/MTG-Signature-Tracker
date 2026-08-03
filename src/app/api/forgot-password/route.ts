@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     const { username, securityAnswer, newPassword } = await request.json();
 
     if (!username?.trim() || !securityAnswer?.trim() || !newPassword) {
-      return NextResponse.json({ error: "请填写完整信息" }, { status: 400 });
+      return NextResponse.json({ error: "请填写所有必填项" }, { status: 400 });
     }
     if (newPassword.length < 8) {
       return NextResponse.json({ error: "新密码至少 8 个字符" }, { status: 400 });

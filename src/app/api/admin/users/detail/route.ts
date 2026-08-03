@@ -138,6 +138,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (err) {
     console.error("[Admin User Detail API]", err);
-    return NextResponse.json({ error: "服务器异常" }, { status: 500 });
+    return NextResponse.json({ error: "服务器异常，请稍后再试" }, { status: 500 });
   }
 }

@@ -59,7 +59,7 @@ export default function DashboardPage() {
           setError(json.error || "加载失败");
         }
       } catch {
-        setError("网络错误");
+        setError("网络错误，请重试");
       } finally {
         setLoading(false);
       }

@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, cards: (cards || []) as CardEntry[] });
   } catch (error) {
     console.error("[Cards API GET]", error);
-    return NextResponse.json({ error: "服务器异常" }, { status: 500 });
+    return NextResponse.json({ error: "服务器异常，请稍后再试" }, { status: 500 });
   }
 }
 
@@ -196,7 +196,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[Cards API PATCH]", error);
-    return NextResponse.json({ error: "服务器异常" }, { status: 500 });
+    return NextResponse.json({ error: "服务器异常，请稍后再试" }, { status: 500 });
   }
 }
 
@@ -244,6 +244,6 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[Cards API DELETE]", error);
-    return NextResponse.json({ error: "服务器异常" }, { status: 500 });
+    return NextResponse.json({ error: "服务器异常，请稍后再试" }, { status: 500 });
   }
 }

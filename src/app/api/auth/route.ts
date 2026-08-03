@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     // 检查是否被封禁
     if (users[0].banned_at) {
-      return NextResponse.json({ error: "该账号已被封禁，请联系管理员" }, { status: 403 });
+      return NextResponse.json({ error: "账号已被封禁，请联系管理员" }, { status: 403 });
     }
 
     // 兼容旧明文密码：如果存储的密码不含 ":" 分隔符，说明是旧明文密码

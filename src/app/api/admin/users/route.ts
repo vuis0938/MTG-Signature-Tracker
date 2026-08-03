@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (err) {
     console.error("[Admin Users API]", err);
-    return NextResponse.json({ error: "服务器异常" }, { status: 500 });
+    return NextResponse.json({ error: "服务器异常，请稍后再试" }, { status: 500 });
   }
 }
 
@@ -166,6 +166,6 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "未知操作" }, { status: 400 });
   } catch (err) {
     console.error("[Admin Users API PATCH]", err);
-    return NextResponse.json({ error: "服务器异常" }, { status: 500 });
+    return NextResponse.json({ error: "服务器异常，请稍后再试" }, { status: 500 });
   }
 }

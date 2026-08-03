@@ -77,7 +77,7 @@ export default function ArtistsPage() {
         showToast(data.error || "添加失败", "error");
       }
     } catch {
-      showToast("网络错误", "error");
+      showToast("网络错误，请重试", "error");
     } finally {
       setActionLoading(null);
     }

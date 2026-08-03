@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, decks, stats });
   } catch (error) {
     console.error("[Decks API]", error);
-    return NextResponse.json({ error: "服务器异常" }, { status: 500 });
+    return NextResponse.json({ error: "服务器异常，请稍后再试" }, { status: 500 });
   }
 }
 
@@ -98,6 +98,6 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[Decks API DELETE]", error);
-    return NextResponse.json({ error: "服务器异常" }, { status: 500 });
+    return NextResponse.json({ error: "服务器异常，请稍后再试" }, { status: 500 });
   }
 }

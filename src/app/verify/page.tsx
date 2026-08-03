@@ -161,7 +161,7 @@ export default function VerifyPage() {
         setError(rawData.error || "抓取失败");
       }
     } catch {
-      setError("网络错误");
+      setError("网络错误，请重试");
     } finally {
       setRefreshing(false);
     }
@@ -215,7 +215,7 @@ export default function VerifyPage() {
           setError(rawData.error || "加载失败");
         }
       } catch {
-        setError("网络错误");
+        setError("网络错误，请重试");
       } finally {
         setLoading(false);
       }

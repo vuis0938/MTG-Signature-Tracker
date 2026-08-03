@@ -39,7 +39,7 @@ export default function ExportPage() {
 
       showToast("导出成功", "success");
     } catch {
-      showToast("网络错误", "error");
+      showToast("网络错误，请重试", "error");
     } finally {
       setLoading(null);
     }
