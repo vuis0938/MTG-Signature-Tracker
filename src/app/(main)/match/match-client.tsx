@@ -628,11 +628,16 @@ export default function MatchClient({
 
     for (const [cardName, info] of Object.entries(cardMap)) {
       const deckCards = cardsByName.get(cardName) || [];
-      const deckCard = deckCards.length > 0 ? deckCards[0] : undefined;
 
       for (const printing of info.printings) {
         const artist = printing.artist;
         const existing = expanded.get(artist) || [];
+
+        // 只有印刷版本完全匹配（同系列+同编号）才关联套牌卡牌
+        const matchedDeckCard = deckCards.find(
+          (dc) => dc.set_code.toLowerCase() === printing.set.toLowerCase() &&
+                  String(dc.collector_number) === String(printing.collector_number)
+        );
 
         const entry: FuzzyCardEntry = {
           card_name: cardName,
@@ -641,7 +646,7 @@ export default function MatchClient({
           collector_number: printing.collector_number,
           image_url: printing.image_url,
           artist,
-          deckCard: deckCard ? { ...deckCard, artist_names: [artist] } : undefined,
+          deckCard: matchedDeckCard ? { ...matchedDeckCard, artist_names: [artist] } : undefined,
         };
 
         if (!existing.some((e) => isSamePrinting(e, entry))) {
