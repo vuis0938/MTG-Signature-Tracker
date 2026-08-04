@@ -707,13 +707,13 @@ export default function MatchClient({
     const currentMatched = matchedRef.current;
     const currentUnmatched = unmatched;
 
-    // 状态符号（简短，一行更紧凑）
+    // 状态标记
     const statusMark = (status: number) => {
       switch (status) {
-        case 1: return "◐";
-        case 2: return "✓";
-        case 3: return "♥";
-        default: return "☐";
+        case 1: return "[送签中]";
+        case 2: return "[已签]";
+        case 3: return "[心动]";
+        default: return "[待签]";
       }
     };
 
@@ -756,7 +756,7 @@ export default function MatchClient({
         );
         for (const [label, info] of sorted) {
           const countStr = info.count > 1 ? ` ×${info.count}` : "";
-          const mark = info.inDeck ? statusMark(info.status) : "○";
+          const mark = info.inDeck ? statusMark(info.status) : "[其他版本]";
           lines.push(`  ${mark} ${label}${countStr}\n`);
         }
         artistEntries.push({ artist, total: entries.length, toSign, lines });

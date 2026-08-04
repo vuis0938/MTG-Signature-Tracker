@@ -76,13 +76,13 @@ export default function SettingsPage() {
           progress: { total: number; signed: number; unsigned: number; pending: number };
         }> = data.decks;
 
-        // 状态符号
+        // 状态标记
         const statusMark = (status: string) => {
           switch (status) {
-            case "已签": return "✓";
-            case "送签中": return "◐";
-            case "心动": return "♥";
-            default: return "☐";
+            case "已签": return "[已签]";
+            case "送签中": return "[送签中]";
+            case "心动": return "[心动]";
+            default: return "[待签]";
           }
         };
 
