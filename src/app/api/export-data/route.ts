@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       string,
       {
         name: string;
-        cards: Array<{ name: string; set: string; count: number; artist: string; status: string; event_name?: string | null; event_date?: string | null }>;
+        cards: Array<{ name: string; set: string; cn: string; count: number; artist: string; status: string; event_name?: string | null; event_date?: string | null }>;
         progress: { total: number; signed: number; unsigned: number; pending: number; heart: number };
       }
     >();
@@ -48,9 +48,9 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 合并相同卡牌（同名+同系列+同画家+同状态）
+    // 合并相同卡牌（同名+同系列+同编号+同画家+同状态）
     const mergeKey = (c: NonNullable<typeof cards>[number]) =>
-      `${c.card_name}|${c.set_code}|${(c.artist_names || []).join(",")}|${c.status}`;
+      `${c.card_name}|${c.set_code}|${c.collector_number}|${(c.artist_names || []).join(",")}|${c.status}`;
 
     for (const card of cards || []) {
       const deck = decksByGroup.get(card.deck_id);
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
 
       const key = mergeKey(card);
       const existing = deck.cards.find(
-        (c) => `${c.name}|${c.set}|${c.artist}|${STATUS_TEXT[card.status]}` === key
+        (c) => `${c.name}|${c.set}|${c.cn}|${c.artist}|${STATUS_TEXT[card.status]}` === key
       );
       if (existing) {
         existing.count++;
@@ -73,6 +73,7 @@ export async function GET(request: NextRequest) {
         deck.cards.push({
           name: card.card_name,
           set: card.set_code,
+          cn: card.collector_number,
           count: 1,
           artist: (card.artist_names || []).join(", "),
           status: STATUS_TEXT[card.status] || "未签",
