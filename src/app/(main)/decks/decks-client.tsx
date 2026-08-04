@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useMemo, useRef, useEffect, memo, type ReactNode } from "react";
-import dynamic from "next/dynamic";
 import { useToast } from "@/lib/toast-context";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import { useDisplayMode } from "@/lib/display-mode";
@@ -28,31 +27,7 @@ import {
   DialogContent,
 } from "@/components/ui/dialog";
 import type { Deck, CardEntry, DeckStats, Printing } from "@/types";
-
-// ─── 懒加载弹窗：首屏不打包，首次打开时下载 chunk ────────────
-// chunk 下载期间展示与数据加载一致的 spinner（当前打开弹窗本就有加载态，体验无差别）
-
-function DialogChunkFallback() {
-  return (
-    <Dialog open onOpenChange={() => {}} className="max-w-3xl">
-      <DialogHeader>
-        <DialogTitle>加载中...</DialogTitle>
-        <DialogDescription>正在准备数据</DialogDescription>
-      </DialogHeader>
-      <DialogContent>
-        <div className="flex items-center justify-center gap-2 min-h-[50vh] text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          <span className="text-sm">加载中...</span>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-const VersionSwitchDialog = dynamic(() => import("./version-switch-dialog"), {
-  ssr: false,
-  loading: DialogChunkFallback,
-});
+import VersionSwitchDialog from "./version-switch-dialog";
 
 // ─── 纯工具函数 ──────────────────────────────────────────
 

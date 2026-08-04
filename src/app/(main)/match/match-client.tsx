@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { CardImage } from "@/components/card-image";
@@ -16,7 +15,10 @@ import { useDisplayMode } from "@/lib/display-mode";
 import { useToast } from "@/lib/toast-context";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import { useDecks, useEvents } from "@/lib/swr-hooks";
-import { Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Sparkle, Palette, Package, Heart, Check, MoreHorizontal, Lightbulb } from "lucide-react";
+import {
+  Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Sparkle, Palette, Package, Heart, Check, MoreHorizontal, Lightbulb,
+} from "lucide-react";
+import ArtistGalleryDialog from "@/components/artist-gallery-dialog";
 import {
   Dialog,
   DialogContent,
@@ -29,30 +31,6 @@ import {
 import type { Deck, DeckStats, CardEntry, FuzzyCardEntry, ArtistCard, CalendarEvent } from "@/types";
 import { normalizeArtists, buildNormalizedMap, findMatchingArtist, isSamePrinting, getNextStatus, matchAgainstArtists } from "@/lib/match-utils";
 import type { FuzzyApiResponse } from "@/lib/match-utils";
-
-// ─── 懒加载弹窗：首屏不打包，首次打开时下载 chunk ────────────
-// chunk 下载期间展示与数据加载一致的 spinner（当前打开弹窗本就有加载态，体验无差别）
-
-function DialogChunkFallback() {
-  return (
-    <Dialog open onOpenChange={() => {}} className="max-w-3xl">
-      <DialogHeader>
-        <DialogTitle>加载中...</DialogTitle>
-      </DialogHeader>
-      <DialogContent>
-        <div className="flex items-center justify-center min-h-[50vh]">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          <span className="ml-2 text-sm text-muted-foreground">加载中...</span>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-const ArtistGalleryDialog = dynamic(() => import("@/components/artist-gallery-dialog"), {
-  ssr: false,
-  loading: DialogChunkFallback,
-});
 
 // ─── 页面组件 ──────────────────────────────────────────────
 
