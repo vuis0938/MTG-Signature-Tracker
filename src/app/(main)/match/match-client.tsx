@@ -925,15 +925,9 @@ export default function MatchClient({
       text += "\n";
     }
 
-    // 你的套牌中没有卡牌的画家
-    if (currentUnmatched.length > 0) {
-      text += `\n以下画家出席活动，但你的套牌中没有他们的卡牌（${currentUnmatched.length} 位）：\n`;
-      text += currentUnmatched.join("、") + "\n";
-    }
-
-    // 完整画家列表
+    // 完整活动画家名单
     if (currentParsedArtists.length > 0) {
-      text += `\n完整画家列表（${currentParsedArtists.length} 位）：\n`;
+      text += `\n完整活动名单（${currentParsedArtists.length} 位）：\n`;
       text += currentParsedArtists.join("、") + "\n";
     }
 
