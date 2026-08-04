@@ -707,7 +707,7 @@ export default function MatchClient({
     const currentMatched = matchedRef.current;
     const currentUnmatched = unmatched;
 
-    let text = "活动签卡清单\n\n";
+    let text = "MTG签绘管家 · www.mtgkit.top\n活动签卡清单\n\n";
 
     if (currentFuzzyMode && currentFuzzyMatched.size > 0) {
       for (const [artist, entries] of currentFuzzyMatched) {

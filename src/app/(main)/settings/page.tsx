@@ -70,7 +70,13 @@ export default function SettingsPage() {
       const data = await res.json();
 
       if (data.success) {
-        const blob = new Blob([JSON.stringify({ decks: data.decks }, null, 2)], { type: "application/json" });
+        const exportPayload = {
+          title: "MTG签绘管家",
+          url: "www.mtgkit.top",
+          exportedAt: new Date().toISOString().slice(0, 10),
+          decks: data.decks,
+        };
+        const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
