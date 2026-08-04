@@ -13,9 +13,12 @@ export default async function EventsPage() {
     return <EventsClient fallbackEvents={[]} />;
   }
 
-  const events = await getEvents();
+  let events: CalendarEvent[] = [];
+  try {
+    events = (await getEvents()) as CalendarEvent[];
+  } catch {
+    // 所有数据源均失败时不缓存空结果，SWR 客户端会重新尝试
+  }
 
-  return (
-    <EventsClient fallbackEvents={events as CalendarEvent[]} />
-  );
+  return <EventsClient fallbackEvents={events} />;
 }

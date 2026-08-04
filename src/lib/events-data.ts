@@ -239,23 +239,33 @@ async function _getEvents(): Promise<EventWithArtists[]> {
   ]);
 
   const results: EventWithArtists[] = [];
+  let successCount = 0;
 
   if (mtgacResult.status === "fulfilled") {
     results.push(...mtgacResult.value);
+    successCount++;
   } else {
     console.error("[Events] MTGAC 获取失败:", mtgacResult.reason);
   }
 
   if (mmResult.status === "fulfilled") {
     results.push(...mmResult.value);
+    successCount++;
   } else {
     console.error("[Events] Mountain Mage 获取失败:", mmResult.reason);
   }
 
   if (customResult.status === "fulfilled") {
     results.push(...customResult.value);
+    successCount++;
   } else {
     console.error("[Events] 自定义活动获取失败:", customResult.reason);
+  }
+
+  // 所有数据源均失败时抛出错误，防止 unstable_cache 缓存空结果
+  // 下次请求会重新尝试，而不是在 5 分钟内持续返回空
+  if (successCount === 0) {
+    throw new Error("所有活动数据源均获取失败");
   }
 
   // 统一排序：按时间升序

@@ -9,10 +9,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
-  const events = await getEvents();
+  try {
+    const events = await getEvents();
 
-  return NextResponse.json(
-    { success: true, events },
-    { headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=300" } }
-  );
+    return NextResponse.json(
+      { success: true, events },
+      { headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=300" } }
+    );
+  } catch {
+    // 所有数据源均失败时 getEvents() 抛出错误
+    // 返回空数组而非错误状态，让前端正常渲染"暂无未来活动"
+    // 不缓存此结果，下次请求会重新尝试
+    return NextResponse.json(
+      { success: true, events: [] },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  }
 }

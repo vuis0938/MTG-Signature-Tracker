@@ -97,8 +97,8 @@ export function useEvents(fallbackData?: EventsResponse) {
     {
       ...FOCUS_REVALIDATION,
       fallbackData,
-      // 有 SSR fallback 时跳过挂载时重验证，避免双重拉取
-      revalidateOnMount: fallbackData ? false : true,
+      // 即使有 SSR fallback 也重新验证，防止数据源临时失败时缓存空结果
+      revalidateOnMount: true,
       // 活动数据成本高（GraphQL + DB），延长去重窗口
       dedupingInterval: 30000,
     }
