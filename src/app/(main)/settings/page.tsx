@@ -72,30 +72,17 @@ export default function SettingsPage() {
       if (data.success) {
         const decks: Array<{
           name: string;
-          cards: Array<{ name: string; set: string; count: number; artist: string; status: string }>;
-          progress: { total: number; signed: number; unsigned: number; pending: number };
+          cards: Array<{ name: string; set: string; count: number; artist: string; status: string; event_name?: string | null; event_date?: string | null }>;
+          progress: { total: number; signed: number; unsigned: number; pending: number; heart: number };
         }> = data.decks;
 
-        // 状态标记
-        const statusMark = (status: string) => {
-          switch (status) {
-            case "已签": return "[已签]";
-            case "送签中": return "[送签中]";
-            case "心动": return "[心动]";
-            default: return "[待签]";
-          }
-        };
-
-        // 状态排序权重：待签 < 送签中 < 心动 < 已签
-        const statusOrder = (status: string) => {
-          switch (status) {
-            case "未签": return 0;
-            case "送签中": return 1;
-            case "心动": return 2;
-            case "已签": return 3;
-            default: return 0;
-          }
-        };
+        // 状态分组顺序：已签 → 送签中 → 心动 → 待签
+        const STATUS_GROUPS: Array<{ status: string; label: string }> = [
+          { status: "已签", label: "已签" },
+          { status: "送签中", label: "送签中" },
+          { status: "心动", label: "心动" },
+          { status: "未签", label: "待签" },
+        ];
 
         const date = new Date().toISOString().slice(0, 10);
         const totalCards = data.cardCount;
@@ -108,13 +95,36 @@ export default function SettingsPage() {
         text += `共 ${data.deckCount} 个套牌，${totalCards} 张卡牌，已签 ${totalSigned} 张（${pct}%）\n\n`;
 
         for (const deck of decks) {
-          const { total, signed, unsigned, pending } = deck.progress;
-          text += `${deck.name}（${total} 张，已签 ${signed}/${total}）\n`;
-          // 按状态排序
-          const sorted = [...deck.cards].sort((a, b) => statusOrder(a.status) - statusOrder(b.status));
-          for (const card of sorted) {
-            const countStr = card.count > 1 ? ` ×${card.count}` : "";
-            text += `  ${statusMark(card.status)} ${card.name} [${card.set.toUpperCase()}]${countStr} — ${card.artist}\n`;
+          const { total, signed, unsigned, pending, heart } = deck.progress;
+          const deckPct = total > 0 ? Math.round((signed / total) * 100) : 0;
+
+          // 套牌标题行
+          text += `${deck.name}（${total} 张 · 签绘进度 ${deckPct}%）\n`;
+
+          // 进度统计行
+          const parts: string[] = [];
+          if (signed > 0) parts.push(`已签 ${signed}`);
+          if (pending > 0) parts.push(`送签中 ${pending}`);
+          if (heart > 0) parts.push(`心动 ${heart}`);
+          if (unsigned > 0) parts.push(`待签 ${unsigned}`);
+          if (parts.length > 0) text += `  ${parts.join(" · ")}\n`;
+
+          // 按状态分组显示
+          for (const group of STATUS_GROUPS) {
+            const groupCards = deck.cards.filter((c) => c.status === group.status);
+            if (groupCards.length === 0) continue;
+
+            text += `  【${group.label}】\n`;
+            for (const card of groupCards) {
+              const countStr = card.count > 1 ? ` ×${card.count}` : "";
+              let line = `    ${card.name} [${card.set.toUpperCase()}]${countStr} — ${card.artist}`;
+              // 心动状态显示匹配的活动信息
+              if (group.label === "心动" && card.event_name) {
+                line += ` → ${card.event_name}`;
+                if (card.event_date) line += `（${card.event_date}）`;
+              }
+              text += line + "\n";
+            }
           }
           text += "\n";
         }

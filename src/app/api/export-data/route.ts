@@ -34,8 +34,8 @@ export async function GET(request: NextRequest) {
       string,
       {
         name: string;
-        cards: Array<{ name: string; set: string; count: number; artist: string; status: string }>;
-        progress: { total: number; signed: number; unsigned: number; pending: number };
+        cards: Array<{ name: string; set: string; count: number; artist: string; status: string; event_name?: string | null; event_date?: string | null }>;
+        progress: { total: number; signed: number; unsigned: number; pending: number; heart: number };
       }
     >();
 
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
       decksByGroup.set(deck.id, {
         name: deck.name,
         cards: [],
-        progress: { total: 0, signed: 0, unsigned: 0, pending: 0 },
+        progress: { total: 0, signed: 0, unsigned: 0, pending: 0, heart: 0 },
       });
     }
 
@@ -60,6 +60,7 @@ export async function GET(request: NextRequest) {
       deck.progress.total++;
       if (card.status === 2) deck.progress.signed++;
       else if (card.status === 1) deck.progress.pending++;
+      else if (card.status === 3) deck.progress.heart++;
       else deck.progress.unsigned++;
 
       const key = mergeKey(card);
@@ -75,6 +76,8 @@ export async function GET(request: NextRequest) {
           count: 1,
           artist: (card.artist_names || []).join(", "),
           status: STATUS_TEXT[card.status] || "未签",
+          event_name: card.event_name || null,
+          event_date: card.event_date || null,
         });
       }
     }

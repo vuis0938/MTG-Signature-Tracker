@@ -139,6 +139,12 @@ export default function MatchClient({
   matchedRef.current = matched;
   const fuzzyMatchedRef = useRef(fuzzyMatched);
   fuzzyMatchedRef.current = fuzzyMatched;
+  const eventsRef = useRef(events);
+  eventsRef.current = events;
+  const currentEventRef = useRef(currentEvent);
+  currentEventRef.current = currentEvent;
+  const currentEventDateRef = useRef(currentEventDate);
+  currentEventDateRef.current = currentEventDate;
 
   // ─── 辅助函数 ──────────────────────────────────────────
 
@@ -706,113 +712,235 @@ export default function MatchClient({
     const currentFuzzyMatched = fuzzyMatchedRef.current;
     const currentMatched = matchedRef.current;
     const currentUnmatched = unmatched;
+    const currentParsedArtists = parsedArtistsRef.current;
+    const currentDecks = decksRef.current;
+    const currentEvents = eventsRef.current;
+    const eventName = currentEventRef.current;
+    const eventDate = currentEventDateRef.current;
 
-    // 状态标记
-    const statusMark = (status: number) => {
-      switch (status) {
-        case 1: return "[送签中]";
-        case 2: return "[已签]";
-        case 3: return "[心动]";
-        default: return "[待签]";
+    // 套牌名称映射
+    const deckNameMap = new Map(currentDecks.map((d) => [d.id, d.name]));
+
+    // 状态分组顺序：已签 → 送签中 → 心动 → 待签
+    const STATUS_GROUPS: Array<{ status: number; label: string }> = [
+      { status: 2, label: "已签" },
+      { status: 1, label: "送签中" },
+      { status: 3, label: "心动" },
+      { status: 0, label: "待签" },
+    ];
+
+    const date = new Date().toISOString().slice(0, 10);
+    let text = "MTG签绘管家 · www.mtgkit.top\n活动签卡清单\n";
+    text += `${date} 导出\n\n`;
+
+    // 活动信息
+    if (eventName) {
+      const fullEvent = currentEvents.find((e) => e.name === eventName);
+      text += `活动：${eventName}\n`;
+      if (fullEvent?.city) text += `地点：${fullEvent.city}\n`;
+      if (fullEvent) {
+        const start = new Date(fullEvent.startDate).toLocaleDateString("zh-CN");
+        if (fullEvent.endDate) {
+          const end = new Date(fullEvent.endDate).toLocaleDateString("zh-CN");
+          text += `日期：${start} ~ ${end}\n`;
+        } else {
+          text += `日期：${start}\n`;
+        }
+      } else if (eventDate) {
+        text += `日期：${eventDate}\n`;
       }
-    };
+      text += "\n";
+    }
 
-    // 状态排序权重：待签 → 送签中 → 心动 → 已签 → 其他版本
-    const statusOrder = (status: number, inDeck: boolean) => {
-      if (!inDeck) return 4;
-      switch (status) {
-        case 0: return 0;
-        case 1: return 1;
-        case 3: return 2;
-        case 2: return 3;
-        default: return 0;
-      }
-    };
+    // 卡牌信息结构
+    interface CardInfo {
+      label: string;
+      count: number;
+      status: number;
+      deckName: string;
+      eventName: string | null;
+      eventDate: string | null;
+      inDeck: boolean;
+    }
 
-    let text = "MTG签绘管家 · www.mtgkit.top\n活动签卡清单\n\n";
-
-    // 收集所有画家数据用于汇总和排序
-    const artistEntries: Array<{ artist: string; total: number; toSign: number; lines: string[] }> = [];
+    // 收集所有画家数据
+    const artistEntries: Array<{
+      artist: string;
+      total: number;
+      signed: number;
+      pending: number;
+      heart: number;
+      unsigned: number;
+      otherVersions: number;
+      cards: CardInfo[];
+    }> = [];
 
     if (currentFuzzyMode && currentFuzzyMatched.size > 0) {
       for (const [artist, entries] of currentFuzzyMatched) {
-        const toSign = entries.filter((e) => e.deckCard && e.deckCard.status !== 2).length;
-        const grouped = new Map<string, { count: number; status: number; inDeck: boolean }>();
+        const grouped = new Map<string, CardInfo>();
         for (const e of entries) {
           const key = `${e.card_name} [${e.set_code.toUpperCase()}]`;
-          const existing = grouped.get(key);
           const st = e.deckCard?.status ?? 0;
+          const dn = e.deckCard ? (deckNameMap.get(e.deckCard.deck_id) || e.deckCard.deck_name || "未知套牌") : "";
+          const en = e.deckCard?.event_name || null;
+          const ed = e.deckCard?.event_date || null;
+          const existing = grouped.get(key);
           if (existing) {
             existing.count++;
-            if (st > existing.status) existing.status = st;
-            if (e.deckCard) existing.inDeck = true;
+            if (e.deckCard) {
+              existing.inDeck = true;
+              if (st > existing.status) {
+                existing.status = st;
+                existing.deckName = dn;
+                existing.eventName = en;
+                existing.eventDate = ed;
+              }
+            }
           } else {
-            grouped.set(key, { count: 1, status: st, inDeck: !!e.deckCard });
+            grouped.set(key, {
+              label: key, count: 1, status: st, deckName: dn,
+              eventName: en, eventDate: ed, inDeck: !!e.deckCard,
+            });
           }
         }
-        const lines: string[] = [];
-        const sorted = [...grouped.entries()].sort((a, b) =>
-          statusOrder(a[1].status, a[1].inDeck) - statusOrder(b[1].status, b[1].inDeck)
-        );
-        for (const [label, info] of sorted) {
-          const countStr = info.count > 1 ? ` ×${info.count}` : "";
-          const mark = info.inDeck ? statusMark(info.status) : "[其他版本]";
-          lines.push(`  ${mark} ${label}${countStr}\n`);
-        }
-        artistEntries.push({ artist, total: entries.length, toSign, lines });
+
+        const cards = [...grouped.values()];
+        const inDeckCards = cards.filter((c) => c.inDeck);
+        const countBy = (st: number) => inDeckCards.filter((c) => c.status === st).reduce((s, c) => s + c.count, 0);
+        artistEntries.push({
+          artist,
+          total: inDeckCards.reduce((s, c) => s + c.count, 0),
+          signed: countBy(2),
+          pending: countBy(1),
+          heart: countBy(3),
+          unsigned: countBy(0),
+          otherVersions: cards.filter((c) => !c.inDeck).reduce((s, c) => s + c.count, 0),
+          cards,
+        });
       }
     } else {
-      for (const [artist, cards] of currentMatched) {
-        const toSign = cards.filter((c) => c.status !== 2).length;
-        const grouped = new Map<string, { count: number; status: number }>();
-        for (const card of cards) {
+      for (const [artist, cardList] of currentMatched) {
+        const grouped = new Map<string, CardInfo>();
+        for (const card of cardList) {
           const key = `${card.card_name} [${card.set_code.toUpperCase()}]`;
+          const dn = deckNameMap.get(card.deck_id) || card.deck_name || "未知套牌";
           const existing = grouped.get(key);
           if (existing) {
             existing.count++;
-            if (card.status > existing.status) existing.status = card.status;
+            if (card.status > existing.status) {
+              existing.status = card.status;
+              existing.deckName = dn;
+              existing.eventName = card.event_name || null;
+              existing.eventDate = card.event_date || null;
+            }
           } else {
-            grouped.set(key, { count: 1, status: card.status });
+            grouped.set(key, {
+              label: key, count: 1, status: card.status, deckName: dn,
+              eventName: card.event_name || null, eventDate: card.event_date || null,
+              inDeck: true,
+            });
           }
         }
-        const lines: string[] = [];
-        const sorted = [...grouped.entries()].sort((a, b) =>
-          statusOrder(a[1].status, true) - statusOrder(b[1].status, true)
-        );
-        for (const [label, info] of sorted) {
-          const countStr = info.count > 1 ? ` ×${info.count}` : "";
-          lines.push(`  ${statusMark(info.status)} ${label}${countStr}\n`);
-        }
-        artistEntries.push({ artist, total: cards.length, toSign, lines });
+
+        const cards = [...grouped.values()];
+        const countBy = (st: number) => cards.filter((c) => c.status === st).reduce((s, c) => s + c.count, 0);
+        artistEntries.push({
+          artist,
+          total: cards.reduce((s, c) => s + c.count, 0),
+          signed: countBy(2),
+          pending: countBy(1),
+          heart: countBy(3),
+          unsigned: countBy(0),
+          otherVersions: 0,
+          cards,
+        });
       }
     }
 
-    // 排序：有待签的画家在前，全部已签的在后
+    // 排序：有待签的在前，全部已签的在后
     artistEntries.sort((a, b) => {
-      if (a.toSign > 0 && b.toSign === 0) return -1;
-      if (a.toSign === 0 && b.toSign > 0) return 1;
+      const aToSign = a.unsigned + a.pending + a.heart;
+      const bToSign = b.unsigned + b.pending + b.heart;
+      if (aToSign > 0 && bToSign === 0) return -1;
+      if (aToSign === 0 && bToSign > 0) return 1;
       return 0;
     });
 
     // 汇总行
-    const totalToSign = artistEntries.reduce((sum, a) => sum + a.toSign, 0);
-    text += `共 ${artistEntries.length} 位画家，${totalToSign} 张待签\n\n`;
+    const totalCards = artistEntries.reduce((s, a) => s + a.total, 0);
+    const totalSigned = artistEntries.reduce((s, a) => s + a.signed, 0);
+    const totalPending = artistEntries.reduce((s, a) => s + a.pending, 0);
+    const totalHeart = artistEntries.reduce((s, a) => s + a.heart, 0);
+    const totalUnsigned = artistEntries.reduce((s, a) => s + a.unsigned, 0);
+    const pct = totalCards > 0 ? Math.round((totalSigned / totalCards) * 100) : 0;
 
+    const summaryParts: string[] = [`共 ${artistEntries.length} 位画家`];
+    if (totalCards > 0) summaryParts.push(`${totalCards} 张卡牌`);
+    if (totalSigned > 0) summaryParts.push(`已签 ${totalSigned}（${pct}%）`);
+    if (totalPending > 0) summaryParts.push(`送签中 ${totalPending}`);
+    if (totalHeart > 0) summaryParts.push(`心动 ${totalHeart}`);
+    if (totalUnsigned > 0) summaryParts.push(`待签 ${totalUnsigned}`);
+    text += summaryParts.join(" · ") + "\n\n";
+
+    // 每位画家
     for (const entry of artistEntries) {
-      text += `${entry.artist}（${entry.total} ${currentFuzzyMode ? "个版本" : "张"}，${entry.toSign > 0 ? `${entry.toSign} 待签` : "全部已签"}）\n`;
-      text += entry.lines.join("");
+      const progressParts: string[] = [`${entry.total} 张`];
+      if (entry.signed > 0) progressParts.push(`已签 ${entry.signed}`);
+      if (entry.pending > 0) progressParts.push(`送签中 ${entry.pending}`);
+      if (entry.heart > 0) progressParts.push(`心动 ${entry.heart}`);
+      if (entry.unsigned > 0) progressParts.push(`待签 ${entry.unsigned}`);
+      if (entry.otherVersions > 0) progressParts.push(`其他版本 ${entry.otherVersions}`);
+
+      text += `${entry.artist}（${progressParts.join(" · ")}）\n`;
+
+      // 按状态分组显示
+      for (const group of STATUS_GROUPS) {
+        const groupCards = entry.cards.filter((c) => c.inDeck && c.status === group.status);
+        if (groupCards.length === 0) continue;
+
+        text += `  【${group.label}】\n`;
+        for (const card of groupCards) {
+          const countStr = card.count > 1 ? ` ×${card.count}` : "";
+          let line = `    ${card.label}${countStr} — ${card.deckName}`;
+          if (group.label === "心动" && card.eventName) {
+            line += ` → ${card.eventName}`;
+            if (card.eventDate) line += `（${card.eventDate}）`;
+          }
+          text += line + "\n";
+        }
+      }
+
+      // 其他版本（仅模糊模式）
+      if (currentFuzzyMode) {
+        const otherCards = entry.cards.filter((c) => !c.inDeck);
+        if (otherCards.length > 0) {
+          text += `  【其他版本】\n`;
+          for (const card of otherCards) {
+            const countStr = card.count > 1 ? ` ×${card.count}` : "";
+            text += `    ${card.label}${countStr}\n`;
+          }
+        }
+      }
+
       text += "\n";
     }
 
+    // 无待签卡牌的画家
     if (currentUnmatched.length > 0) {
       text += `无待签卡牌：${currentUnmatched.join("、")}\n`;
+    }
+
+    // 完整画家列表
+    if (currentParsedArtists.length > 0) {
+      text += `\n完整画家列表（${currentParsedArtists.length} 位）：\n`;
+      text += currentParsedArtists.join("、") + "\n";
     }
 
     const blob = new Blob(["\uFEFF" + text], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "mtg-signing-list.txt";
+    a.download = `mtg-signing-list-${date}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   }, [unmatched]);
