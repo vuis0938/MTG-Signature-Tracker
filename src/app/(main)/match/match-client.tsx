@@ -707,40 +707,48 @@ export default function MatchClient({
     const currentMatched = matchedRef.current;
     const currentUnmatched = unmatched;
 
-    let text = "MTG 签绘管家 · 活动准备清单\n";
-    text += "=".repeat(40) + "\n\n";
+    let text = "活动签卡清单\n\n";
 
     if (currentFuzzyMode && currentFuzzyMatched.size > 0) {
       for (const [artist, entries] of currentFuzzyMatched) {
-        text += `${artist} (${entries.length} 个版本)\n`;
-        const byName = new Map<string, FuzzyCardEntry[]>();
+        text += `${artist}\n`;
+        // 合并同名同系列卡牌，标记是否在套牌中
+        const grouped = new Map<string, { count: number; inDeck: boolean }>();
         for (const e of entries) {
-          const arr = byName.get(e.card_name) || [];
-          arr.push(e);
-          byName.set(e.card_name, arr);
-        }
-        for (const [cardName, versions] of byName) {
-          for (const v of versions) {
-            const inDeck = v.deckCard ? " [套牌中]" : " [其他版本]";
-            text += `  - ${cardName} [${v.set_code.toUpperCase()}] #${v.collector_number}${inDeck}\n`;
+          const key = `${e.card_name} [${e.set_code.toUpperCase()}]`;
+          const existing = grouped.get(key);
+          if (existing) {
+            existing.count++;
+            if (e.deckCard) existing.inDeck = true;
+          } else {
+            grouped.set(key, { count: 1, inDeck: !!e.deckCard });
           }
+        }
+        for (const [label, info] of grouped) {
+          const countStr = info.count > 1 ? ` ×${info.count}` : "";
+          const mark = info.inDeck ? " ✓" : "";
+          text += `  · ${label}${countStr}${mark}\n`;
         }
         text += "\n";
       }
     } else {
       for (const [artist, cards] of currentMatched) {
-        text += `${artist} (${cards.length} 张)\n`;
+        text += `${artist}（${cards.length} 张）\n`;
+        // 合并同名同系列卡牌
+        const grouped = new Map<string, number>();
         for (const card of cards) {
-          text += `  - ${card.card_name} [${card.set_code.toUpperCase()}] ${card.deck_name}\n`;
+          const key = `${card.card_name} [${card.set_code.toUpperCase()}]`;
+          grouped.set(key, (grouped.get(key) || 0) + 1);
+        }
+        for (const [label, count] of grouped) {
+          text += `  · ${label}${count > 1 ? ` ×${count}` : ""}\n`;
         }
         text += "\n";
       }
     }
 
     if (currentUnmatched.length > 0) {
-      text += "─".repeat(40) + "\n";
-      text += "以下画家出席，但你暂无待签卡牌：\n";
-      currentUnmatched.forEach((a) => (text += `  - ${a}\n`));
+      text += `无待签卡牌：${currentUnmatched.join("、")}\n`;
     }
 
     const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
