@@ -757,7 +757,7 @@ export default function MatchClient({
       label: string;
       count: number;
       status: number;
-      deckName: string;
+      deckNames: Map<string, number>;
       eventName: string | null;
       eventDate: string | null;
       inDeck: boolean;
@@ -789,16 +789,18 @@ export default function MatchClient({
             existing.count++;
             if (e.deckCard) {
               existing.inDeck = true;
+              existing.deckNames.set(dn, (existing.deckNames.get(dn) || 0) + 1);
               if (st > existing.status) {
                 existing.status = st;
-                existing.deckName = dn;
                 existing.eventName = en;
                 existing.eventDate = ed;
               }
             }
           } else {
+            const deckNames = new Map<string, number>();
+            if (e.deckCard) deckNames.set(dn, 1);
             grouped.set(key, {
-              label: key, count: 1, status: st, deckName: dn,
+              label: key, count: 1, status: st, deckNames,
               eventName: en, eventDate: ed, inDeck: !!e.deckCard,
             });
           }
@@ -827,15 +829,17 @@ export default function MatchClient({
           const existing = grouped.get(key);
           if (existing) {
             existing.count++;
+            existing.deckNames.set(dn, (existing.deckNames.get(dn) || 0) + 1);
             if (card.status > existing.status) {
               existing.status = card.status;
-              existing.deckName = dn;
               existing.eventName = card.event_name || null;
               existing.eventDate = card.event_date || null;
             }
           } else {
+            const deckNames = new Map<string, number>();
+            deckNames.set(dn, 1);
             grouped.set(key, {
-              label: key, count: 1, status: card.status, deckName: dn,
+              label: key, count: 1, status: card.status, deckNames,
               eventName: card.event_name || null, eventDate: card.event_date || null,
               inDeck: true,
             });
@@ -901,7 +905,11 @@ export default function MatchClient({
         text += `  【${group.label}】\n`;
         for (const card of groupCards) {
           const countStr = card.count > 1 ? ` ×${card.count}` : "";
-          let line = `    ${card.label}${countStr} — ${card.deckName}`;
+          // 多套牌时显示每个套牌的张数
+          const deckStr = [...card.deckNames.entries()]
+            .map(([name, cnt]) => cnt > 1 ? `${name} ×${cnt}` : name)
+            .join(", ");
+          let line = `    ${card.label}${countStr} — ${deckStr}`;
           if (group.label === "心动" && card.eventName) {
             line += ` → ${card.eventName}`;
             if (card.eventDate) line += `（${card.eventDate}）`;
