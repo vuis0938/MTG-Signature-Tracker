@@ -173,7 +173,7 @@ describe("extractImageUrl", () => {
     expect(extractImageUrl(card)).toBe("https://example.com/normal.jpg");
   });
 
-  it("无 normal 时降级到 png", () => {
+  it("无 normal 时降级到 small", () => {
     const card = makeCard({
       image_uris: {
         normal: "",
@@ -181,8 +181,8 @@ describe("extractImageUrl", () => {
         png: "https://example.com/png.png",
       },
     });
-    // normal 为空字符串（falsy），降级到 png
-    expect(extractImageUrl(card)).toBe("https://example.com/png.png");
+    // normal 为空字符串（falsy），降级到 small
+    expect(extractImageUrl(card)).toBe("https://example.com/small.jpg");
   });
 
   it("无 image_uris 时从 card_faces 提取", () => {
