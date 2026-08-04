@@ -144,8 +144,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-sm">
+    <div className="flex h-screen items-center justify-center bg-background px-4 overflow-hidden">
+      <Card className="w-full max-w-sm max-h-screen overflow-y-auto">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl flex items-center justify-center gap-2">
             <Palette className="h-6 w-6 text-primary" />
