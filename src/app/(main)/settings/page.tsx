@@ -70,17 +70,60 @@ export default function SettingsPage() {
       const data = await res.json();
 
       if (data.success) {
-        const exportPayload = {
-          title: "MTG签绘管家",
-          url: "www.mtgkit.top",
-          exportedAt: new Date().toISOString().slice(0, 10),
-          decks: data.decks,
+        const decks: Array<{
+          name: string;
+          cards: Array<{ name: string; set: string; count: number; artist: string; status: string }>;
+          progress: { total: number; signed: number; unsigned: number; pending: number };
+        }> = data.decks;
+
+        // 状态符号
+        const statusMark = (status: string) => {
+          switch (status) {
+            case "已签": return "✓";
+            case "送签中": return "◐";
+            case "心动": return "♥";
+            default: return "☐";
+          }
         };
-        const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: "application/json" });
+
+        // 状态排序权重：待签 < 送签中 < 心动 < 已签
+        const statusOrder = (status: string) => {
+          switch (status) {
+            case "未签": return 0;
+            case "送签中": return 1;
+            case "心动": return 2;
+            case "已签": return 3;
+            default: return 0;
+          }
+        };
+
+        const date = new Date().toISOString().slice(0, 10);
+        const totalCards = data.cardCount;
+        const totalSigned = decks.reduce((sum, d) => sum + d.progress.signed, 0);
+        const pct = totalCards > 0 ? Math.round((totalSigned / totalCards) * 100) : 0;
+
+        let text = "MTG签绘管家 · www.mtgkit.top\n";
+        text += "我的签绘收藏\n";
+        text += `${date} 导出\n\n`;
+        text += `共 ${data.deckCount} 个套牌，${totalCards} 张卡牌，已签 ${totalSigned} 张（${pct}%）\n\n`;
+
+        for (const deck of decks) {
+          const { total, signed, unsigned, pending } = deck.progress;
+          text += `${deck.name}（${total} 张，已签 ${signed}/${total}）\n`;
+          // 按状态排序
+          const sorted = [...deck.cards].sort((a, b) => statusOrder(a.status) - statusOrder(b.status));
+          for (const card of sorted) {
+            const countStr = card.count > 1 ? ` ×${card.count}` : "";
+            text += `  ${statusMark(card.status)} ${card.name} [${card.set.toUpperCase()}]${countStr} — ${card.artist}\n`;
+          }
+          text += "\n";
+        }
+
+        const blob = new Blob(["\uFEFF" + text], { type: "text/plain;charset=utf-8" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `mtg-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `mtg-collection-${date}.txt`;
         a.click();
         URL.revokeObjectURL(url);
         showToast(
@@ -399,7 +442,7 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium">导出数据</p>
-              <p className="text-xs text-muted-foreground">将所有套牌和卡牌导出为 JSON 文件</p>
+              <p className="text-xs text-muted-foreground">导出全部套牌签绘清单为 TXT 文件</p>
             </div>
             <Button
               variant="outline"

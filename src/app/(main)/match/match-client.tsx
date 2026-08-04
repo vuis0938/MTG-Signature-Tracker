@@ -707,24 +707,36 @@ export default function MatchClient({
     const currentMatched = matchedRef.current;
     const currentUnmatched = unmatched;
 
-    // 状态标记符号
+    // 状态符号（简短，一行更紧凑）
     const statusMark = (status: number) => {
       switch (status) {
-        case 1: return " [送签中]";
-        case 2: return " [已签]";
-        case 3: return " [心动]";
-        default: return " [待签]";
+        case 1: return "◐";
+        case 2: return "✓";
+        case 3: return "♥";
+        default: return "☐";
+      }
+    };
+
+    // 状态排序权重：待签 → 送签中 → 心动 → 已签 → 其他版本
+    const statusOrder = (status: number, inDeck: boolean) => {
+      if (!inDeck) return 4;
+      switch (status) {
+        case 0: return 0;
+        case 1: return 1;
+        case 3: return 2;
+        case 2: return 3;
+        default: return 0;
       }
     };
 
     let text = "MTG签绘管家 · www.mtgkit.top\n活动签卡清单\n\n";
 
+    // 收集所有画家数据用于汇总和排序
+    const artistEntries: Array<{ artist: string; total: number; toSign: number; lines: string[] }> = [];
+
     if (currentFuzzyMode && currentFuzzyMatched.size > 0) {
       for (const [artist, entries] of currentFuzzyMatched) {
-        // 统计该画家待签数量
         const toSign = entries.filter((e) => e.deckCard && e.deckCard.status !== 2).length;
-        text += `${artist}（${entries.length} 个版本，${toSign > 0 ? `${toSign} 待签` : "全部已签"}）\n`;
-        // 合并同名同系列卡牌
         const grouped = new Map<string, { count: number; status: number; inDeck: boolean }>();
         for (const e of entries) {
           const key = `${e.card_name} [${e.set_code.toUpperCase()}]`;
@@ -738,20 +750,20 @@ export default function MatchClient({
             grouped.set(key, { count: 1, status: st, inDeck: !!e.deckCard });
           }
         }
-        for (const [label, info] of grouped) {
+        const lines: string[] = [];
+        const sorted = [...grouped.entries()].sort((a, b) =>
+          statusOrder(a[1].status, a[1].inDeck) - statusOrder(b[1].status, b[1].inDeck)
+        );
+        for (const [label, info] of sorted) {
           const countStr = info.count > 1 ? ` ×${info.count}` : "";
-          const mark = info.inDeck ? statusMark(info.status) : " [其他版本]";
-          text += `  · ${label}${countStr}${mark}\n`;
+          const mark = info.inDeck ? statusMark(info.status) : "○";
+          lines.push(`  ${mark} ${label}${countStr}\n`);
         }
-        text += "\n";
+        artistEntries.push({ artist, total: entries.length, toSign, lines });
       }
     } else {
       for (const [artist, cards] of currentMatched) {
-        // 统计待签数量
         const toSign = cards.filter((c) => c.status !== 2).length;
-        const signed = cards.length - toSign;
-        text += `${artist}（${cards.length} 张，${toSign > 0 ? `${toSign} 待签` : "全部已签"}）\n`;
-        // 合并同名同系列卡牌
         const grouped = new Map<string, { count: number; status: number }>();
         for (const card of cards) {
           const key = `${card.card_name} [${card.set_code.toUpperCase()}]`;
@@ -763,12 +775,33 @@ export default function MatchClient({
             grouped.set(key, { count: 1, status: card.status });
           }
         }
-        for (const [label, info] of grouped) {
+        const lines: string[] = [];
+        const sorted = [...grouped.entries()].sort((a, b) =>
+          statusOrder(a[1].status, true) - statusOrder(b[1].status, true)
+        );
+        for (const [label, info] of sorted) {
           const countStr = info.count > 1 ? ` ×${info.count}` : "";
-          text += `  · ${label}${countStr}${statusMark(info.status)}\n`;
+          lines.push(`  ${statusMark(info.status)} ${label}${countStr}\n`);
         }
-        text += "\n";
+        artistEntries.push({ artist, total: cards.length, toSign, lines });
       }
+    }
+
+    // 排序：有待签的画家在前，全部已签的在后
+    artistEntries.sort((a, b) => {
+      if (a.toSign > 0 && b.toSign === 0) return -1;
+      if (a.toSign === 0 && b.toSign > 0) return 1;
+      return 0;
+    });
+
+    // 汇总行
+    const totalToSign = artistEntries.reduce((sum, a) => sum + a.toSign, 0);
+    text += `共 ${artistEntries.length} 位画家，${totalToSign} 张待签\n\n`;
+
+    for (const entry of artistEntries) {
+      text += `${entry.artist}（${entry.total} ${currentFuzzyMode ? "个版本" : "张"}，${entry.toSign > 0 ? `${entry.toSign} 待签` : "全部已签"}）\n`;
+      text += entry.lines.join("");
+      text += "\n";
     }
 
     if (currentUnmatched.length > 0) {
