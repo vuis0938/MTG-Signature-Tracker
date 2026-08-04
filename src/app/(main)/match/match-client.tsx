@@ -707,41 +707,65 @@ export default function MatchClient({
     const currentMatched = matchedRef.current;
     const currentUnmatched = unmatched;
 
+    // 状态标记符号
+    const statusMark = (status: number) => {
+      switch (status) {
+        case 1: return " [送签中]";
+        case 2: return " [已签]";
+        case 3: return " [心动]";
+        default: return " [待签]";
+      }
+    };
+
     let text = "MTG签绘管家 · www.mtgkit.top\n活动签卡清单\n\n";
 
     if (currentFuzzyMode && currentFuzzyMatched.size > 0) {
       for (const [artist, entries] of currentFuzzyMatched) {
-        text += `${artist}\n`;
-        // 合并同名同系列卡牌，标记是否在套牌中
-        const grouped = new Map<string, { count: number; inDeck: boolean }>();
+        // 统计该画家待签数量
+        const toSign = entries.filter((e) => e.deckCard && e.deckCard.status !== 2).length;
+        text += `${artist}（${entries.length} 个版本，${toSign > 0 ? `${toSign} 待签` : "全部已签"}）\n`;
+        // 合并同名同系列卡牌
+        const grouped = new Map<string, { count: number; status: number; inDeck: boolean }>();
         for (const e of entries) {
           const key = `${e.card_name} [${e.set_code.toUpperCase()}]`;
           const existing = grouped.get(key);
+          const st = e.deckCard?.status ?? 0;
           if (existing) {
             existing.count++;
+            if (st > existing.status) existing.status = st;
             if (e.deckCard) existing.inDeck = true;
           } else {
-            grouped.set(key, { count: 1, inDeck: !!e.deckCard });
+            grouped.set(key, { count: 1, status: st, inDeck: !!e.deckCard });
           }
         }
         for (const [label, info] of grouped) {
           const countStr = info.count > 1 ? ` ×${info.count}` : "";
-          const mark = info.inDeck ? " ✓" : "";
+          const mark = info.inDeck ? statusMark(info.status) : " [其他版本]";
           text += `  · ${label}${countStr}${mark}\n`;
         }
         text += "\n";
       }
     } else {
       for (const [artist, cards] of currentMatched) {
-        text += `${artist}（${cards.length} 张）\n`;
+        // 统计待签数量
+        const toSign = cards.filter((c) => c.status !== 2).length;
+        const signed = cards.length - toSign;
+        text += `${artist}（${cards.length} 张，${toSign > 0 ? `${toSign} 待签` : "全部已签"}）\n`;
         // 合并同名同系列卡牌
-        const grouped = new Map<string, number>();
+        const grouped = new Map<string, { count: number; status: number }>();
         for (const card of cards) {
           const key = `${card.card_name} [${card.set_code.toUpperCase()}]`;
-          grouped.set(key, (grouped.get(key) || 0) + 1);
+          const existing = grouped.get(key);
+          if (existing) {
+            existing.count++;
+            if (card.status > existing.status) existing.status = card.status;
+          } else {
+            grouped.set(key, { count: 1, status: card.status });
+          }
         }
-        for (const [label, count] of grouped) {
-          text += `  · ${label}${count > 1 ? ` ×${count}` : ""}\n`;
+        for (const [label, info] of grouped) {
+          const countStr = info.count > 1 ? ` ×${info.count}` : "";
+          text += `  · ${label}${countStr}${statusMark(info.status)}\n`;
         }
         text += "\n";
       }
