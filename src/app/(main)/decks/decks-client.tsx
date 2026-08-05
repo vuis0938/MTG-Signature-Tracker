@@ -5,7 +5,7 @@ import { useToast } from "@/lib/toast-context";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import { useDisplayMode } from "@/lib/display-mode";
 import { CardImage } from "@/components/card-image";
-import { useDecks } from "@/lib/swr-hooks";
+import { useDecks, type DecksResponse } from "@/lib/swr-hooks";
 import { useDeckLayout } from "@/lib/deck-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -119,6 +119,13 @@ export default function DecksClient({
   cardsRef.current = cards;
   const expandedDeckRef = useRef(expandedDeck);
   expandedDeckRef.current = expandedDeck;
+
+  // SWR 数据的 ref：mutate(updater, false) 在 revalidateOnMount:false + fallbackData 场景下
+  // updater 收到的是 undefined（fallbackData 不写入 SWR 缓存），需要用 ref 获取当前数据
+  const swrDataRef = useRef<DecksResponse | undefined>(
+    fallbackData
+  );
+  swrDataRef.current = { success: true, decks, stats: deckStats };
 
   // 添加卡牌弹窗
   const [addCardsOpen, setAddCardsOpen] = useState<string | null>(null);
@@ -338,6 +345,8 @@ export default function DecksClient({
     });
 
     // 乐观更新 SWR 缓存中的统计（不触发服务端请求）
+    // 注意：SWR v2 中 fallbackData 不写入缓存，mutate(updater, false) 的 updater
+    // 在 revalidateOnMount:false 场景下收到 undefined，必须用 mutate(data, false) 直接设置
     const applyStatsDelta = (stats: Record<string, DeckStats>, fromStatus: number, toStatus: number, times: number) => {
       if (!stats[deckId]) return stats;
       const delta: Record<number, { u: number; p: number }> = {
@@ -359,10 +368,12 @@ export default function DecksClient({
     };
 
     const times = cardIds.length;
-    revalidate((cacheData) => {
-      if (!cacheData) return cacheData;
-      return { ...cacheData, stats: applyStatsDelta({ ...cacheData.stats }, currentStatus, newStatus, times) };
-    }, false);
+    // 用 ref 中的当前数据构建乐观更新后的完整数据，直接 mutate(data, false)
+    const currentSWRData = swrDataRef.current;
+    if (currentSWRData) {
+      const newStats = applyStatsDelta({ ...currentSWRData.stats }, currentStatus, newStatus, times);
+      revalidate({ ...currentSWRData, stats: newStats }, false);
+    }
 
     // 2. 后台写入数据库（单请求批量），失败则回滚 UI
     fetch("/api/cards", {
@@ -389,10 +400,11 @@ export default function DecksClient({
             }
             return updated;
           });
-          revalidate((cacheData) => {
-            if (!cacheData) return cacheData;
-            return { ...cacheData, stats: applyStatsDelta({ ...cacheData.stats }, newStatus, currentStatus, times) };
-          }, false);
+          const rollbackData = swrDataRef.current;
+          if (rollbackData) {
+            const rollbackStats = applyStatsDelta({ ...rollbackData.stats }, newStatus, currentStatus, times);
+            revalidate({ ...rollbackData, stats: rollbackStats }, false);
+          }
           showToast(data.error || "状态更新失败，请重试", "error");
         }
       })
@@ -407,10 +419,11 @@ export default function DecksClient({
           }
           return updated;
         });
-        revalidate((cacheData) => {
-          if (!cacheData) return cacheData;
-          return { ...cacheData, stats: applyStatsDelta({ ...cacheData.stats }, newStatus, currentStatus, times) };
-        }, false);
+        const rollbackData = swrDataRef.current;
+        if (rollbackData) {
+          const rollbackStats = applyStatsDelta({ ...rollbackData.stats }, newStatus, currentStatus, times);
+          revalidate({ ...rollbackData, stats: rollbackStats }, false);
+        }
         showToast("网络错误，状态已恢复", "error");
       });
   }, [showToast, revalidate]);
