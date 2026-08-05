@@ -42,14 +42,10 @@ export async function getDecksWithStats(
 
   // 单条查询拉取所有卡牌的 deck_id + status，在内存中聚合统计
   const deckIds = decks.map((d) => d.id);
-  const { data: allCards, error: cardsError } = await supabase
+  const { data: allCards } = await supabase
     .from("cards")
     .select("deck_id, status")
     .in("deck_id", deckIds);
-
-  if (cardsError) {
-    console.error("[data] 查询卡牌统计失败:", cardsError.message);
-  }
 
   const stats: Record<string, DeckStats> = {};
   for (const deck of decks) {
@@ -101,15 +97,11 @@ export async function getDecksWithCards(
 
   // 单条查询拉取所有卡牌（只选渲染所需列，减少网络负载）
   const deckIds = decks.map((d) => d.id);
-  const { data: allCards, error: cardsError } = await supabase
+  const { data: allCards } = await supabase
     .from("cards")
     .select(CARD_SELECT_COLUMNS)
     .in("deck_id", deckIds)
     .order("artist_names");
-
-  if (cardsError) {
-    console.error("[data] 查询卡牌列表失败:", cardsError.message);
-  }
 
   // 按套牌分组 + 聚合统计
   const stats: Record<string, DeckStats> = {};

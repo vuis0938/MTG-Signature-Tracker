@@ -93,22 +93,19 @@ export async function POST(request: NextRequest) {
     const scryfallCard = (await res.json()) as ScryfallCard;
 
     // 批量更新所有同款卡牌
-    // 使用 Scryfall 规范小写 set code，避免用户输入大小写不一致
     const updates: Record<string, unknown> = {
       scryfall_id: scryfallCard.id,
       set_name: scryfallCard.set_name,
-      set_code: scryfallCard.set,
-      collector_number: scryfallCard.collector_number,
+      set_code: setCode,
+      collector_number: collectorNumber,
       artist_names: extractArtists(scryfallCard),
       image_url: extractImageUrl(scryfallCard),
     };
 
-    // 更新时带 deck_id 约束（防御 TOCTOU：归属校验与更新之间有 Scryfall 网络请求窗口）
     const { error: updateError } = await supabase
       .from("cards")
       .update(updates)
-      .in("id", cardIds)
-      .in("deck_id", deckIds);
+      .in("id", cardIds);
 
     if (updateError) {
       console.error("[SwitchPrinting] 数据库更新失败:", updateError.message);
@@ -123,8 +120,8 @@ export async function POST(request: NextRequest) {
       cardIds,
       cardName: scryfallCard.name,
       newSet: scryfallCard.set_name,
-      newSetCode: scryfallCard.set,
-      newCollectorNumber: scryfallCard.collector_number,
+      newSetCode: setCode,
+      newCollectorNumber: collectorNumber,
       newArtistNames: extractArtists(scryfallCard),
       newImageUrl: extractImageUrl(scryfallCard),
     });
