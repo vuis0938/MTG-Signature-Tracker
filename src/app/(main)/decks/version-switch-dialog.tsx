@@ -38,102 +38,104 @@ export default function VersionSwitchDialog({
           {switchCard?.artist_names && (" · 画家：" + switchCard.artist_names.join(", "))}
         </DialogDescription>
       </DialogHeader>
-      {printingsLoading ? (
-        <DialogContent>
-          <div className="flex items-center justify-center gap-2 min-h-[60vh] max-h-[60vh] text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            <span className="text-sm">加载中...</span>
-          </div>
-        </DialogContent>
-      ) : (
-        <DialogContent>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 min-h-[60vh] max-h-[60vh] overflow-y-auto p-1 pr-2 items-start content-start">
-            {(() => {
-              // 确保当前版本始终在列表中（Scryfall 搜索可能遗漏部分 promo/特殊版本）
-              const currentSet = (switchCard?.set_code || "").toLowerCase().trim();
-              const currentNum = String(switchCard?.collector_number || "").trim();
-              const hasCurrent = printings.some(
-                (p) => p.set.toLowerCase().trim() === currentSet &&
-                       String(p.collector_number).trim() === currentNum
-              );
-              const displayPrintings = hasCurrent ? printings : [
-                 {
-                   set: switchCard?.set_code || "",
-                   set_name: "当前版本",
-                   collector_number: switchCard?.collector_number || "",
-                   artist: switchCard?.artist_names?.join(", ") || "Unknown",
-                   image_url: switchCard?.image_url || null,
-                   released_at: undefined,
-                 },
-                 ...printings,
-               ];
-
-              return displayPrintings.map((printing) => {
-              const isCurrent =
-                printing.set.toLowerCase().trim() === (switchCard?.set_code || "").toLowerCase().trim() &&
-                String(printing.collector_number).trim() === String(switchCard?.collector_number || "").trim();
-              const isSwitching = switchPrintingLoading === switchCard?.id;
-
-              return (
-                <button
-                  key={printing.set + "-" + printing.collector_number}
-                  onClick={() => {
-                    if (switchCard && !isCurrent && !isSwitching) {
-                      onSwitchPrinting(switchCard.id, printing.set, printing.collector_number);
-                    }
-                  }}
-                  disabled={isCurrent || isSwitching}
-                  className={"text-left rounded-lg border-2 transition-all " + (isCurrent ? "overflow-visible border-blue-400 ring-2 ring-blue-400/40 cursor-default" : "overflow-hidden border-border hover:border-primary/50 hover:shadow cursor-pointer") + (isSwitching ? " opacity-50" : "")}
-                  title={printing.artist}
-                >
-                  {printing.image_url ? (
-                    <CardImage
-                      src={printing.image_url}
-                      alt={printing.set_name + " #" + printing.collector_number}
-                      className="w-full rounded-t-lg"
-                    />
-                  ) : (
-                    <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center text-xs text-muted-foreground">
-                      {printing.set_name}
-                    </div>
-                  )}
-                  <div className="p-1.5 text-xs">
-                    <p className="font-medium truncate">{printing.set_name}</p>
-                    <p className="text-muted-foreground truncate">
-                      #{printing.collector_number} · {printing.artist}
-                    </p>
-                  </div>
-                </button>
-              );
-            });
-            })()}
-          </div>
-          {printings.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              未找到该卡牌的其他印刷版本
-            </p>
-          )}
-          {/* 删除此卡牌 */}
-          {switchCard && (
-            <div className="border-t pt-3 mt-3">
-              <Button
-                variant="destructive"
-                size="sm"
-                className="w-full"
-                disabled={deletingCard === switchCard.id}
-                onClick={() => {
-                  if (confirm(`确定从套牌中删除「${switchCard.card_name}」吗？此操作不可撤销`)) {
-                    onDeleteCard(switchCard.id);
-                  }
-                }}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                {deletingCard === switchCard.id ? "删除中..." : "从套牌中删除此卡牌"}
-              </Button>
+      <DialogContent className="flex flex-col h-[60vh] p-0">
+        <div className="flex-1 overflow-y-auto px-6 pb-6 min-h-0">
+          {printingsLoading ? (
+            <div className="flex items-center justify-center gap-2 h-full text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span className="text-sm">加载中...</span>
             </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 p-1 pr-2 items-start content-start">
+                {(() => {
+                  // 确保当前版本始终在列表中（Scryfall 搜索可能遗漏部分 promo/特殊版本）
+                  const currentSet = (switchCard?.set_code || "").toLowerCase().trim();
+                  const currentNum = String(switchCard?.collector_number || "").trim();
+                  const hasCurrent = printings.some(
+                    (p) => p.set.toLowerCase().trim() === currentSet &&
+                           String(p.collector_number).trim() === currentNum
+                  );
+                  const displayPrintings = hasCurrent ? printings : [
+                     {
+                       set: switchCard?.set_code || "",
+                       set_name: "当前版本",
+                       collector_number: switchCard?.collector_number || "",
+                       artist: switchCard?.artist_names?.join(", ") || "Unknown",
+                       image_url: switchCard?.image_url || null,
+                       released_at: undefined,
+                     },
+                     ...printings,
+                   ];
+
+                  return displayPrintings.map((printing) => {
+                  const isCurrent =
+                    printing.set.toLowerCase().trim() === (switchCard?.set_code || "").toLowerCase().trim() &&
+                    String(printing.collector_number).trim() === String(switchCard?.collector_number || "").trim();
+                  const isSwitching = switchPrintingLoading === switchCard?.id;
+
+                  return (
+                    <button
+                      key={printing.set + "-" + printing.collector_number}
+                      onClick={() => {
+                        if (switchCard && !isCurrent && !isSwitching) {
+                          onSwitchPrinting(switchCard.id, printing.set, printing.collector_number);
+                        }
+                      }}
+                      disabled={isCurrent || isSwitching}
+                      className={"text-left rounded-lg border-2 transition-all " + (isCurrent ? "overflow-visible border-blue-400 ring-2 ring-blue-400/40 cursor-default" : "overflow-hidden border-border hover:border-primary/50 hover:shadow cursor-pointer") + (isSwitching ? " opacity-50" : "")}
+                      title={printing.artist}
+                    >
+                      {printing.image_url ? (
+                        <CardImage
+                          src={printing.image_url}
+                          alt={printing.set_name + " #" + printing.collector_number}
+                          className="w-full rounded-t-lg"
+                        />
+                      ) : (
+                        <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center text-xs text-muted-foreground">
+                          {printing.set_name}
+                        </div>
+                      )}
+                      <div className="p-1.5 text-xs">
+                        <p className="font-medium truncate">{printing.set_name}</p>
+                        <p className="text-muted-foreground truncate">
+                          #{printing.collector_number} · {printing.artist}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                });
+                })()}
+              </div>
+              {printings.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  未找到该卡牌的其他印刷版本
+                </p>
+              )}
+            </>
           )}
-        </DialogContent>
-      )}
+        </div>
+        {/* 删除此卡牌 — 固定在底部，加载态同样占位，确保总高度不变 */}
+        {switchCard && (
+          <div className="px-6 py-3 border-t shrink-0">
+            <Button
+              variant="destructive"
+              size="sm"
+              className="w-full"
+              disabled={printingsLoading || deletingCard === switchCard.id}
+              onClick={() => {
+                if (confirm(`确定从套牌中删除「${switchCard.card_name}」吗？此操作不可撤销`)) {
+                  onDeleteCard(switchCard.id);
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              {deletingCard === switchCard.id ? "删除中..." : "从套牌中删除此卡牌"}
+            </Button>
+          </div>
+        )}
+      </DialogContent>
     </Dialog>
   );
 }

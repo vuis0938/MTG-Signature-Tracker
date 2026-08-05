@@ -34,21 +34,19 @@ export default function ArtistGalleryDialog({
       <DialogHeader>
         <DialogTitle>{artist} 的卡牌</DialogTitle>
       </DialogHeader>
-      {loading ? (
-        <DialogContent>
-          <div className="flex items-center justify-center min-h-[60vh] max-h-[60vh]">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-sm text-muted-foreground">加载中...</span>
-          </div>
-        </DialogContent>
-      ) : (
-        <DialogContent>
-          {cards.length === 0 ? (
-            <div className="flex items-center justify-center min-h-[60vh] max-h-[60vh]">
+      <DialogContent className="flex flex-col h-[60vh] p-0">
+        <div className="flex-1 overflow-y-auto px-6 pb-6 min-h-0">
+          {loading ? (
+            <div className="flex items-center justify-center h-full">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-sm text-muted-foreground">加载中...</span>
+            </div>
+          ) : cards.length === 0 ? (
+            <div className="flex items-center justify-center h-full">
               <p className="text-sm text-muted-foreground text-center">未找到该画家的卡牌</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 min-h-[60vh] max-h-[60vh] overflow-y-auto pr-2 items-start content-start">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 pr-2 items-start content-start">
               {cards.map((card) => (
                 <div
                   key={card.set + "-" + card.collector_number}
@@ -70,8 +68,8 @@ export default function ArtistGalleryDialog({
               ))}
             </div>
           )}
-        </DialogContent>
-      )}
+        </div>
+      </DialogContent>
     </Dialog>
   );
 }
