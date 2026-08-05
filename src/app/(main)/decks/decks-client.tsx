@@ -27,7 +27,7 @@ import {
   DialogContent,
 } from "@/components/ui/dialog";
 import type { Deck, CardEntry, DeckStats, Printing } from "@/types";
-import { getNextStatus } from "@/lib/match-utils";
+import { getNextDeckStatus } from "@/lib/match-utils";
 import VersionSwitchDialog from "./version-switch-dialog";
 
 // ─── 纯工具函数 ──────────────────────────────────────────
@@ -315,7 +315,7 @@ export default function DecksClient({
     const cardIds = Array.isArray(cardIdOrIds) ? cardIdOrIds : [cardIdOrIds];
     if (cardIds.length === 0) return;
     const idSet = new Set(cardIds);
-    const newStatus = getNextStatus(currentStatus);
+    const newStatus = getNextDeckStatus(currentStatus);
 
     // 记录旧卡牌数据，用于回滚时恢复全部字段（含 event_name/event_date）
     const oldCards = new Map<string, CardEntry>();
@@ -946,7 +946,7 @@ const DeckListItem = memo(function DeckListItem({
             <div className={deckLayout === "compact" ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3 sm:gap-y-4" : deckLayout === "list" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4" : "space-y-4"}>
               <p className="text-xs text-muted-foreground flex items-center gap-1 col-span-full">
                 <Lightbulb className="h-3.5 w-3.5 shrink-0" />
-                点击卡牌可切换状态：未签 → 心动 → 送签中 → 已签
+                点击卡牌可切换状态：未签 → 送签中 → 已签
               </p>
               {artistGroups.map(({ artist, artistCards, displayCards }) => {
                 // 文本视图
@@ -1045,10 +1045,10 @@ interface CardThumbnailProps {
 const CardThumbnail = memo(function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleStatus, onLoadPrintings }: CardThumbnailProps) {
   const status = card.status ?? (card.is_signed ? 2 : 0);
   const statusLabels: Record<number, string> = {
-    0: "未签（点击切换为心动）",
+    0: "未签（点击切换为送签中）",
     1: "送签中（点击切换为已签）",
     2: "已签（点击切换为未签）",
-    3: "心动（点击切换为送签中）",
+    3: "心动（点击切换为未签）",
   };
   const hasOverlay = status >= 1;
   const overlayColor: Record<number, string> = { 1: "bg-blue-500", 2: "bg-green-500", 3: "bg-pink-500" };

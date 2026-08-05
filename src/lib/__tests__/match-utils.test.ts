@@ -4,7 +4,8 @@ import {
   buildNormalizedMap,
   findMatchingArtist,
   isSamePrinting,
-  getNextStatus,
+  getNextDeckStatus,
+  getNextMatchStatus,
   matchAgainstArtists,
 } from "../match-utils";
 
@@ -356,27 +357,53 @@ describe("isSamePrinting", () => {
 });
 
 // ═════════════════════════════════════════════════════════════
-// getNextStatus
+// getNextDeckStatus
 // ═════════════════════════════════════════════════════════════
 
-describe("getNextStatus", () => {
-  it("待签(0) → 心动(3)", () => {
-    expect(getNextStatus(0)).toBe(3);
-  });
-
-  it("心动(3) → 送签中(1)", () => {
-    expect(getNextStatus(3)).toBe(1);
+describe("getNextDeckStatus", () => {
+  it("未签(0) → 送签中(1)", () => {
+    expect(getNextDeckStatus(0)).toBe(1);
   });
 
   it("送签中(1) → 已签(2)", () => {
-    expect(getNextStatus(1)).toBe(2);
+    expect(getNextDeckStatus(1)).toBe(2);
   });
 
   it("已签(2) → 未签(0)", () => {
-    expect(getNextStatus(2)).toBe(0);
+    expect(getNextDeckStatus(2)).toBe(0);
+  });
+
+  it("心动(3) 回退到 0（套牌页不使用心动循环）", () => {
+    expect(getNextDeckStatus(3)).toBe(0);
   });
 
   it("未知状态回退到 0", () => {
-    expect(getNextStatus(99)).toBe(0);
+    expect(getNextDeckStatus(99)).toBe(0);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// getNextMatchStatus
+// ═════════════════════════════════════════════════════════════
+
+describe("getNextMatchStatus", () => {
+  it("未签(0) → 心动(3)", () => {
+    expect(getNextMatchStatus(0)).toBe(3);
+  });
+
+  it("心动(3) → 送签中(1)", () => {
+    expect(getNextMatchStatus(3)).toBe(1);
+  });
+
+  it("送签中(1) → 未签(0)", () => {
+    expect(getNextMatchStatus(1)).toBe(0);
+  });
+
+  it("已签(2) 回退到 0（匹配页不使用已签循环）", () => {
+    expect(getNextMatchStatus(2)).toBe(0);
+  });
+
+  it("未知状态回退到 0", () => {
+    expect(getNextMatchStatus(99)).toBe(0);
   });
 });

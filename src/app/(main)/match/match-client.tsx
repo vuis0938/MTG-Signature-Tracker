@@ -29,7 +29,7 @@ import {
 // ─── 类型定义 ──────────────────────────────────────────────
 
 import type { Deck, DeckStats, CardEntry, FuzzyCardEntry, ArtistCard, CalendarEvent } from "@/types";
-import { normalizeArtists, buildNormalizedMap, findMatchingArtist, isSamePrinting, getNextStatus, matchAgainstArtists } from "@/lib/match-utils";
+import { normalizeArtists, buildNormalizedMap, findMatchingArtist, isSamePrinting, getNextMatchStatus, matchAgainstArtists } from "@/lib/match-utils";
 import type { FuzzyApiResponse } from "@/lib/match-utils";
 
 // ─── 页面组件 ──────────────────────────────────────────────
@@ -306,7 +306,7 @@ export default function MatchClient({
       }
     }
 
-    const newStatus = getNextStatus(currentStatus);
+    const newStatus = getNextMatchStatus(currentStatus);
     const updatePayload = {
       status: newStatus,
       is_signed: newStatus === 2,
@@ -1176,7 +1176,7 @@ function MatchResultCard({
           <>
             <p className="text-xs text-muted-foreground flex items-center gap-1 mb-3">
               <Lightbulb className="h-3.5 w-3.5 shrink-0" />
-              点击卡牌可切换状态：未签 → 心动 → 送签中 → 已签
+              点击卡牌可切换状态：未签 → 心动 → 送签中
             </p>
             {fuzzyMode ? (
               <FuzzyMatchResults fuzzyMatched={fuzzyMatched} toggleStatus={toggleStatus} />
