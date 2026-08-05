@@ -31,17 +31,17 @@ export default function VersionSwitchDialog({
   onClose, onSwitchPrinting, onDeleteCard,
 }: VersionSwitchDialogProps) {
   return (
-    <Dialog open={switchCard !== null} onOpenChange={onClose} className="max-w-3xl flex flex-col h-[70vh] overflow-hidden pr-0">
-      <DialogHeader className="shrink-0">
+    <Dialog open={switchCard !== null} onOpenChange={onClose} className="max-w-3xl pr-0">
+      <DialogHeader>
         <DialogTitle>切换印刷版本 — {switchCard?.card_name}</DialogTitle>
         <DialogDescription>
           当前版本：{switchCard?.set_code?.toUpperCase()} #{switchCard?.collector_number}
           {switchCard?.artist_names && (" · 画家：" + switchCard.artist_names.join(", "))}
         </DialogDescription>
       </DialogHeader>
-      <DialogContent className="flex-1 overflow-y-auto min-h-0">
+      <DialogContent>
         {printingsLoading ? (
-          <CardGridSkeleton className="p-1" count={12} />
+          <CardGridSkeleton className="p-1" rows={2} />
         ) : (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 p-1 items-start content-start">

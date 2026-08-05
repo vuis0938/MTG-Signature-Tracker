@@ -14,16 +14,18 @@ function CardSkeleton() {
 
 interface CardGridSkeletonProps {
   count?: number;
+  rows?: number;
   className?: string;
 }
 
-export function CardGridSkeleton({ count = 12, className }: CardGridSkeletonProps) {
+export function CardGridSkeleton({ count = 12, rows, className }: CardGridSkeletonProps) {
   return (
     <div
       className={cn(
-        "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 items-start content-start",
+        "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 items-start content-start overflow-hidden",
         className
       )}
+      style={rows ? { gridTemplateRows: `repeat(${rows}, minmax(0, auto))` } : undefined}
     >
       {Array.from({ length: count }).map((_, i) => (
         <CardSkeleton key={i} />

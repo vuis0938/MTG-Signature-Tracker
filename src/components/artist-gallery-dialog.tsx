@@ -29,41 +29,41 @@ export default function ArtistGalleryDialog({
     <Dialog
       open
       onOpenChange={onClose}
-      className="max-w-3xl flex flex-col h-[70vh] overflow-hidden pr-0"
+      className="max-w-3xl pr-0"
     >
-      <DialogHeader className="shrink-0">
+      <DialogHeader>
         <DialogTitle>{artist} 的卡牌</DialogTitle>
       </DialogHeader>
-      <DialogContent className="flex-1 overflow-y-auto min-h-0">
+      <DialogContent>
         {loading ? (
-          <CardGridSkeleton count={12} />
+          <CardGridSkeleton rows={2} />
         ) : cards.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <p className="text-sm text-muted-foreground text-center">未找到该画家的卡牌</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 items-start content-start">
-              {cards.map((card) => (
-                <div
-                  key={card.set + "-" + card.collector_number}
-                  className="rounded-lg border overflow-hidden bg-background"
-                  title={card.set_name + " #" + card.collector_number}
-                >
-                  {card.image_url ? (
-                    <CardImage src={card.image_url} alt={card.name} className="w-full" />
-                  ) : (
-                    <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
-                      {card.name}
-                    </div>
-                  )}
-                  <div className="p-1.5 text-xs">
-                    <p className="font-medium truncate">{card.name}</p>
-                    <p className="text-muted-foreground truncate">{card.set_name} #{card.collector_number}</p>
+            {cards.map((card) => (
+              <div
+                key={card.set + "-" + card.collector_number}
+                className="rounded-lg border overflow-hidden bg-background"
+                title={card.set_name + " #" + card.collector_number}
+              >
+                {card.image_url ? (
+                  <CardImage src={card.image_url} alt={card.name} className="w-full" />
+                ) : (
+                  <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
+                    {card.name}
                   </div>
+                )}
+                <div className="p-1.5 text-xs">
+                  <p className="font-medium truncate">{card.name}</p>
+                  <p className="text-muted-foreground truncate">{card.set_name} #{card.collector_number}</p>
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            ))}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
