@@ -29,11 +29,19 @@ export async function DELETE(request: NextRequest) {
 
     // 删除卡牌
     if (deckIds.length > 0) {
-      await supabase.from("cards").delete().in("deck_id", deckIds);
+      const { error: cardsError } = await supabase.from("cards").delete().in("deck_id", deckIds);
+      if (cardsError) {
+        console.error("[ClearData] 删除卡牌失败:", cardsError);
+        return NextResponse.json({ error: "清除卡牌数据失败" }, { status: 500 });
+      }
     }
 
     // 删除套牌
-    await supabase.from("decks").delete().eq("user_name", userName);
+    const { error: decksError } = await supabase.from("decks").delete().eq("user_name", userName);
+    if (decksError) {
+      console.error("[ClearData] 删除套牌失败:", decksError);
+      return NextResponse.json({ error: "清除套牌数据失败" }, { status: 500 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

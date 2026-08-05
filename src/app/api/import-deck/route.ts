@@ -77,7 +77,6 @@ export async function POST(request: NextRequest) {
     // 有 set+number 的传精确标识符，没的传卡名
     // 100 张牌只需 2 次请求，~3s 完成，彻底消除 429
     const SOFT_DEADLINE_MS = 180 * 1000;
-    const tScryfall = Date.now();
     const totalCards = rows.reduce((sum, r) => sum + (parseInt(r.count, 10) || 1), 0);
 
     const identifiers: CardIdentifier[] = rows.map((r) => ({
@@ -94,8 +93,6 @@ export async function POST(request: NextRequest) {
       data: scryfallResults[i],
       timedOut: Date.now() - t0 > SOFT_DEADLINE_MS,
     }));
-
-    const tScryfallDone = Date.now();
 
     // ── 批量写入 Supabase ──
     let successCount = 0;
@@ -140,7 +137,6 @@ export async function POST(request: NextRequest) {
       successCount += count;
     }
 
-    const tBeforeDB = Date.now();
     if (cardsToInsert.length > 0) {
       const { error: batchError } = await supabase.from("cards").insert(cardsToInsert);
       if (batchError) {
@@ -150,9 +146,6 @@ export async function POST(request: NextRequest) {
         }
       }
     }
-    const tDB = Date.now() - tBeforeDB;
-    const tTotal = ((Date.now() - t0) / 1000).toFixed(1);
-    const tS = ((tScryfallDone - tScryfall) / 1000).toFixed(1);
 
     // ── 直接调用函数预热缓存（避免 HTTP 自回环开销） ──
     const uniqueCardNames = [...new Set(cardsToInsert.map((c) => c.card_name as string))];
@@ -173,11 +166,6 @@ export async function POST(request: NextRequest) {
       hint: isTimedOut
         ? `成功导入 ${successCount} 张，${timedOutCards.length} 张未查到，可通过「添加卡牌」补充`
         : undefined,
-      timing: {
-        total: `${tTotal}s`,
-        scryfall: `${tS}s (${rows.length} batch, ${totalCards} cards)`,
-        db: `${(tDB / 1000).toFixed(1)}s`,
-      },
     });
   } catch (error) {
     console.error("[Import]", error);

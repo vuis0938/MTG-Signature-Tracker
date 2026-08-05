@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { delay, SCRYFALL_UA } from "@/lib/scryfall-client";
+import { delay, SCRYFALL_UA, SCRYFALL_BASE_URL } from "@/lib/scryfall-client";
 import { getUserFromRequest } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import type { ArtistCard } from "@/types";
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
 
     // ── 3. 缓存全未命中，查 Scryfall ────────────────────
     const allCards: ArtistCard[] = [];
-    let pageUrl = `https://api.scryfall.com/cards/search?q=a:"${encodeURIComponent(artistName)}"+unique:prints&order=released`;
+    let pageUrl = `${SCRYFALL_BASE_URL}/cards/search?q=a:"${encodeURIComponent(artistName)}"+unique:prints&order=released`;
 
     let isFirstPage = true;
     while (pageUrl) {
@@ -134,7 +134,7 @@ export async function GET(request: NextRequest) {
         .from("artist_cards")
         .upsert({
           artist_name: artistName,
-          cards: allCards as unknown[],
+          cards: allCards,
           card_count: allCards.length,
         })
         .then(({ error }) => {

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { ScryfallCard, extractArtists, extractImageUrl } from "@/lib/scryfall-client";
-import { SCRYFALL_UA } from "@/lib/scryfall-client";
+import { ScryfallCard, extractArtists, extractImageUrl, SCRYFALL_UA, SCRYFALL_BASE_URL } from "@/lib/scryfall-client";
 import { getUserFromRequest } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
@@ -37,7 +36,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 模糊搜索
-    const url = `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(cardName)}`;
+    const url = `${SCRYFALL_BASE_URL}/cards/named?fuzzy=${encodeURIComponent(cardName)}`;
     const res = await fetch(url, {
       headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
     });

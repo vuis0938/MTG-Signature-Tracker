@@ -84,7 +84,7 @@ export function extractImageUrl(card: ScryfallCard): string | null {
 // ─── 常量 ──────────────────────────────────────────────────
 
 export const SCRYFALL_UA = "MTG-Signature-Tracker/1.0";
-const BASE_URL = "https://api.scryfall.com";
+export const SCRYFALL_BASE_URL = "https://api.scryfall.com";
 const MIN_DELAY_MS = 100;
 const MAX_RETRIES = 2; // 初始 + 2 次重试 = 3 次机会
 const FETCH_TIMEOUT_MS = 15_000; // 单次请求超时 15 秒
@@ -199,7 +199,7 @@ async function fetchExact(
   rateLimiter?: RateLimiter,
   attempt = 0
 ): Promise<ScryfallCard | null> {
-  const url = `${BASE_URL}/cards/named?exact=${encodeURIComponent(cardName)}`;
+  const url = `${SCRYFALL_BASE_URL}/cards/named?exact=${encodeURIComponent(cardName)}`;
   try {
     const res = await fetchWithTimeout(url, {
       headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
@@ -254,7 +254,7 @@ async function fetchFuzzy(
       await delay(staggerMs);
     }
   }
-  const url = `${BASE_URL}/cards/named?fuzzy=${encodeURIComponent(cardName)}`;
+  const url = `${SCRYFALL_BASE_URL}/cards/named?fuzzy=${encodeURIComponent(cardName)}`;
   try {
     const res = await fetchWithTimeout(url, {
       headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
@@ -327,7 +327,7 @@ export async function quickFetchCard(
   rateLimiter?: RateLimiter,
   attempt = 0
 ): Promise<ScryfallCard | null> {
-  const url = `${BASE_URL}/cards/${encodeURIComponent(setCode.toLowerCase())}/${encodeURIComponent(collectorNumber)}`;
+  const url = `${SCRYFALL_BASE_URL}/cards/${encodeURIComponent(setCode.toLowerCase())}/${encodeURIComponent(collectorNumber)}`;
   try {
     const res = await fetchWithTimeout(url, {
       headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
@@ -452,7 +452,7 @@ async function executeBatch(
   );
 
   try {
-    const res = await fetchWithTimeout(`${BASE_URL}/cards/collection`, {
+    const res = await fetchWithTimeout(`${SCRYFALL_BASE_URL}/cards/collection`, {
       method: "POST",
       headers: {
         "User-Agent": SCRYFALL_UA,
@@ -538,7 +538,7 @@ export async function fetchAllPrintings(
 ): Promise<Printing[]> {
   const printings: Printing[] = [];
   const target = cardName.trim();
-  let pageUrl = `${BASE_URL}/cards/search?q=!"${encodeURIComponent(target)}"+unique:prints&order=released`;
+  let pageUrl = `${SCRYFALL_BASE_URL}/cards/search?q=!"${encodeURIComponent(target)}"+unique:prints&order=released`;
 
   while (pageUrl) {
     await delay(MIN_DELAY_MS);

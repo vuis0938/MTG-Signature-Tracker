@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { delay, SCRYFALL_UA } from "@/lib/scryfall-client";
+import { delay, SCRYFALL_UA, SCRYFALL_BASE_URL } from "@/lib/scryfall-client";
 import { getUserFromRequest } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import type { Printing } from "@/types";
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 
     // ── 2. 缓存未命中，查 Scryfall ──────────────────────
     const allPrintings: Printing[] = [];
-    let pageUrl = `https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(target)}"+unique:prints&order=released`;
+    let pageUrl = `${SCRYFALL_BASE_URL}/cards/search?q=!"${encodeURIComponent(target)}"+unique:prints&order=released`;
 
     let isFirstPage = true;
     while (pageUrl) {
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
         .from("card_printings")
         .upsert({
           card_name: target,
-          printings: allPrintings as unknown[],
+          printings: allPrintings,
           all_artists: allArtists,
         })
         .then(({ error }) => {

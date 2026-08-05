@@ -880,8 +880,11 @@ const DeckListItem = memo(function DeckListItem({
   return (
     <Card>
       <CardHeader
-        className="cursor-pointer hover:bg-accent/50 rounded-t-lg"
+        className="cursor-pointer hover:bg-accent/50 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        role="button"
+        tabIndex={0}
         onClick={() => onToggle(deck.id)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(deck.id); } }}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -912,6 +915,7 @@ const DeckListItem = memo(function DeckListItem({
               variant="ghost"
               size="icon"
               title="添加卡牌"
+              aria-label="添加卡牌"
               onClick={(e) => { e.stopPropagation(); onAddCards(deck.id); }}
             >
               <Plus className="h-4 w-4 text-muted-foreground hover:text-foreground" />
@@ -919,6 +923,8 @@ const DeckListItem = memo(function DeckListItem({
             <Button
               variant="ghost"
               size="icon"
+              title="删除套牌"
+              aria-label="删除套牌"
               onClick={(e) => { e.stopPropagation(); onDelete(deck.id, deck.name); }}
             >
               <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
@@ -1059,8 +1065,12 @@ const CardThumbnail = memo(function CardThumbnail({ card, deckId, count = 1, all
     <div className={isCompact ? "group relative w-full" : "group relative w-full"}>
       <div
         onClick={handleToggle}
-        className={"relative rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 " + (hasOverlay ? (status === 3 ? "border-pink-400" : status === 1 ? "border-blue-400" : "border-green-500") : "border-border hover:shadow-md")}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleToggle(); } }}
+        role="button"
+        tabIndex={0}
+        className={"relative rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " + (hasOverlay ? (status === 3 ? "border-pink-400" : status === 1 ? "border-blue-400" : "border-green-500") : "border-border hover:shadow-md")}
         title={statusLabels[status]}
+        aria-label={`${card.card_name}，${statusLabels[status]}`}
       >
         <div className={hasOverlay ? "opacity-75" : ""}>
           {card.image_url ? (
@@ -1103,6 +1113,7 @@ const CardThumbnail = memo(function CardThumbnail({ card, deckId, count = 1, all
         onMouseEnter={() => preloadData(`/api/card-printings?name=${encodeURIComponent(card.card_name)}`)}
         className={"absolute top-0.5 right-0.5 z-20 " + (isCompact ? "h-5 sm:h-6" : "h-6") + " bg-background/80 border border-border shadow-sm flex items-center justify-center gap-0.5 px-1 rounded-lg hover:bg-accent hover:scale-105 transition-all"}
         title="切换印刷版本"
+        aria-label={`切换 ${card.card_name} 的印刷版本`}
       >
         {count > 1 && (
           <span className="text-xs font-bold text-foreground leading-tight">×{count}</span>

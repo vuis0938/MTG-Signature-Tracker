@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { extractArtists, extractImageUrl, ScryfallCard, SCRYFALL_UA } from "@/lib/scryfall-client";
+import { extractArtists, extractImageUrl, ScryfallCard, SCRYFALL_UA, SCRYFALL_BASE_URL } from "@/lib/scryfall-client";
 import { getUserFromRequest } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 从 Scryfall 获取新印刷版本
-    const url = `https://api.scryfall.com/cards/${encodeURIComponent(setCode.toLowerCase())}/${encodeURIComponent(collectorNumber)}`;
+    const url = `${SCRYFALL_BASE_URL}/cards/${encodeURIComponent(setCode.toLowerCase())}/${encodeURIComponent(collectorNumber)}`;
     const res = await fetch(url, {
       headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
     });

@@ -16,9 +16,8 @@ import {
 } from "@/components/ui/card";
 import { useDisplayMode } from "@/lib/display-mode";
 import { useDeckLayout, type DeckLayout } from "@/lib/deck-layout";
-import { useThemeColor } from "@/lib/use-theme-color";
 import { useUser } from "@/lib/user-context";
-import { LogOut, Download, Trash2, User, Info, Layout, Columns, List, Layers, Rows3, PanelsTopLeft, Palette, KeyRound, Bug, Send, Database } from "lucide-react";
+import { LogOut, Download, Trash2, User, Info, Layout, Columns, List, Layers, Rows3, PanelsTopLeft, KeyRound, Bug, Send, Database } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -44,7 +43,6 @@ export default function SettingsPage() {
   const { toast: showToast } = useToast();
   const { mode: displayMode, toggle: toggleDisplayMode } = useDisplayMode();
   const { layout: deckLayout, setLayout: setDeckLayout } = useDeckLayout();
-  const { themeId, toggleTheme } = useThemeColor();
 
   // ─── 退出登录 ───
   async function handleLogout() {
@@ -417,25 +415,6 @@ export default function SettingsPage() {
               {deckLayout === "default" ? "默认模式" : deckLayout === "compact" ? "紧凑模式" : "文本模式"}
             </Button>
           </div>
-
-          {/* 主题色切换 — 暂时隐藏，后续可调出
-          <div className="flex items-center justify-between border-t pt-3">
-            <div>
-              <p className="text-sm font-medium">主题色</p>
-              <p className="text-xs text-muted-foreground">
-                {"当前：" + (themeId === "ocean" ? "海蓝" : themeId === "slate" ? "石板蓝" : "靛蓝")}
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={toggleTheme}
-            >
-              <Palette className="h-4 w-4 mr-2" />
-              {themeId === "ocean" ? "海蓝" : themeId === "slate" ? "石板蓝" : "靛蓝"}
-            </Button>
-          </div>
-          */}
         </CardContent>
       </Card>
 

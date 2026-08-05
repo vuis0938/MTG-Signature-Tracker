@@ -78,7 +78,7 @@ export async function warmCardPrintingsCache(cardNames: string[]): Promise<{
       } else {
         rowsToInsert.push({
           card_name: r.name,
-          printings: r.printings as unknown[],
+          printings: r.printings!,
           all_artists: r.allArtists!,
         });
       }

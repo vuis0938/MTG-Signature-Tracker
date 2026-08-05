@@ -302,7 +302,6 @@ export async function fetchMountainMageArtists(forceRefresh = false): Promise<Mo
     const { sections, artists } = parseDocContent(text);
     cache = { sections, artists, rawText: text, fetchedAt: Date.now() };
 
-    console.log(`[MountainMage] 解析到 ${sections.length} 个章节、${artists.length} 位艺术家`);
     return { success: true, sections, artists, cached: false, rawText: text };
   } catch (error) {
     console.error("[MountainMage]", error);
