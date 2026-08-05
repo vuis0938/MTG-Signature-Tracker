@@ -102,68 +102,101 @@ export async function PATCH(request: NextRequest) {
 
     const supabase = getSupabase();
 
-    // ── 批量路径：多张卡牌一次归属校验 + 一次 UPDATE（替代 N 次单卡请求）──
+    // 更新字段（统一构建，所有路径共用）
+    const updates: Record<string, unknown> = {
+      status,
+      is_signed: is_signed ?? false,
+      event_name,
+      event_date,
+    };
+
+    // ── 批量路径：多张卡牌一次归属校验 + 一次 UPDATE ──
+    // 使用两步查询替代 PostgREST join（decks!inner），
+    // 因为数据库未定义 cards→decks 外键约束，PostgREST 无法解析 join
     if (cardIds.length > 1) {
-      const { data: ownedCards, error: ownedError } = await supabase
+      // 步骤1: 查询卡牌获取 deck_id（不使用 join）
+      const { data: cards, error: cardsError } = await supabase
         .from("cards")
-        .select("id, deck:decks!inner(user_name)")
+        .select("id, deck_id")
         .in("id", cardIds);
 
-      if (ownedError) {
-        console.error("[Cards API] 批量归属查询失败:", ownedError.message, "cardIds:", cardIds);
-        return NextResponse.json({ error: "查询卡牌失败" }, { status: 500 });
+      if (cardsError) {
+        console.error("[Cards API] 批量查询卡牌失败:", cardsError.message, "cardIds:", cardIds);
+        return NextResponse.json({ error: "查询卡牌失败: " + cardsError.message }, { status: 500 });
       }
-      if (!ownedCards || ownedCards.length === 0) {
+      if (!cards || cards.length === 0) {
         console.error("[Cards API] 批量卡牌不存在, cardIds:", cardIds);
         return NextResponse.json({ error: "卡牌不存在" }, { status: 404 });
       }
-      // 对比去重后的 cardIds（ownedCards 已天然去重）
-      const allOwned =
-        ownedCards.length === cardIds.length &&
-        ownedCards.every(
-          (c) =>
-            (c.deck as unknown as { user_name: string } | null)?.user_name === userName
-        );
-      if (!allOwned) {
-        const missingIds = cardIds.filter(
-          (id) => !ownedCards!.some((c) => c.id === id)
-        );
-        const unauthorizedIds = ownedCards
-          .filter(
-            (c) =>
-              (c.deck as unknown as { user_name: string } | null)?.user_name !== userName
-          )
-          .map((c) => c.id);
-        console.error("[Cards API] 批量归属校验失败. 不存在:", missingIds, "无权:", unauthorizedIds);
-        return NextResponse.json(
-          { error: missingIds.length > 0 ? "部分卡牌不存在" : "无权操作部分卡牌" },
-          { status: missingIds.length > 0 ? 404 : 403 }
-        );
+
+      // 检查是否所有卡牌都存在
+      const foundIds = new Set(cards.map((c) => c.id));
+      const missingIds = cardIds.filter((id) => !foundIds.has(id));
+      if (missingIds.length > 0) {
+        console.error("[Cards API] 部分卡牌不存在:", missingIds);
+        return NextResponse.json({ error: "部分卡牌不存在" }, { status: 404 });
       }
 
-      const batchUpdates: Record<string, unknown> = {
-        status,
-        is_signed: is_signed ?? false,
-        event_name,
-        event_date,
-      };
+      // 步骤2: 查询这些卡牌所属的套牌是否属于当前用户（不使用 join）
+      const deckIds = [...new Set(cards.map((c) => c.deck_id))];
+      const { data: ownedDecks, error: decksError } = await supabase
+        .from("decks")
+        .select("id")
+        .in("id", deckIds)
+        .eq("user_name", userName);
 
+      if (decksError) {
+        console.error("[Cards API] 批量查询套牌归属失败:", decksError.message, "deckIds:", deckIds);
+        return NextResponse.json({ error: "查询套牌失败" }, { status: 500 });
+      }
+
+      const ownedDeckIds = new Set((ownedDecks || []).map((d) => d.id));
+      const unauthorizedDeckIds = deckIds.filter((id) => !ownedDeckIds.has(id));
+      if (unauthorizedDeckIds.length > 0) {
+        console.error("[Cards API] 无权操作部分套牌:", unauthorizedDeckIds);
+        return NextResponse.json({ error: "无权操作部分卡牌" }, { status: 403 });
+      }
+
+      // 步骤3: 批量更新
       const { error: batchError } = await supabase
         .from("cards")
-        .update(batchUpdates)
+        .update(updates)
         .in("id", cardIds);
 
       if (batchError) {
-        console.error("[Cards API] 批量更新失败:", batchError.message, "cardIds:", cardIds, "updates:", batchUpdates);
-        return NextResponse.json({ error: "更新失败: " + batchError.message }, { status: 500 });
+        console.error("[Cards API] 批量更新失败:", batchError.message, "cardIds:", cardIds, "updates:", updates);
+        // 如果更新失败，降级到逐张 RPC 调用
+        console.warn("[Cards API] 尝试逐张更新降级...");
+        const failedIds: string[] = [];
+        for (const cid of cardIds) {
+          const { data: rpcResult, error: rpcError } = await supabase.rpc(
+            "update_card_with_ownership",
+            {
+              p_card_id: cid,
+              p_user_name: userName,
+              p_status: status,
+              p_is_signed: is_signed ?? false,
+              p_event_name: event_name,
+              p_event_date: event_date,
+            }
+          );
+          if (rpcError || !rpcResult || rpcResult.length === 0 || !rpcResult[0].success) {
+            failedIds.push(cid);
+            console.error("[Cards API] 降级 RPC 失败:", cid, rpcError?.message || rpcResult?.[0]?.error);
+          }
+        }
+        if (failedIds.length === 0) {
+          return NextResponse.json({ success: true });
+        }
+        console.error("[Cards API] 降级后仍失败的卡牌:", failedIds);
+        return NextResponse.json({ error: "部分卡牌更新失败" }, { status: 500 });
       }
 
       return NextResponse.json({ success: true });
     }
 
-    // ── 快速路径：RPC 函数（单次 DB 往返，归属校验 + UPDATE 原子完成）──
-    // 需要先在 Supabase 执行 supabase/migrations/001_optimize_card_toggle.sql
-    // 如果 RPC 函数不存在则自动降级到下面的两次查询方式
+    // ── 单卡路径：RPC 函数（单次 DB 往返，归属校验 + UPDATE 原子完成）──
+    // RPC 使用原生 SQL，不依赖 PostgREST 的外键 join 解析
     const singleCardId = cardIds[0];
     const { data: rpcResult, error: rpcError } = await supabase.rpc(
       "update_card_with_ownership",
@@ -178,7 +211,7 @@ export async function PATCH(request: NextRequest) {
     );
 
     if (rpcError) {
-      console.warn("[Cards API] RPC 调用失败，降级到两次查询:", rpcError.message);
+      console.warn("[Cards API] RPC 调用失败，降级到两步查询:", rpcError.message);
     }
 
     // RPC 调用成功
@@ -195,10 +228,11 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // ── 降级路径：两次 DB 查询（SELECT 归属校验 + UPDATE）──
+    // ── 降级路径：两步查询（不使用 PostgREST join）──
+    // 步骤1: 查询卡牌获取 deck_id
     const { data: card, error: selectError } = await supabase
       .from("cards")
-      .select("id, deck:decks!inner(user_name)")
+      .select("id, deck_id")
       .eq("id", singleCardId)
       .single();
 
@@ -207,18 +241,19 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "卡牌不存在" }, { status: 404 });
     }
 
-    const deckOwner = card.deck as unknown as { user_name: string } | null;
-    if (!deckOwner || deckOwner.user_name !== userName) {
+    // 步骤2: 查询套牌归属
+    const { data: deck } = await supabase
+      .from("decks")
+      .select("id")
+      .eq("id", card.deck_id)
+      .eq("user_name", userName)
+      .single();
+
+    if (!deck) {
       return NextResponse.json({ error: "无权操作此卡牌" }, { status: 403 });
     }
 
-    const updates: Record<string, unknown> = {
-      status,
-      is_signed: is_signed ?? false,
-      event_name,
-      event_date,
-    };
-
+    // 步骤3: 更新
     const { error: updateError } = await supabase
       .from("cards")
       .update(updates)
@@ -263,19 +298,28 @@ export async function DELETE(request: NextRequest) {
 
     const supabase = getSupabase();
 
-    // 验证卡牌归属权
-    const { data: card } = await supabase
+    // 两步查询验证归属权（不使用 PostgREST join）
+    // 步骤1: 查询卡牌获取 deck_id
+    const { data: card, error: selectError } = await supabase
       .from("cards")
-      .select("id, deck:decks!inner(user_name)")
+      .select("id, deck_id")
       .eq("id", cardId)
       .single();
 
-    if (!card) {
+    if (selectError || !card) {
+      console.error("[Cards API] 删除-查询卡牌失败:", selectError?.message, "cardId:", cardId);
       return NextResponse.json({ error: "卡牌不存在" }, { status: 404 });
     }
 
-    const deckOwner = card.deck as unknown as { user_name: string } | null;
-    if (!deckOwner || deckOwner.user_name !== userName) {
+    // 步骤2: 验证套牌归属
+    const { data: deck } = await supabase
+      .from("decks")
+      .select("id")
+      .eq("id", card.deck_id)
+      .eq("user_name", userName)
+      .single();
+
+    if (!deck) {
       return NextResponse.json({ error: "无权操作此卡牌" }, { status: 403 });
     }
 
