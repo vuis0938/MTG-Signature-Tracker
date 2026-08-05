@@ -29,12 +29,12 @@ export default function ArtistGalleryDialog({
     <Dialog
       open
       onOpenChange={onClose}
-      className="max-w-3xl pr-0"
+      className="max-w-3xl flex flex-col h-[70vh] overflow-hidden pr-0"
     >
-      <DialogHeader>
+      <DialogHeader className="shrink-0">
         <DialogTitle>{artist} 的卡牌</DialogTitle>
       </DialogHeader>
-      <DialogContent>
+      <DialogContent className="flex-1 overflow-y-auto min-h-0">
         {loading ? (
           <CardGridSkeleton rows={2} />
         ) : cards.length === 0 ? (
