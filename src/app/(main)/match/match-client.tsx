@@ -903,11 +903,10 @@ export default function MatchClient({
 
         text += `  【${group.label}】\n`;
         for (const card of groupCards) {
-          // 多套牌时显示每个套牌的张数
-          const deckStr = [...card.deckNames.entries()]
-            .map(([name, cnt]) => cnt > 1 ? `${name} ×${cnt}` : name)
-            .join(", ");
-          let line = `    ${card.label} — ${deckStr}`;
+          const countStr = card.count > 1 ? ` ×${card.count}` : "";
+          // 多套牌时显示套牌名（不显示套牌内张数）
+          const deckStr = [...card.deckNames.keys()].join(", ");
+          let line = `    ${card.label}${countStr} — ${deckStr}`;
           text += line + "\n";
         }
       }
@@ -918,7 +917,8 @@ export default function MatchClient({
         if (otherCards.length > 0) {
           text += `  【其他版本】\n`;
           for (const card of otherCards) {
-            text += `    ${card.label}\n`;
+            const countStr = card.count > 1 ? ` ×${card.count}` : "";
+            text += `    ${card.label}${countStr}\n`;
           }
         }
       }
