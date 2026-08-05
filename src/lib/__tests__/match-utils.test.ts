@@ -368,12 +368,12 @@ describe("getNextStatus", () => {
     expect(getNextStatus(3)).toBe(1);
   });
 
-  it("送签中(1) → 待签(0)", () => {
-    expect(getNextStatus(1)).toBe(0);
+  it("送签中(1) → 已签(2)", () => {
+    expect(getNextStatus(1)).toBe(2);
   });
 
-  it("已签(2) → 心动(3)", () => {
-    expect(getNextStatus(2)).toBe(3);
+  it("已签(2) → 未签(0)", () => {
+    expect(getNextStatus(2)).toBe(0);
   });
 
   it("未知状态回退到 0", () => {

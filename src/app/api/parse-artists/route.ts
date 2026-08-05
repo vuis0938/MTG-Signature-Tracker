@@ -55,6 +55,7 @@ async function callOpenAICompatible(
         { role: "user", content: `${PROMPT}\n\n原文：\n---\n${rawText}\n---` },
       ],
     }),
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!res.ok) {
@@ -89,6 +90,7 @@ async function callAnthropic(rawText: string): Promise<string[]> {
       max_tokens: 1024,
       messages: [{ role: "user", content: `${PROMPT}\n\n原文：\n---\n${rawText}\n---` }],
     }),
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!res.ok) throw new Error(`Anthropic API 错误 (HTTP ${res.status})`);

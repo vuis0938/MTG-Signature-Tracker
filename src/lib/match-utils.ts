@@ -100,11 +100,13 @@ export function isSamePrinting(
 // ─── 状态切换 ────────────────────────────────────────────
 
 /**
- * 匹配页面状态切换循环。
- * 0(待签) → 3(心动) → 1(送签中) → 0(待签)
- * 2(已签) → 3(心动)  — 已签卡重新参加活动时从心动开始
+ * 统一状态切换循环（decks 页与 match 页共用）。
+ * 0(未签) → 3(心动) → 1(送签中) → 2(已签) → 0(未签)
+ *
+ * 完整覆盖四个状态：从"未签"开始，先"心动"（想签），
+ * 再"送签中"（已寄出），最后"已签"（签好回来），循环回到"未签"。
  */
-const STATUS_CYCLE: Record<number, number> = { 0: 3, 3: 1, 1: 0, 2: 3 };
+const STATUS_CYCLE: Record<number, number> = { 0: 3, 3: 1, 1: 2, 2: 0 };
 
 /** 获取下一个状态值 */
 export function getNextStatus(current: number): number {

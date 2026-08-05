@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/lib/toast-context";
-import { MessageSquare, Check, Trash2, Loader2, CheckCheck, Bug, Lightbulb, HelpCircle } from "lucide-react";
+import { MessageSquare, Check, Trash2, Loader2, CheckCheck, Bug, Lightbulb, HelpCircle, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Feedback {
@@ -20,6 +20,7 @@ const categoryMeta: Record<string, { label: string; icon: typeof Bug; color: str
   bug: { label: "Bug 反馈", icon: Bug, color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
   suggestion: { label: "功能建议", icon: Lightbulb, color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
   other: { label: "其他", icon: HelpCircle, color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400" },
+  error: { label: "运行时错误", icon: AlertTriangle, color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
 };
 
 export default function FeedbackPage() {

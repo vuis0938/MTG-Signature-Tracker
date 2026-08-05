@@ -282,11 +282,15 @@ export default function MatchClient({
     // 使用 found 标志区分"找到 status=0 的卡牌"和"未找到卡牌"
     let currentStatus = 0;
     let foundCard = false;
+    let oldEventName: string | null = null;
+    let oldEventDate: string | null = null;
     for (const cards of matchedRef.current.values()) {
       const found = cards.find((c) => idSet.has(c.id));
       if (found) {
         currentStatus = found.status ?? 0;
         foundCard = true;
+        oldEventName = found.event_name ?? null;
+        oldEventDate = found.event_date ?? null;
         break;
       }
     }
@@ -295,6 +299,8 @@ export default function MatchClient({
         const found = entries.find((e) => e.deckCard !== undefined && idSet.has(e.deckCard.id));
         if (found?.deckCard) {
           currentStatus = found.deckCard.status ?? 0;
+          oldEventName = found.deckCard.event_name ?? null;
+          oldEventDate = found.deckCard.event_date ?? null;
           break;
         }
       }
@@ -303,9 +309,10 @@ export default function MatchClient({
     const newStatus = getNextStatus(currentStatus);
     const updatePayload = {
       status: newStatus,
-      is_signed: false,
-      event_name: newStatus === 3 && currentEvent ? currentEvent : null,
-      event_date: newStatus === 3 && currentEventDate ? currentEventDate : null,
+      is_signed: newStatus === 2,
+      // 切到心动态时保留卡牌原有活动信息，无则用页面级活动
+      event_name: newStatus === 3 ? (oldEventName || (currentEvent || null)) : null,
+      event_date: newStatus === 3 ? (oldEventDate || (currentEventDate || null)) : null,
     };
 
     // 2. 乐观更新：立即更新 UI，用户零延迟感知
@@ -346,9 +353,9 @@ export default function MatchClient({
       body: JSON.stringify({
         cardIds,
         status: newStatus,
-        is_signed: false,
-        event_name: newStatus === 3 && currentEvent ? currentEvent : null,
-        event_date: newStatus === 3 && currentEventDate ? currentEventDate : null,
+        is_signed: newStatus === 2,
+        event_name: newStatus === 3 ? (oldEventName || (currentEvent || null)) : null,
+        event_date: newStatus === 3 ? (oldEventDate || (currentEventDate || null)) : null,
       }),
     })
       .then((res) => res.json())
@@ -357,9 +364,9 @@ export default function MatchClient({
           // 回滚到旧状态
           const rollbackPayload = {
             status: currentStatus,
-            is_signed: false,
-            event_name: currentStatus === 3 && currentEvent ? currentEvent : null,
-            event_date: currentStatus === 3 && currentEventDate ? currentEventDate : null,
+            is_signed: currentStatus === 2,
+            event_name: oldEventName,
+            event_date: oldEventDate,
           };
           setMatched((prev) => {
             const next = new Map(prev);
@@ -394,9 +401,9 @@ export default function MatchClient({
         // 网络异常，回滚
         const rollbackPayload = {
           status: currentStatus,
-          is_signed: false,
-          event_name: currentStatus === 3 && currentEvent ? currentEvent : null,
-          event_date: currentStatus === 3 && currentEventDate ? currentEventDate : null,
+          is_signed: currentStatus === 2,
+          event_name: oldEventName,
+          event_date: oldEventDate,
         };
         setMatched((prev) => {
           const next = new Map(prev);
@@ -1175,7 +1182,7 @@ function MatchResultCard({
           <>
             <p className="text-xs text-muted-foreground flex items-center gap-1 mb-3">
               <Lightbulb className="h-3.5 w-3.5 shrink-0" />
-              点击卡牌可切换状态：未签 → 心动 → 送签中
+              点击卡牌可切换状态：未签 → 心动 → 送签中 → 已签
             </p>
             {fuzzyMode ? (
               <FuzzyMatchResults fuzzyMatched={fuzzyMatched} toggleStatus={toggleStatus} />
