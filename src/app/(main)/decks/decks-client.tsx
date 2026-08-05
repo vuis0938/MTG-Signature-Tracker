@@ -901,7 +901,6 @@ const DeckListItem = memo(function DeckListItem({
                   <>
                     <span>共 {stats.total} 张</span>
                     {stats.unsigned > 0 && <span> · {stats.unsigned} 待签</span>}
-                    {stats.heart > 0 && <span> · {stats.heart} 心动</span>}
                     {stats.pending > 0 && <span> · {stats.pending} 送签中</span>}
                     {stats.total - stats.unsigned - stats.heart - stats.pending > 0 &&
                       <span> · {stats.total - stats.unsigned - stats.heart - stats.pending} 已签</span>}
