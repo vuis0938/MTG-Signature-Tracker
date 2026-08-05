@@ -38,14 +38,16 @@ export default function VersionSwitchDialog({
           {switchCard?.artist_names && (" · 画家：" + switchCard.artist_names.join(", "))}
         </DialogDescription>
       </DialogHeader>
-      <DialogContent>
-        {printingsLoading ? (
-          <div className="flex items-center justify-center gap-2 min-h-[40vh] text-muted-foreground">
+      {printingsLoading ? (
+        <DialogContent>
+          <div className="flex items-center justify-center gap-2 min-h-[50vh] text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
             <span className="text-sm">加载中...</span>
           </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 min-h-[40vh] p-1 pr-2">
+        </DialogContent>
+      ) : (
+        <DialogContent>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 min-h-[50vh] max-h-[60vh] overflow-y-auto p-1 pr-2">
             {(() => {
               // 确保当前版本始终在列表中（Scryfall 搜索可能遗漏部分 promo/特殊版本）
               const currentSet = (switchCard?.set_code || "").toLowerCase().trim();
@@ -105,34 +107,32 @@ export default function VersionSwitchDialog({
               );
             });
             })()}
-            {printings.length === 0 && (
-              <div className="col-span-full flex items-center justify-center">
-                <p className="text-sm text-muted-foreground text-center">
-                  未找到该卡牌的其他印刷版本
-                </p>
-              </div>
-            )}
           </div>
-        )}
-      </DialogContent>
-      {/* 删除此卡牌 — 固定在弹窗底部，不随卡牌列表滚动 */}
-      {switchCard && (
-        <div className="border-t px-6 py-3 shrink-0">
-          <Button
-            variant="destructive"
-            size="sm"
-            className="w-full"
-            disabled={deletingCard === switchCard.id}
-            onClick={() => {
-              if (confirm(`确定从套牌中删除「${switchCard.card_name}」吗？此操作不可撤销`)) {
-                onDeleteCard(switchCard.id);
-              }
-            }}
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            {deletingCard === switchCard.id ? "删除中..." : "从套牌中删除此卡牌"}
-          </Button>
-        </div>
+          {printings.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              未找到该卡牌的其他印刷版本
+            </p>
+          )}
+          {/* 删除此卡牌 */}
+          {switchCard && (
+            <div className="border-t pt-3 mt-3">
+              <Button
+                variant="destructive"
+                size="sm"
+                className="w-full"
+                disabled={deletingCard === switchCard.id}
+                onClick={() => {
+                  if (confirm(`确定从套牌中删除「${switchCard.card_name}」吗？此操作不可撤销`)) {
+                    onDeleteCard(switchCard.id);
+                  }
+                }}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                {deletingCard === switchCard.id ? "删除中..." : "从套牌中删除此卡牌"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
       )}
     </Dialog>
   );
