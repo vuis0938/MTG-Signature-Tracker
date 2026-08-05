@@ -279,15 +279,24 @@ export default function MatchClient({
     const idSet = new Set(cardIds);
 
     // 1. 查找当前状态（合并的同款卡牌状态一致，取第一个命中的）
+    // 使用 found 标志区分"找到 status=0 的卡牌"和"未找到卡牌"
     let currentStatus = 0;
+    let foundCard = false;
     for (const cards of matchedRef.current.values()) {
       const found = cards.find((c) => idSet.has(c.id));
-      if (found) { currentStatus = found.status; break; }
+      if (found) {
+        currentStatus = found.status ?? 0;
+        foundCard = true;
+        break;
+      }
     }
-    if (currentStatus === 0) {
+    if (!foundCard) {
       for (const entries of fuzzyMatchedRef.current.values()) {
         const found = entries.find((e) => e.deckCard !== undefined && idSet.has(e.deckCard.id));
-        if (found?.deckCard) { currentStatus = found.deckCard.status; break; }
+        if (found?.deckCard) {
+          currentStatus = found.deckCard.status ?? 0;
+          break;
+        }
       }
     }
 
@@ -295,8 +304,8 @@ export default function MatchClient({
     const updatePayload = {
       status: newStatus,
       is_signed: false,
-      event_name: newStatus === 3 ? currentEvent : null,
-      event_date: newStatus === 3 ? currentEventDate : null,
+      event_name: newStatus === 3 && currentEvent ? currentEvent : null,
+      event_date: newStatus === 3 && currentEventDate ? currentEventDate : null,
     };
 
     // 2. 乐观更新：立即更新 UI，用户零延迟感知
@@ -338,8 +347,8 @@ export default function MatchClient({
         cardIds,
         status: newStatus,
         is_signed: false,
-        event_name: newStatus === 3 ? currentEvent : null,
-        event_date: newStatus === 3 ? currentEventDate : null,
+        event_name: newStatus === 3 && currentEvent ? currentEvent : null,
+        event_date: newStatus === 3 && currentEventDate ? currentEventDate : null,
       }),
     })
       .then((res) => res.json())
@@ -349,8 +358,8 @@ export default function MatchClient({
           const rollbackPayload = {
             status: currentStatus,
             is_signed: false,
-            event_name: currentStatus === 3 ? currentEvent : null,
-            event_date: currentStatus === 3 ? currentEventDate : null,
+            event_name: currentStatus === 3 && currentEvent ? currentEvent : null,
+            event_date: currentStatus === 3 && currentEventDate ? currentEventDate : null,
           };
           setMatched((prev) => {
             const next = new Map(prev);
@@ -378,7 +387,7 @@ export default function MatchClient({
             }
             return next;
           });
-          setMatchError("状态更新失败，请重试");
+          setMatchError(data.error || "状态更新失败，请重试");
         }
       })
       .catch(() => {
@@ -386,8 +395,8 @@ export default function MatchClient({
         const rollbackPayload = {
           status: currentStatus,
           is_signed: false,
-          event_name: currentStatus === 3 ? currentEvent : null,
-          event_date: currentStatus === 3 ? currentEventDate : null,
+          event_name: currentStatus === 3 && currentEvent ? currentEvent : null,
+          event_date: currentStatus === 3 && currentEventDate ? currentEventDate : null,
         };
         setMatched((prev) => {
           const next = new Map(prev);
@@ -1107,7 +1116,7 @@ interface MatchResultCardProps {
   unmatched: string[];
   parsedArtists: string[];
   displayMode: "individual" | "grouped";
-  toggleStatus: (cardId: string) => void;
+  toggleStatus: (cardIdOrIds: string | string[]) => void;
   exportText: () => void;
 }
 
@@ -1218,7 +1227,7 @@ function mergeCards(
 function ExactMatchResults({ matched, displayMode, toggleStatus }: {
   matched: Map<string, CardEntry[]>;
   displayMode: "individual" | "grouped";
-  toggleStatus: (cardId: string) => void;
+  toggleStatus: (cardIdOrIds: string | string[]) => void;
 }) {
   return (
     <div className="space-y-6">
@@ -1271,7 +1280,7 @@ function ExactMatchResults({ matched, displayMode, toggleStatus }: {
 
 // ─── 模糊匹配结果 ──────────────────────────────────────────
 
-function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<string, FuzzyCardEntry[]>; toggleStatus: (cardId: string) => void }) {
+function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<string, FuzzyCardEntry[]>; toggleStatus: (cardIdOrIds: string | string[]) => void }) {
   return (
     <div className="space-y-6">
       {Array.from(fuzzyMatched).map(([artist, entries]) => {
@@ -1371,13 +1380,12 @@ function CardThumbnail({
   status: number;
   count?: number;
   allIds?: string[];
-  toggleStatus: (cardId: string) => void;
+  toggleStatus: (cardIdOrIds: string | string[]) => void;
 }) {
   function handleToggle() {
     const ids = allIds && allIds.length > 0 ? allIds : [cardId];
-    for (const id of ids) {
-      toggleStatus(id);
-    }
+    // 批量发送：一次 API 请求更新所有同款卡牌，避免逐个请求的竞态和性能问题
+    toggleStatus(ids);
   }
 
   return (

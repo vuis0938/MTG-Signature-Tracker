@@ -372,8 +372,8 @@ export default function DecksClient({
         cardIds,
         status: newStatus,
         is_signed: newStatus === 2,
-        event_name: newStatus === 3 ? (firstOldCard?.event_name ?? null) : null,
-        event_date: newStatus === 3 ? (firstOldCard?.event_date ?? null) : null,
+        event_name: newStatus === 3 && firstOldCard?.event_name ? firstOldCard.event_name : null,
+        event_date: newStatus === 3 && firstOldCard?.event_date ? firstOldCard.event_date : null,
       }),
     })
       .then((res) => res.json())
@@ -393,7 +393,7 @@ export default function DecksClient({
             if (!cacheData) return cacheData;
             return { ...cacheData, stats: applyStatsDelta({ ...cacheData.stats }, newStatus, currentStatus, times) };
           }, false);
-          showToast("状态更新失败，请重试", "error");
+          showToast(data.error || "状态更新失败，请重试", "error");
         }
       })
       .catch(() => {
