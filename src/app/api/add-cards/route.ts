@@ -73,14 +73,16 @@ export async function POST(request: NextRequest) {
 
     const scryfallResults = await batchSearch(identifiers, new RateLimiter(1));
 
-    // 组装结果
+    // 组装结果：timedOut 仅标记「Scryfall 未返回且总耗时超限」的卡牌
+    // 避免 .map() 同步执行导致已获取数据的卡牌被误标为超时
+    const isOverTime = Date.now() - t0 > SOFT_DEADLINE_MS;
     const cardResults = rows.map((card, i) => ({
       card,
       data: scryfallResults[i],
-      timedOut: Date.now() - t0 > SOFT_DEADLINE_MS,
+      timedOut: !scryfallResults[i] && isOverTime,
     }));
 
-    let successCount = 0;
+    let scryfallFoundCount = 0;
     let failCount = 0;
     const failedCards: Array<{ name: string; setCode?: string; collectorNumber?: string }> = [];
     const timedOutCards: Array<{ name: string; setCode?: string; collectorNumber?: string }> = [];
@@ -123,15 +125,29 @@ export async function POST(request: NextRequest) {
           is_signed: false,
         });
       }
-      successCount += count;
+      scryfallFoundCount += count;
     }
 
+    // 数据库插入：successCount 反映实际插入结果，而非 Scryfall 查询结果
+    let successCount = 0;
     if (cardsToInsert.length > 0) {
       const { error: batchError } = await supabase.from("cards").insert(cardsToInsert);
-      if (batchError) {
+      if (!batchError) {
+        successCount = scryfallFoundCount;
+      } else {
+        // 批量插入失败，降级逐条插入并检查错误
+        console.error("[AddCards] 批量插入失败，降级逐条插入:", batchError.message);
+        let insertedCount = 0;
         for (const c of cardsToInsert) {
-          await supabase.from("cards").insert(c);
+          const { error: singleError } = await supabase.from("cards").insert(c);
+          if (singleError) {
+            console.error("[AddCards] 单条插入失败:", singleError.message, c.card_name);
+          } else {
+            insertedCount++;
+          }
         }
+        successCount = insertedCount;
+        failCount += scryfallFoundCount - insertedCount;
       }
     }
 

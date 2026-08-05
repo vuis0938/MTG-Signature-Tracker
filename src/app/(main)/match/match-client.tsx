@@ -14,7 +14,7 @@ import {
 import { useDisplayMode } from "@/lib/display-mode";
 import { useToast } from "@/lib/toast-context";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
-import { useDecks, useEvents } from "@/lib/swr-hooks";
+import { useDecks, useEvents, refreshDecks } from "@/lib/swr-hooks";
 import {
   Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Sparkle, Palette, Package, Heart, Check, MoreHorizontal, Lightbulb,
 } from "lucide-react";
@@ -136,9 +136,6 @@ export default function MatchClient({
 
   /** 查询多个套牌的所有卡牌 */
   async function fetchCardsByDeckIds(deckIds: string[]): Promise<CardEntry[]> {
-    const currentDecks = decksRef.current;
-    const deckMap = new Map(currentDecks.map((d) => [d.id, d.name]));
-
     try {
       const res = await fetch("/api/cards/batch", {
         method: "POST",
@@ -250,7 +247,7 @@ export default function MatchClient({
 
         // 检测解析的画家名单是否与已有活动高度重合
         setParseProgress("正在匹配活动...");
-        const matchedEvent = detectMatchingEvent(data.artists, events);
+        const matchedEvent = detectMatchingEvent(data.artists, eventsRef.current);
         if (matchedEvent) {
           setCurrentEvent(matchedEvent.name);
           setCurrentEventDate(new Date(matchedEvent.startDate).toLocaleDateString("zh-CN"));
@@ -278,24 +275,32 @@ export default function MatchClient({
     if (cardIds.length === 0) return;
     const idSet = new Set(cardIds);
 
-    // 1. 查找当前状态（合并的同款卡牌状态一致，取第一个命中的）
+    // 1. 查找当前状态 + 保存原始卡牌数据用于回滚
     // 使用 found 标志区分"找到 status=0 的卡牌"和"未找到卡牌"
     let currentStatus = 0;
     let foundCard = false;
+    const oldCards = new Map<string, CardEntry>();
     for (const cards of matchedRef.current.values()) {
-      const found = cards.find((c) => idSet.has(c.id));
-      if (found) {
-        currentStatus = found.status ?? 0;
-        foundCard = true;
-        break;
+      for (const c of cards) {
+        if (idSet.has(c.id)) {
+          if (!foundCard) {
+            currentStatus = c.status ?? 0;
+            foundCard = true;
+          }
+          oldCards.set(c.id, c);
+        }
       }
     }
     if (!foundCard) {
       for (const entries of fuzzyMatchedRef.current.values()) {
-        const found = entries.find((e) => e.deckCard !== undefined && idSet.has(e.deckCard.id));
-        if (found?.deckCard) {
-          currentStatus = found.deckCard.status ?? 0;
-          break;
+        for (const e of entries) {
+          if (e.deckCard && idSet.has(e.deckCard.id)) {
+            if (!foundCard) {
+              currentStatus = e.deckCard.status ?? 0;
+              foundCard = true;
+            }
+            oldCards.set(e.deckCard.id, e.deckCard);
+          }
         }
       }
     }
@@ -303,7 +308,7 @@ export default function MatchClient({
     const newStatus = getNextStatus(currentStatus);
     const updatePayload = {
       status: newStatus,
-      is_signed: false,
+      is_signed: newStatus === 2,
       event_name: newStatus === 3 && currentEvent ? currentEvent : null,
       event_date: newStatus === 3 && currentEventDate ? currentEventDate : null,
     };
@@ -346,7 +351,7 @@ export default function MatchClient({
       body: JSON.stringify({
         cardIds,
         status: newStatus,
-        is_signed: false,
+        is_signed: newStatus === 2,
         event_name: newStatus === 3 && currentEvent ? currentEvent : null,
         event_date: newStatus === 3 && currentEventDate ? currentEventDate : null,
       }),
@@ -354,20 +359,18 @@ export default function MatchClient({
       .then((res) => res.json())
       .then((data) => {
         if (!data.success) {
-          // 回滚到旧状态
-          const rollbackPayload = {
-            status: currentStatus,
-            is_signed: false,
-            event_name: currentStatus === 3 && currentEvent ? currentEvent : null,
-            event_date: currentStatus === 3 && currentEventDate ? currentEventDate : null,
-          };
+          // 回滚到旧状态（用 oldCards 恢复完整原始数据，含 event_name/event_date/is_signed）
+          // 竞态保护：仅当卡牌当前状态仍为本次乐观更新设置的 newStatus 时才回滚，
+          // 若已被后续 toggle 改变则跳过，避免覆盖更新的乐观更新
           setMatched((prev) => {
             const next = new Map(prev);
             for (const [artist, cards] of next) {
               next.set(
                 artist,
                 cards.map((c) =>
-                  idSet.has(c.id) ? { ...c, ...rollbackPayload } : c
+                  idSet.has(c.id) && c.status === newStatus
+                    ? (oldCards.get(c.id) ?? c)
+                    : c
                 )
               );
             }
@@ -379,8 +382,8 @@ export default function MatchClient({
               next.set(
                 artist,
                 entries.map((e) =>
-                  e.deckCard && idSet.has(e.deckCard.id)
-                    ? { ...e, deckCard: { ...e.deckCard, ...rollbackPayload } }
+                  e.deckCard && idSet.has(e.deckCard.id) && e.deckCard.status === newStatus
+                    ? { ...e, deckCard: oldCards.get(e.deckCard.id) ?? e.deckCard }
                     : e
                 )
               );
@@ -388,23 +391,23 @@ export default function MatchClient({
             return next;
           });
           setMatchError(data.error || "状态更新失败，请重试");
+        } else {
+          // 刷新共享 /api/decks 缓存，确保 decks 页统计同步
+          refreshDecks();
         }
       })
       .catch(() => {
-        // 网络异常，回滚
-        const rollbackPayload = {
-          status: currentStatus,
-          is_signed: false,
-          event_name: currentStatus === 3 && currentEvent ? currentEvent : null,
-          event_date: currentStatus === 3 && currentEventDate ? currentEventDate : null,
-        };
+        // 网络异常，回滚（用 oldCards 恢复完整原始数据）
+        // 竞态保护：同上，仅当卡牌当前状态仍为 newStatus 时才回滚
         setMatched((prev) => {
           const next = new Map(prev);
           for (const [artist, cards] of next) {
             next.set(
               artist,
               cards.map((c) =>
-                idSet.has(c.id) ? { ...c, ...rollbackPayload } : c
+                idSet.has(c.id) && c.status === newStatus
+                  ? (oldCards.get(c.id) ?? c)
+                  : c
               )
             );
           }
@@ -416,8 +419,8 @@ export default function MatchClient({
             next.set(
               artist,
               entries.map((e) =>
-                e.deckCard && idSet.has(e.deckCard.id)
-                  ? { ...e, deckCard: { ...e.deckCard, ...rollbackPayload } }
+                e.deckCard && idSet.has(e.deckCard.id) && e.deckCard.status === newStatus
+                  ? { ...e, deckCard: oldCards.get(e.deckCard.id) ?? e.deckCard }
                   : e
               )
             );
@@ -633,7 +636,7 @@ export default function MatchClient({
           collector_number: printing.collector_number,
           image_url: printing.image_url,
           artist,
-          deckCard: matchedDeckCard ? { ...matchedDeckCard, artist_names: [artist] } : undefined,
+          deckCard: matchedDeckCard ? { ...matchedDeckCard } : undefined,
         };
 
         if (!existing.some((e) => isSamePrinting(e, entry))) {
