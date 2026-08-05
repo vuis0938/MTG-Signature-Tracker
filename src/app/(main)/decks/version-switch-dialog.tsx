@@ -31,7 +31,7 @@ export default function VersionSwitchDialog({
   onClose, onSwitchPrinting, onDeleteCard,
 }: VersionSwitchDialogProps) {
   return (
-    <Dialog open={switchCard !== null} onOpenChange={onClose} className="max-w-3xl flex flex-col h-[90dvh] md:h-[80vh] !max-h-[90dvh] md:!max-h-[80vh] overflow-hidden pr-0">
+    <Dialog open={switchCard !== null} onOpenChange={onClose} className="max-w-3xl flex flex-col h-[70dvh] md:h-[80vh] !max-h-[70dvh] md:!max-h-[80vh] overflow-hidden pr-0">
       <DialogHeader className="shrink-0 px-6 pt-4 pb-1">
         <DialogTitle>切换印刷版本 — {switchCard?.card_name}</DialogTitle>
         <DialogDescription>
