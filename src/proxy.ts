@@ -3,7 +3,12 @@ import type { NextRequest } from "next/server";
 import { verifyToken, isAdmin } from "@/lib/auth";
 
 // 不需要鉴权的路由（精确匹配）
-const PUBLIC_PATHS = ["/login", "/api/auth"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/api/auth",
+  "/api/forgot-password", // 密码重置：未登录用户使用
+  "/api/error-log", // 客户端错误上报：未登录场景也需可用
+];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
