@@ -48,7 +48,7 @@ export default function ArtistGalleryDialog({
               <p className="text-sm text-muted-foreground text-center">未找到该画家的卡牌</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 min-h-[50vh] max-h-[65vh] overflow-y-auto pr-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 max-h-[65vh] overflow-y-auto pr-2 items-start content-start">
               {cards.map((card) => (
                 <div
                   key={card.set + "-" + card.collector_number}
