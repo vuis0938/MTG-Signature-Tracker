@@ -57,8 +57,12 @@ export async function GET(request: NextRequest) {
     }
 
     // 合并相同卡牌（同名+同系列+同编号+同画家+同状态）
+    // 使用 Map 避免 find() 字符串比较格式不一致导致合并失败
     const mergeKey = (c: NonNullable<typeof cards>[number]) =>
       `${c.card_name}|${c.set_code}|${c.collector_number}|${(c.artist_names || []).join(",")}|${c.status}`;
+
+    // 每个套牌维护一个 key→index 的映射，O(1) 查找而非 O(n) find
+    const deckMergeMaps = new Map<string, Map<string, number>>();
 
     for (const card of cards || []) {
       const deck = decksByGroup.get(card.deck_id);
@@ -72,11 +76,15 @@ export async function GET(request: NextRequest) {
       else deck.progress.unsigned++;
 
       const key = mergeKey(card);
-      const existing = deck.cards.find(
-        (c) => `${c.name}|${c.set}|${c.cn}|${c.artist}|${STATUS_TEXT[card.status]}` === key
-      );
-      if (existing) {
-        existing.count++;
+      let mergeMap = deckMergeMaps.get(card.deck_id);
+      if (!mergeMap) {
+        mergeMap = new Map();
+        deckMergeMaps.set(card.deck_id, mergeMap);
+      }
+
+      const existingIdx = mergeMap.get(key);
+      if (existingIdx !== undefined) {
+        deck.cards[existingIdx].count++;
       } else {
         deck.cards.push({
           name: card.card_name,
@@ -88,6 +96,7 @@ export async function GET(request: NextRequest) {
           event_name: card.event_name || null,
           event_date: card.event_date || null,
         });
+        mergeMap.set(key, deck.cards.length - 1);
       }
     }
 
