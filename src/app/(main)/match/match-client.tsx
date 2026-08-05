@@ -903,16 +903,11 @@ export default function MatchClient({
 
         text += `  【${group.label}】\n`;
         for (const card of groupCards) {
-          const countStr = card.count > 1 ? ` ×${card.count}` : "";
           // 多套牌时显示每个套牌的张数
           const deckStr = [...card.deckNames.entries()]
             .map(([name, cnt]) => cnt > 1 ? `${name} ×${cnt}` : name)
             .join(", ");
-          let line = `    ${card.label}${countStr} — ${deckStr}`;
-          if (group.label === "心动" && card.eventName) {
-            line += ` → ${card.eventName}`;
-            if (card.eventDate) line += `（${card.eventDate}）`;
-          }
+          let line = `    ${card.label} — ${deckStr}`;
           text += line + "\n";
         }
       }
@@ -923,8 +918,7 @@ export default function MatchClient({
         if (otherCards.length > 0) {
           text += `  【其他版本】\n`;
           for (const card of otherCards) {
-            const countStr = card.count > 1 ? ` ×${card.count}` : "";
-            text += `    ${card.label}${countStr}\n`;
+            text += `    ${card.label}\n`;
           }
         }
       }
