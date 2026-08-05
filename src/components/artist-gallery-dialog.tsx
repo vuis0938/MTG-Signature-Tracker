@@ -29,7 +29,7 @@ export default function ArtistGalleryDialog({
     <Dialog
       open
       onOpenChange={onClose}
-      className="max-w-3xl flex flex-col h-[73dvh] md:h-[80vh] !max-h-[73dvh] md:!max-h-[80vh] overflow-hidden pr-0"
+      className="max-w-3xl flex flex-col h-[78dvh] md:h-[80vh] !max-h-[78dvh] md:!max-h-[80vh] overflow-hidden pr-0"
     >
       <DialogHeader className="shrink-0 px-6 pt-4 pb-2">
         <DialogTitle>{artist} 的卡牌</DialogTitle>
