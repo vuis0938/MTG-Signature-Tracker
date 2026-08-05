@@ -114,8 +114,7 @@ export default function SettingsPage() {
 
             text += `  【${group.label}】\n`;
             for (const card of groupCards) {
-              const countStr = card.count > 1 ? ` ×${card.count}` : "";
-              let line = `    ${card.name} [${card.set.toUpperCase()} #${card.cn}]${countStr} — ${card.artist}`;
+              let line = `    ${card.name} [${card.set.toUpperCase()} #${card.cn}] — ${card.artist}`;
               // 心动状态显示匹配的活动信息
               if (group.label === "心动" && card.event_name) {
                 line += ` → ${card.event_name}`;
