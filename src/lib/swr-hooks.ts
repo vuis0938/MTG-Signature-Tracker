@@ -58,8 +58,8 @@ export function useDecks(fallbackData?: DecksResponse) {
     {
       ...FOCUS_REVALIDATION,
       fallbackData,
-      // 有 SSR fallback 时跳过挂载时重验证，避免双重拉取
-      revalidateOnMount: fallbackData ? false : true,
+      // 始终在挂载时重验证：跨页面切换时确保数据最新（匹配页改状态后切到套牌页能立即同步）
+      revalidateOnMount: true,
     }
   );
   return { decks: data?.decks || [], stats: data?.stats || {}, error, isLoading, revalidate };

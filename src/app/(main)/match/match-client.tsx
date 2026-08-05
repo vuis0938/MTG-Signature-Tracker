@@ -57,7 +57,7 @@ export default function MatchClient({
     fallbackDecks !== undefined
       ? { success: true, decks: fallbackDecks, stats: fallbackStats || {} }
       : undefined;
-  const { decks } = useDecks(fallbackData);
+  const { decks, revalidate: refreshDecks } = useDecks(fallbackData);
   const [selectedDecks, setSelectedDecks] = useState<Set<string>>(new Set());
 
   // decks 加载后默认全选（仅首次，避免用户取消全选后被重新全选）
@@ -395,6 +395,9 @@ export default function MatchClient({
             return next;
           });
           setMatchError(data.error || "状态更新失败，请重试");
+        } else {
+          // 刷新共享 /api/decks 缓存，确保套牌页统计同步
+          refreshDecks();
         }
       })
       .catch(() => {

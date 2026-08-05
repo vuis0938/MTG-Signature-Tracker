@@ -128,6 +128,24 @@ export default function DecksClient({
   );
   swrDataRef.current = { success: true, decks, stats: deckStats };
 
+  // 标记乐观更新：区分本地 revalidate(data, false) 和服务端 revalidation
+  // 服务端 revalidation 时清除本地 cards 缓存，让展开的套牌重新拉取最新卡牌数据
+  const optimisticUpdateRef = useRef(false);
+  const prevDataRef = useRef<DecksResponse | undefined>(undefined);
+  useEffect(() => {
+    if (optimisticUpdateRef.current) {
+      optimisticUpdateRef.current = false;
+      prevDataRef.current = swrDataRef.current;
+      return;
+    }
+    // SWR 数据引用变化且非乐观更新 → 服务端 revalidation（如匹配页改状态后切回）
+    if (prevDataRef.current !== undefined && prevDataRef.current !== swrDataRef.current) {
+      // 服务端返回了新数据，清除本地 cards 缓存，让展开的套牌重新拉取
+      setCards({});
+    }
+    prevDataRef.current = swrDataRef.current;
+  }, [decks, deckStats]);
+
   // 添加卡牌弹窗
   const [addCardsOpen, setAddCardsOpen] = useState<string | null>(null);
   const [addCardsText, setAddCardsText] = useState("");
@@ -374,6 +392,7 @@ export default function DecksClient({
     const currentSWRData = swrDataRef.current;
     if (currentSWRData) {
       const newStats = applyStatsDelta({ ...currentSWRData.stats }, currentStatus, newStatus, times);
+      optimisticUpdateRef.current = true;
       revalidate({ ...currentSWRData, stats: newStats }, false);
     }
 
@@ -405,6 +424,7 @@ export default function DecksClient({
           const rollbackData = swrDataRef.current;
           if (rollbackData) {
             const rollbackStats = applyStatsDelta({ ...rollbackData.stats }, newStatus, currentStatus, times);
+            optimisticUpdateRef.current = true;
             revalidate({ ...rollbackData, stats: rollbackStats }, false);
           }
           showToast(data.error || "状态更新失败，请重试", "error");
@@ -424,6 +444,7 @@ export default function DecksClient({
         const rollbackData = swrDataRef.current;
         if (rollbackData) {
           const rollbackStats = applyStatsDelta({ ...rollbackData.stats }, newStatus, currentStatus, times);
+          optimisticUpdateRef.current = true;
           revalidate({ ...rollbackData, stats: rollbackStats }, false);
         }
         showToast("网络错误，状态已恢复", "error");
