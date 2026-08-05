@@ -74,6 +74,7 @@ export interface DeckStats {
   total: number;
   unsigned: number;
   pending: number;
+  heart: number;
 }
 
 /** 套牌导入格式 */

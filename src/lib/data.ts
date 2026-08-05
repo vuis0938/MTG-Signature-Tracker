@@ -49,7 +49,7 @@ export async function getDecksWithStats(
 
   const stats: Record<string, DeckStats> = {};
   for (const deck of decks) {
-    stats[deck.id] = { total: 0, unsigned: 0, pending: 0 };
+    stats[deck.id] = { total: 0, unsigned: 0, pending: 0, heart: 0 };
   }
   if (allCards) {
     for (const card of allCards) {
@@ -57,7 +57,8 @@ export async function getDecksWithStats(
       if (!s) continue;
       s.total++;
       if (card.status === 1) s.pending++;
-      else if (card.status === 0 || card.status === 3) s.unsigned++;
+      else if (card.status === 3) s.heart++;
+      else s.unsigned++;
     }
   }
 
@@ -107,7 +108,7 @@ export async function getDecksWithCards(
   const stats: Record<string, DeckStats> = {};
   const cardsByDeck: Record<string, CardEntry[]> = {};
   for (const deck of decks) {
-    stats[deck.id] = { total: 0, unsigned: 0, pending: 0 };
+    stats[deck.id] = { total: 0, unsigned: 0, pending: 0, heart: 0 };
     cardsByDeck[deck.id] = [];
   }
   if (allCards) {
@@ -117,7 +118,8 @@ export async function getDecksWithCards(
       if (s) {
         s.total++;
         if (card.status === 1) s.pending++;
-        else if (card.status === 0 || card.status === 3) s.unsigned++;
+        else if (card.status === 3) s.heart++;
+        else s.unsigned++;
       }
       if (list) list.push(card as CardEntry);
     }

@@ -43,9 +43,9 @@ export async function GET(request: NextRequest) {
       .select("deck_id, status")
       .in("deck_id", deckIds);
 
-    const stats: Record<string, { total: number; unsigned: number; pending: number }> = {};
+    const stats: Record<string, { total: number; unsigned: number; pending: number; heart: number }> = {};
     for (const deck of decks) {
-      stats[deck.id] = { total: 0, unsigned: 0, pending: 0 };
+      stats[deck.id] = { total: 0, unsigned: 0, pending: 0, heart: 0 };
     }
     if (allCards) {
       for (const card of allCards) {
@@ -53,7 +53,8 @@ export async function GET(request: NextRequest) {
         if (!s) continue;
         s.total++;
         if (card.status === 1) s.pending++;
-        else if (card.status === 0 || card.status === 3) s.unsigned++;
+        else if (card.status === 3) s.heart++;
+        else s.unsigned++;
       }
     }
 

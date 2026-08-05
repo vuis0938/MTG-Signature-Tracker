@@ -350,20 +350,21 @@ export default function DecksClient({
     // 在 revalidateOnMount:false 场景下收到 undefined，必须用 mutate(data, false) 直接设置
     const applyStatsDelta = (stats: Record<string, DeckStats>, fromStatus: number, toStatus: number, times: number) => {
       if (!stats[deckId]) return stats;
-      const delta: Record<number, { u: number; p: number }> = {
-        0: { u: 1, p: 0 },
-        1: { u: 0, p: 1 },
-        2: { u: 0, p: 0 },
-        3: { u: 1, p: 0 },
+      const delta: Record<number, { u: number; p: number; h: number }> = {
+        0: { u: 1, p: 0, h: 0 },
+        1: { u: 0, p: 1, h: 0 },
+        2: { u: 0, p: 0, h: 0 },
+        3: { u: 0, p: 0, h: 1 },
       };
-      const old = delta[fromStatus] ?? { u: 0, p: 0 };
-      const now = delta[toStatus] ?? { u: 0, p: 0 };
+      const old = delta[fromStatus] ?? { u: 0, p: 0, h: 0 };
+      const now = delta[toStatus] ?? { u: 0, p: 0, h: 0 };
       return {
         ...stats,
         [deckId]: {
           ...stats[deckId],
           unsigned: stats[deckId].unsigned + (now.u - old.u) * times,
           pending: stats[deckId].pending + (now.p - old.p) * times,
+          heart: (stats[deckId].heart ?? 0) + (now.h - old.h) * times,
         },
       };
     };
@@ -900,11 +901,12 @@ const DeckListItem = memo(function DeckListItem({
                   <>
                     <span>共 {stats.total} 张</span>
                     {stats.unsigned > 0 && <span> · {stats.unsigned} 待签</span>}
+                    {stats.heart > 0 && <span> · {stats.heart} 心动</span>}
                     {stats.pending > 0 && <span> · {stats.pending} 送签中</span>}
-                    {stats.total - stats.unsigned - stats.pending > 0 &&
-                      <span> · {stats.total - stats.unsigned - stats.pending} 已签</span>}
+                    {stats.total - stats.unsigned - stats.heart - stats.pending > 0 &&
+                      <span> · {stats.total - stats.unsigned - stats.heart - stats.pending} 已签</span>}
                     <br />
-                    签绘进度 {stats.total > 0 ? Math.round(((stats.total - stats.unsigned - stats.pending) / stats.total) * 100) : 0}% · 上次更新 {new Date(deck.created_at!).toLocaleDateString("zh-CN")}
+                    签绘进度 {stats.total > 0 ? Math.round(((stats.total - stats.unsigned - stats.heart - stats.pending) / stats.total) * 100) : 0}% · 上次更新 {new Date(deck.created_at!).toLocaleDateString("zh-CN")}
                   </>
                 )}
               </CardDescription>
