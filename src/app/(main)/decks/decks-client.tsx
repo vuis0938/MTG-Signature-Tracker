@@ -902,7 +902,7 @@ const DeckListItem = memo(function DeckListItem({
   return (
     <Card>
       <CardHeader
-        className="cursor-pointer hover:bg-accent/50 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="cursor-pointer hover:bg-background rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         role="button"
         tabIndex={0}
         onClick={() => onToggle(deck.id)}
