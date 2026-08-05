@@ -2,12 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { ScryfallCard, extractArtists, extractImageUrl, SCRYFALL_UA, SCRYFALL_BASE_URL } from "@/lib/scryfall-client";
 import { getUserFromRequest } from "@/lib/auth";
+import { rateLimit, getClientIP } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   // 鉴权
   const userName = getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+
+  // 限流：外部 API 调用，10 次/分钟
+  const ip = getClientIP(request);
+  const limit = rateLimit(`retry-card:${ip}`, 10, 60 * 1000);
+  if (!limit.allowed) {
+    return NextResponse.json({ error: "操作过于频繁，请稍后再试" }, { status: 429 });
   }
 
   try {

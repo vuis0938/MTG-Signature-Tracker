@@ -2,11 +2,19 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
 import { getEvents } from "@/lib/events-data";
+import { rateLimit, getClientIP } from "@/lib/rate-limit";
 
 export async function GET(request: NextRequest) {
   const userName = getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+
+  // 限流：聚合数据，60 次/分钟
+  const ip = getClientIP(request);
+  const limit = rateLimit(`events:${ip}`, 60, 60 * 1000);
+  if (!limit.allowed) {
+    return NextResponse.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
   }
 
   try {

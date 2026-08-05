@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { delay, SCRYFALL_UA, SCRYFALL_BASE_URL } from "@/lib/scryfall-client";
 import { getUserFromRequest } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
+import { rateLimit, getClientIP } from "@/lib/rate-limit";
 import type { ArtistCard } from "@/types";
 
 // ── 内存缓存（进程级，TTL 10 分钟） ──────────────────────
@@ -33,6 +34,13 @@ export async function GET(request: NextRequest) {
   const userName = getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+
+  // 限流：外部 API 调用，20 次/分钟
+  const ip = getClientIP(request);
+  const limit = rateLimit(`artist-cards:${ip}`, 20, 60 * 1000);
+  if (!limit.allowed) {
+    return NextResponse.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
   }
 
   try {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { delay, SCRYFALL_UA, SCRYFALL_BASE_URL } from "@/lib/scryfall-client";
 import { getUserFromRequest } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
+import { rateLimit, getClientIP } from "@/lib/rate-limit";
 import type { Printing } from "@/types";
 
 /** 检查卡牌名称是否精确匹配目标（排除双面卡/裂片卡中仅一面同名的情况） */
@@ -14,6 +15,13 @@ export async function GET(request: NextRequest) {
   const userName = getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+
+  // 限流：外部 API 调用，20 次/分钟
+  const ip = getClientIP(request);
+  const limit = rateLimit(`card-printings:${ip}`, 20, 60 * 1000);
+  if (!limit.allowed) {
+    return NextResponse.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
   }
 
   try {
