@@ -31,15 +31,15 @@ export default function VersionSwitchDialog({
   onClose, onSwitchPrinting, onDeleteCard,
 }: VersionSwitchDialogProps) {
   return (
-    <Dialog open={switchCard !== null} onOpenChange={onClose} className="max-w-3xl flex flex-col h-[70vh] overflow-hidden pr-0">
-      <DialogHeader className="shrink-0">
+    <Dialog open={switchCard !== null} onOpenChange={onClose} className="max-w-3xl flex flex-col h-[calc(100dvh-2rem)] md:h-[80vh] !max-h-[calc(100dvh-2rem)] md:!max-h-[80vh] overflow-hidden pr-0">
+      <DialogHeader className="shrink-0 px-6 pt-4 pb-1">
         <DialogTitle>切换印刷版本 — {switchCard?.card_name}</DialogTitle>
         <DialogDescription>
           当前版本：{switchCard?.set_code?.toUpperCase()} #{switchCard?.collector_number}
           {switchCard?.artist_names && (" · 画家：" + switchCard.artist_names.join(", "))}
         </DialogDescription>
       </DialogHeader>
-      <DialogContent className="flex-1 overflow-y-auto min-h-0">
+      <DialogContent className="flex-1 overflow-y-auto min-h-0 px-6 pb-2">
         {printingsLoading ? (
           <CardGridSkeleton className="p-1" rows={2} />
         ) : (
@@ -115,7 +115,7 @@ export default function VersionSwitchDialog({
       </DialogContent>
       {/* 删除此卡牌 — 固定在底部，与 DialogContent 同级，高度算进 70vh */}
       {switchCard && (
-        <div className="px-6 py-3 border-t shrink-0">
+        <div className="px-6 py-2 border-t shrink-0">
           <Button
             variant="destructive"
             size="sm"
