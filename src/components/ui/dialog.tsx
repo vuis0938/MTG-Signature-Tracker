@@ -95,5 +95,5 @@ export function DialogContent({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("px-6 pb-6 overflow-y-auto min-h-0", className)} {...props} />;
+  return <div className={cn("px-6 pb-6 overflow-y-auto min-h-0 flex-1", className)} {...props} />;
 }

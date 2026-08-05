@@ -31,7 +31,7 @@ function DialogChunkFallback() {
         <DialogTitle>加载中...</DialogTitle>
       </DialogHeader>
       <DialogContent>
-        <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="flex items-center justify-center min-h-[40vh]">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           <span className="ml-2 text-sm text-muted-foreground">加载中...</span>
         </div>

@@ -36,16 +36,16 @@ export default function ArtistGalleryDialog({
       </DialogHeader>
       <DialogContent>
         {loading ? (
-          <div className="flex items-center justify-center min-h-[50vh]">
+          <div className="flex items-center justify-center min-h-[40vh]">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             <span className="ml-2 text-sm text-muted-foreground">加载中...</span>
           </div>
         ) : cards.length === 0 ? (
-          <div className="flex items-center justify-center min-h-[50vh]">
+          <div className="flex items-center justify-center min-h-[40vh]">
             <p className="text-sm text-muted-foreground text-center">未找到该画家的卡牌</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 min-h-[50vh] pr-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 min-h-[40vh] pr-2">
             {cards.map((card) => (
               <div
                 key={card.set + "-" + card.collector_number}
