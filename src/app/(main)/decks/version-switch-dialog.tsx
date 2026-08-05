@@ -1,6 +1,7 @@
 "use client";
 
 import { CardImage } from "@/components/card-image";
+import { CardGridSkeleton } from "@/components/card-grid-skeleton";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,7 +10,7 @@ import {
   DialogDescription,
   DialogContent,
 } from "@/components/ui/dialog";
-import { Loader2, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import type { CardEntry, Printing } from "@/types";
 
 // ─── 切换印刷版本弹窗（next/dynamic 懒加载，首次打开时才下载 chunk）──
@@ -40,10 +41,7 @@ export default function VersionSwitchDialog({
       </DialogHeader>
       <DialogContent className="flex-1 overflow-y-auto min-h-0">
         {printingsLoading ? (
-          <div className="flex items-center justify-center gap-2 h-full text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            <span className="text-sm">加载中...</span>
-          </div>
+          <CardGridSkeleton className="p-1" count={12} />
         ) : (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 p-1 items-start content-start">

@@ -1,13 +1,13 @@
 "use client";
 
 import { CardImage } from "@/components/card-image";
+import { CardGridSkeleton } from "@/components/card-grid-skeleton";
 import {
   Dialog,
   DialogHeader,
   DialogTitle,
   DialogContent,
 } from "@/components/ui/dialog";
-import { Loader2 } from "lucide-react";
 import type { ArtistCard } from "@/types";
 
 // ─── 画家卡牌画廊弹窗（next/dynamic 懒加载，首次打开时才下载 chunk）──
@@ -36,10 +36,7 @@ export default function ArtistGalleryDialog({
       </DialogHeader>
       <DialogContent className="flex-1 overflow-y-auto min-h-0">
         {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-sm text-muted-foreground">加载中...</span>
-          </div>
+          <CardGridSkeleton count={12} />
         ) : cards.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <p className="text-sm text-muted-foreground text-center">未找到该画家的卡牌</p>
