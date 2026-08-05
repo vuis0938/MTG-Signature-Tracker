@@ -40,14 +40,14 @@ export default function VersionSwitchDialog({
       </DialogHeader>
       {printingsLoading ? (
         <DialogContent>
-          <div className="flex items-center justify-center gap-2 min-h-[50vh] text-muted-foreground">
+          <div className="flex items-center justify-center gap-2 min-h-[60vh] max-h-[60vh] text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
             <span className="text-sm">加载中...</span>
           </div>
         </DialogContent>
       ) : (
         <DialogContent>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 max-h-[60vh] overflow-y-auto p-1 pr-2 items-start content-start">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 min-h-[60vh] max-h-[60vh] overflow-y-auto p-1 pr-2 items-start content-start">
             {(() => {
               // 确保当前版本始终在列表中（Scryfall 搜索可能遗漏部分 promo/特殊版本）
               const currentSet = (switchCard?.set_code || "").toLowerCase().trim();
