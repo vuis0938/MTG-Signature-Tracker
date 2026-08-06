@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { pbkdf2Sync, randomBytes, createHmac } from "crypto";
 import {
   hashPassword,
   verifyPassword,
@@ -58,7 +59,6 @@ describe("verifyPassword", () => {
 
   it("兼容旧格式 salt:hash（100,000 次迭代）", async () => {
     // 模拟旧格式哈希：iterations=100000
-    const { pbkdf2Sync, randomBytes } = require("crypto");
     const salt = randomBytes(16).toString("hex");
     const hash = pbkdf2Sync("legacytest", salt, 100000, 64, "sha256").toString("hex");
     const legacyStored = `${salt}:${hash}`;
@@ -194,13 +194,12 @@ describe("verifyToken", () => {
   it("过期 token 返回 null", () => {
     const token = createToken("alice");
     // 解码 payload，修改过期时间为过去，重新编码
-    const [payloadStr, signature] = token.split(".");
+    const [payloadStr] = token.split(".");
     const payload = JSON.parse(Buffer.from(payloadStr, "base64url").toString("utf-8"));
     payload.e = Date.now() - 1000; // 已过期
     // 由于签名会不匹配，需要直接测试 verifyToken 逻辑
     // 创建一个带有效签名但过期时间在过去的 token
     const expiredPayloadStr = Buffer.from(JSON.stringify(payload)).toString("base64url");
-    const { createHmac } = require("crypto");
     // TOKEN_SECRET 在开发环境有默认值
     const expiredSignature = createHmac("sha256", "mtg-dev-secret-change-in-production")
       .update(expiredPayloadStr)

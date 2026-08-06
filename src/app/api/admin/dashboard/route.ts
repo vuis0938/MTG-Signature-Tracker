@@ -6,7 +6,6 @@ import { requireAdmin } from "@/lib/admin";
 export async function GET(request: NextRequest) {
   const auth = requireAdmin(request);
   if (auth.error) return auth.error;
-  const userName = auth.userName;
 
   try {
     const supabase = getSupabase();

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import ArtistGalleryDialog from "../artist-gallery-dialog";
 import VersionSwitchDialog from "@/app/(main)/decks/version-switch-dialog";
 
@@ -79,6 +79,7 @@ describe("弹窗网格列数", () => {
             collector_number: "1",
             artist: "画家A",
             image_url: "https://example.com/normal/1.jpg",
+            released_at: "2024-01-01",
           },
         ]}
         printingsLoading={false}

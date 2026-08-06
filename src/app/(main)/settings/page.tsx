@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useToast } from "@/lib/toast-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -115,7 +116,7 @@ export default function SettingsPage() {
             text += `  【${group.label}】\n`;
             for (const card of groupCards) {
               const countStr = card.count > 1 ? ` ×${card.count}` : "";
-              let line = `    ${card.name} [${card.set.toUpperCase()} #${card.cn}]${countStr} — ${card.artist}`;
+              const line = `    ${card.name} [${card.set.toUpperCase()} #${card.cn}]${countStr} — ${card.artist}`;
               text += line + "\n";
             }
           }
@@ -589,6 +590,17 @@ export default function SettingsPage() {
                 >
                   Mountain Mage Signatures
                 </a>
+              </div>
+            </div>
+            <div className="flex justify-between items-center border-t pt-2">
+              <span className="text-muted-foreground">法律信息</span>
+              <div className="flex flex-col items-end gap-0.5">
+                <Link href="/terms" className="text-foreground underline">
+                  用户协议
+                </Link>
+                <Link href="/privacy" className="text-foreground underline">
+                  隐私政策
+                </Link>
               </div>
             </div>
           </div>

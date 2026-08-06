@@ -56,6 +56,14 @@ function report(error: { message: string; stack?: string }) {
 let initialized = false;
 
 /**
+ * 主动上报一个 Error 对象（带栈）。
+ * error.tsx 等错误边界内使用，避免重复初始化全局监听器。
+ */
+export function reportError(error: Error) {
+  report(error);
+}
+
+/**
  * 初始化全局错误捕获。应在应用最外层 Providers 中调用一次。
  */
 export function initErrorReporter() {

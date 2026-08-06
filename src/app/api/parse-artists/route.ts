@@ -11,11 +11,36 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const PROMPT = `你是一个文本解析器。以下是万智牌活动的画家出席名单原文。请从中提取所有画家的英文全名，返回纯 JSON 字符串数组。
 
 规则：
-1. 只提取画家姓名，去掉序号、价格、时间、摊位号等无关信息
+1. 只提取画家姓名，去掉序号、价格、时间、摊位号、活动标题、中文说明等无关信息
 2. 如果只有中文译名或昵称，保留原文不做翻译
 3. 多人合作写成一条的，拆分为独立条目
 4. 仅返回 JSON 数组，不要其他任何文字
-5. 如果无法识别任何画家，返回空数组 []`;
+5. 如果无法识别任何画家，返回空数组 []
+
+示例 1：
+原文：
+---
+#接龙
+恺源签绘
+现场活动
+ROVINA CAI
+BENJAMIN EE
+APRIL PRIME
+ALEX STONE
+RK POST
+KIERAN YANNER
+KELOGSLOOPS
+邮寄须知：
+---
+应返回：["ROVINA CAI", "BENJAMIN EE", "APRIL PRIME", "ALEX STONE", "RK POST", "KIERAN YANNER", "KELOGSLOOPS"]
+
+示例 2：
+原文：
+---
+1. John Avon - $40
+2. Rebecca Guay (full art)
+---
+应返回：["John Avon", "Rebecca Guay"]`;
 
 async function parseWithLLM(rawText: string): Promise<{ artists: string[]; model: string }> {
   // 优先 DeepSeek
@@ -109,7 +134,22 @@ async function callAnthropic(rawText: string): Promise<string[]> {
 
 // ─── 正则降级 ─────────────────────────────────────────────
 
-function parseWithRegex(rawText: string): string[] {
+/** 常见非画家说明词/标题词（中英文活动文案） */
+const NON_ARTIST_KEYWORDS =
+  /接龙|须知|活动|邮寄|地址|截止|deadline|现场|线上|报名|价格|费用|时间|地点|备注|说明|标题|签到|预约|限量|名额|签绘|展会|摊位| booth|table|签名|info|notice|note|address|price|cost|location|remark|title|signup|sign\s*up|limited|slots|instruction|instructions|onsite|mail|shipping|event|activity/i;
+
+/** 判断一行是否明显不是画家名（标题、说明、活动文案等） */
+function isLikelyNonArtist(line: string): boolean {
+  // 常见说明关键词
+  if (NON_ARTIST_KEYWORDS.test(line)) return true;
+  // 以冒号/分号结尾的标题，如"邮寄须知："
+  if (/[：:；;]\s*$/.test(line)) return true;
+  // 纯中文短句（大概率是中文说明文字），保留可能的中文画家名阈值设为 8 字
+  if (/^[\u4e00-\u9fa5]+$/.test(line) && line.length <= 8) return true;
+  return false;
+}
+
+export function parseWithRegex(rawText: string): string[] {
   const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
   const artists: string[] = [];
 
@@ -119,8 +159,13 @@ function parseWithRegex(rawText: string): string[] {
 
     let name = line;
 
-    // 去掉序号前缀: "1." "1)" "①" "1 -"
-    name = name.replace(/^[\d]+[\.\)、\-]\s*/, "");
+    // 跳过明显是标题/说明/活动文案的行
+    if (isLikelyNonArtist(name)) continue;
+
+    // 去掉序号前缀: "1." "1)" "①" "1 -" "4 - "
+    name = name.replace(/^\d+\s*[-–—]\s*/, "");
+    name = name.replace(/^[\d①②③④⑤⑥⑦⑧⑨⑩]+[\.\)、\-\：:]\s*/, "");
+    name = name.replace(/^[\d①②③④⑤⑥⑦⑧⑨⑩]+\s+/, "");
     name = name.replace(/^[\*\-\+]\s+/, "");
 
     // 按分隔符拆分，取第一段
@@ -141,12 +186,17 @@ function parseWithRegex(rawText: string): string[] {
     // 去掉末尾的标记: *F*, *S*, etc
     name = name.replace(/\s*\*[A-Z]\*\s*$/, "");
 
+    // 去掉末尾残留的分隔符（价格/日期清洗后可能留下，如 "John Avon -"）
+    name = name.replace(/\s*[-–—|\\/\\]\s*$/, "");
+
     name = name.trim();
 
     // 过滤无效结果
     if (name.length < 3) continue;
     // 纯数字/符号行
     if (/^[\d\s\.\-\+\$€£\/\\:~]+$/.test(name)) continue;
+    // 二次过滤：清洗后变成说明文字的情况
+    if (isLikelyNonArtist(name)) continue;
 
     artists.push(name);
   }

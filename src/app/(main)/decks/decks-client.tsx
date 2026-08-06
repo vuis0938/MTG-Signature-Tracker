@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect, memo, type ReactNode } from "react";
 import { useToast } from "@/lib/toast-context";
+import { useLatestRef } from "@/lib/use-latest-ref";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import { useDisplayMode } from "@/lib/display-mode";
 import { CardImage } from "@/components/card-image";
@@ -103,27 +104,6 @@ export default function DecksClient({
   const { mode: displayMode } = useDisplayMode();
   const { layout: deckLayout } = useDeckLayout();
 
-  // 调试：核心断点处输出当前视口与布局模式
-  useEffect(() => {
-    function logLayout() {
-      const width = window.innerWidth;
-      const bp =
-        width < 640 ? "default"
-        : width < 768 ? "sm"
-        : width < 1024 ? "md"
-        : width < 1280 ? "lg"
-        : "xl";
-      const compactConfig =
-        width < 640 ? "2x2"
-        : width < 1024 ? "2x4"
-        : "3x4";
-      console.log("[decks debug]", { width, bp, deckLayout, compactConfig });
-    }
-    logLayout();
-    window.addEventListener("resize", logLayout);
-    return () => window.removeEventListener("resize", logLayout);
-  }, [deckLayout]);
-
   // 导入失败卡牌的手动重试
   const [failedCards, setFailedCards] = useState<
     Array<{ name: string; setCode: string; collectorNumber: string }>
@@ -137,17 +117,16 @@ export default function DecksClient({
   const [cardsLoading, setCardsLoading] = useState(false);
 
   // Ref 锁定最新状态，让回调函数保持引用稳定（配合 React.memo 减少重渲染）
-  const cardsRef = useRef(cards);
-  cardsRef.current = cards;
-  const expandedDeckRef = useRef(expandedDeck);
-  expandedDeckRef.current = expandedDeck;
+  const cardsRef = useLatestRef(cards);
+  const expandedDeckRef = useLatestRef(expandedDeck);
 
   // SWR 数据的 ref：mutate(updater, false) 在 revalidateOnMount:false + fallbackData 场景下
   // updater 收到的是 undefined（fallbackData 不写入 SWR 缓存），需要用 ref 获取当前数据
-  const swrDataRef = useRef<DecksResponse | undefined>(
-    fallbackData
-  );
-  swrDataRef.current = { success: true, decks, stats: deckStats };
+  const swrDataRef = useLatestRef<DecksResponse | undefined>({
+    success: true,
+    decks,
+    stats: deckStats,
+  });
 
   // 标记乐观更新：区分本地 revalidate(data, false) 和服务端 revalidation
   // 服务端 revalidation 时清除本地 cards 缓存，让展开的套牌重新拉取最新卡牌数据
@@ -177,7 +156,7 @@ export default function DecksClient({
       }
     }
     prevDataRef.current = swrDataRef.current;
-  }, [decks, deckStats]);
+  }, [decks, deckStats, expandedDeckRef, swrDataRef]);
 
   // 添加卡牌弹窗
   const [addCardsOpen, setAddCardsOpen] = useState<string | null>(null);
@@ -220,9 +199,9 @@ export default function DecksClient({
       } catch {
         showToast("加载卡牌失败，请重试", "error");
       }
-      setCardsLoading(false);
     }
-  }, [showToast]);
+    setCardsLoading(false);
+  }, [showToast, cardsRef, expandedDeckRef]);
 
   // ─── 删除套牌 ──────────────────────────────────────────
 
@@ -250,7 +229,7 @@ export default function DecksClient({
     });
     if (expandedDeckRef.current === deckId) setExpandedDeck(null);
     showToast("套牌已删除", "success");
-  }, [showToast, revalidate]);
+  }, [showToast, revalidate, expandedDeckRef]);
 
   /** 打开"添加卡牌"弹窗（稳定引用，供 memo 子组件使用） */
   const openAddCards = useCallback((deckId: string) => {
@@ -283,7 +262,7 @@ export default function DecksClient({
 
       if (data.success) {
         const hasFailures = (data.failCount ?? 0) > 0;
-        let msg = hasFailures
+        const msg = hasFailures
           ? `「${deckName}」${data.successCount}/${data.total} 张导入成功，${data.failCount} 张可尝试搜索`
           : `「${deckName}」导入成功，共 ${data.successCount} 张`;
 
@@ -314,7 +293,7 @@ export default function DecksClient({
     } finally {
       setImporting(false);
     }
-  }, [deckName, deckText, revalidate]);
+  }, [deckName, deckText, revalidate, showToast]);
 
   // ─── 手动重试单张卡牌 ──────────────────────────────────
 
@@ -357,7 +336,7 @@ export default function DecksClient({
     } finally {
       setRetryingCard(null);
     }
-  }, [retryingDeckId, expandedDeck, revalidate]);
+  }, [retryingDeckId, expandedDeck, revalidate, showToast]);
 
   // ─── 三态切换 ──────────────────────────────────────────
 
@@ -482,7 +461,7 @@ export default function DecksClient({
         }
         showToast("网络错误，状态已恢复", "error");
       });
-  }, [showToast, revalidate]);
+  }, [showToast, revalidate, cardsRef, swrDataRef]);
 
   // ─── 添加卡牌到套牌 ──────────────────────────────────
 
@@ -504,7 +483,7 @@ export default function DecksClient({
 
       if (data.success) {
         const hasFailures = (data.failCount ?? 0) > 0;
-        let msg = hasFailures
+        const msg = hasFailures
           ? `${data.successCount}/${data.total} 张追加成功，${data.failCount} 张可尝试搜索`
           : `追加成功，共 ${data.successCount} 张`;
         showToast(msg, "success");
@@ -530,7 +509,7 @@ export default function DecksClient({
     } finally {
       setAddCardsLoading(false);
     }
-  }, [addCardsOpen, addCardsText, expandedDeck, revalidate]);
+  }, [addCardsOpen, addCardsText, expandedDeck, revalidate, showToast]);
 
   // ─── 加载卡牌所有印刷版本 ──────────────────────────────
 
@@ -586,7 +565,7 @@ export default function DecksClient({
 
     // 无副本或合并模式，直接加载
     proceedLoadPrintings(card, ids);
-  }, [proceedLoadPrintings]);
+  }, [proceedLoadPrintings, cardsRef]);
 
   // 批量修改确认回调
   function handleBatchConfirm(batch: boolean) {

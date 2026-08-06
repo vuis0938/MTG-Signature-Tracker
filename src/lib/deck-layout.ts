@@ -1,11 +1,46 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useSyncExternalStore, useCallback } from "react";
 
 const STORAGE_KEY = "mtg-deck-layout";
 export type DeckLayout = "default" | "compact" | "list";
-
 const LAYOUTS: DeckLayout[] = ["default", "compact", "list"];
+const DEFAULT_LAYOUT: DeckLayout = "default";
+
+const listeners = new Set<() => void>();
+
+function getSnapshot(): DeckLayout {
+  if (typeof window === "undefined") return DEFAULT_LAYOUT;
+  try {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (stored && LAYOUTS.includes(stored as DeckLayout)) {
+      return stored as DeckLayout;
+    }
+  } catch {
+    // localStorage 不可用时忽略
+  }
+  return DEFAULT_LAYOUT;
+}
+
+function getServerSnapshot(): DeckLayout {
+  return DEFAULT_LAYOUT;
+}
+
+function subscribe(callback: () => void): () => void {
+  listeners.add(callback);
+  const storageHandler = (e: StorageEvent) => {
+    if (e.key === STORAGE_KEY) callback();
+  };
+  window.addEventListener("storage", storageHandler);
+  return () => {
+    listeners.delete(callback);
+    window.removeEventListener("storage", storageHandler);
+  };
+}
+
+function notify() {
+  listeners.forEach((cb) => cb());
+}
 
 /**
  * 套牌排版模式 Hook
@@ -16,45 +51,31 @@ const LAYOUTS: DeckLayout[] = ["default", "compact", "list"];
  *
  * 通过 localStorage 持久化，默认 default。
  *
- * 注意：初始值固定为默认值，避免 SSR/客户端首次渲染不一致导致的 hydration mismatch。
- * localStorage 的读取放在 useEffect 中，hydration 完成后再恢复用户偏好。
+ * 使用 useSyncExternalStorage 订阅 localStorage，服务端/ hydration 阶段固定返回默认值，
+ * 避免 SSR 与客户端首次渲染不一致导致的 hydration mismatch。
  */
 export function useDeckLayout() {
-  const [layout, setLayout] = useState<DeckLayout>("default");
+  const layout = useSyncExternalStore<DeckLayout>(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot,
+  );
 
-  useEffect(() => {
+  const setLayout = useCallback((next: DeckLayout) => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored && LAYOUTS.includes(stored as DeckLayout)) {
-        setLayout(stored as DeckLayout);
-      }
-    } catch {
-      // localStorage 不可用时忽略
-    }
-  }, []);
-
-  const setLayoutPersisted = useCallback((next: DeckLayout) => {
-    setLayout(next);
-    try {
-      localStorage.setItem(STORAGE_KEY, next);
+      window.localStorage.setItem(STORAGE_KEY, next);
     } catch {
       // 忽略写入失败
     }
+    notify();
   }, []);
 
   /** 循环切换到下一个模式 */
   const cycle = useCallback(() => {
-    setLayout((prev) => {
-      const idx = LAYOUTS.indexOf(prev);
-      const next = LAYOUTS[(idx + 1) % LAYOUTS.length];
-      try {
-        localStorage.setItem(STORAGE_KEY, next);
-      } catch {
-        // 忽略写入失败
-      }
-      return next;
-    });
-  }, []);
+    const idx = LAYOUTS.indexOf(layout);
+    const next = LAYOUTS[(idx + 1) % LAYOUTS.length];
+    setLayout(next);
+  }, [layout, setLayout]);
 
-  return { layout, setLayout: setLayoutPersisted, cycle } as const;
+  return { layout, setLayout, cycle } as const;
 }

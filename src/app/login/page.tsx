@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -345,6 +346,18 @@ export default function LoginPage() {
               </Button>
             </>
           )}
+
+          {/* 协议链接 */}
+          <div className="mt-6 pt-4 border-t text-center text-xs text-muted-foreground">
+            登录或注册即表示您同意
+            <Link href="/terms" className="underline hover:text-foreground mx-1">
+              用户协议
+            </Link>
+            和
+            <Link href="/privacy" className="underline hover:text-foreground mx-1">
+              隐私政策
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>

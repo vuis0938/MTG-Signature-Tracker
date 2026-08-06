@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 
     // 3. 每副套牌的卡牌统计
     const deckIds = (decks || []).map((d) => d.id);
-    let cardsByDeck: Record<string, { total: number; signed: number; pending: number; unsigned: number }> = {};
+    const cardsByDeck: Record<string, { total: number; signed: number; pending: number; unsigned: number }> = {};
 
     if (deckIds.length > 0) {
       const { data: cards, error: cardsError } = await supabase

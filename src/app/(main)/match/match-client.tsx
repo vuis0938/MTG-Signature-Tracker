@@ -13,18 +13,13 @@ import {
 } from "@/components/ui/card";
 import { useDisplayMode } from "@/lib/display-mode";
 import { useToast } from "@/lib/toast-context";
+import { useLatestRef } from "@/lib/use-latest-ref";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import { useDecks, useEvents } from "@/lib/swr-hooks";
 import {
   Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Sparkle, Palette, Package, Heart, Check, MoreHorizontal, Lightbulb,
 } from "lucide-react";
 import ArtistGalleryDialog from "@/components/artist-gallery-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 // ─── 类型定义 ──────────────────────────────────────────────
 
@@ -103,26 +98,17 @@ export default function MatchClient({
     preloadDialogChunks();
   }, []);
 
-  // Ref 锁定最新状态，避免闭包陷阱
-  const selectedDecksRef = useRef(selectedDecks);
-  selectedDecksRef.current = selectedDecks;
-  const parsedArtistsRef = useRef(parsedArtists);
-  parsedArtistsRef.current = parsedArtists;
-  const decksRef = useRef(decks);
-  decksRef.current = decks;
-  const fuzzyModeRef = useRef(fuzzyMode);
-  fuzzyModeRef.current = fuzzyMode;
+  // Ref 锁定最新状态，避免闭包陷阱（useLatestRef 在 effect 中同步，避免 render 阶段写 ref）
+  const selectedDecksRef = useLatestRef(selectedDecks);
+  const parsedArtistsRef = useLatestRef(parsedArtists);
+  const decksRef = useLatestRef(decks);
+  const fuzzyModeRef = useLatestRef(fuzzyMode);
   const matchingRef = useRef(false);
-  const matchedRef = useRef(matched);
-  matchedRef.current = matched;
-  const fuzzyMatchedRef = useRef(fuzzyMatched);
-  fuzzyMatchedRef.current = fuzzyMatched;
-  const eventsRef = useRef(events);
-  eventsRef.current = events;
-  const currentEventRef = useRef(currentEvent);
-  currentEventRef.current = currentEvent;
-  const currentEventDateRef = useRef(currentEventDate);
-  currentEventDateRef.current = currentEventDate;
+  const matchedRef = useLatestRef(matched);
+  const fuzzyMatchedRef = useLatestRef(fuzzyMatched);
+  const eventsRef = useLatestRef(events);
+  const currentEventRef = useLatestRef(currentEvent);
+  const currentEventDateRef = useLatestRef(currentEventDate);
 
   // ─── 辅助函数 ──────────────────────────────────────────
 
@@ -136,9 +122,6 @@ export default function MatchClient({
 
   /** 查询多个套牌的所有卡牌 */
   async function fetchCardsByDeckIds(deckIds: string[]): Promise<CardEntry[]> {
-    const currentDecks = decksRef.current;
-    const deckMap = new Map(currentDecks.map((d) => [d.id, d.name]));
-
     try {
       const res = await fetch("/api/cards/batch", {
         method: "POST",
@@ -713,7 +696,6 @@ export default function MatchClient({
     const currentFuzzyMode = fuzzyModeRef.current;
     const currentFuzzyMatched = fuzzyMatchedRef.current;
     const currentMatched = matchedRef.current;
-    const currentUnmatched = unmatched;
     const currentParsedArtists = parsedArtistsRef.current;
     const currentDecks = decksRef.current;
     const currentEvents = eventsRef.current;
@@ -909,7 +891,7 @@ export default function MatchClient({
           const countStr = card.count > 1 ? ` ×${card.count}` : "";
           // 多套牌时显示套牌名（不显示套牌内张数）
           const deckStr = [...card.deckNames.keys()].join(", ");
-          let line = `    ${card.label}${countStr} — ${deckStr}`;
+          const line = `    ${card.label}${countStr} — ${deckStr}`;
           text += line + "\n";
         }
       }
@@ -942,7 +924,16 @@ export default function MatchClient({
     a.download = `mtg-signing-list-${date}.txt`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [unmatched]);
+  }, [
+    fuzzyModeRef,
+    fuzzyMatchedRef,
+    matchedRef,
+    parsedArtistsRef,
+    decksRef,
+    eventsRef,
+    currentEventRef,
+    currentEventDateRef,
+  ]);
 
   // ─── 渲染 ──────────────────────────────────────────────
 
@@ -1294,7 +1285,6 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
           arr.push(e);
           byCardName.set(e.card_name, arr);
         }
-        const deckCount = entries.filter((e) => e.deckCard).length;
 
         return (
           <div key={artist}>

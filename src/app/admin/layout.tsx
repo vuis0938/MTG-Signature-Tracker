@@ -1,7 +1,17 @@
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/auth";
 import { AdminNav } from "@/components/admin-nav";
+
+export const metadata: Metadata = {
+  title: "管理后台",
+  description: "MTG 签绘管家管理员后台。",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default async function AdminLayout({
   children,

@@ -34,8 +34,14 @@ export function getSupabase(): SupabaseClient {
     }
 
     // 优先使用 Service Role Key（绕过 RLS，服务端全权限）
-    // 如果未配置 Service Role Key，降级使用 anon key（RLS 会限制访问）
-    const key = serviceKey || anonKey;
+    // 生产环境禁止降级使用 anon key，避免权限不足导致数据隔离失效
+    let key = serviceKey;
+    if (!key) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY in production");
+      }
+      key = anonKey;
+    }
     if (!key) {
       throw new Error(
         "Missing SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY"
@@ -45,12 +51,6 @@ export function getSupabase(): SupabaseClient {
     if (serviceKey && !anonKey) {
       console.warn(
         "[Supabase] 仅配置了 SERVICE_ROLE_KEY，建议同时配置 ANON_KEY 供前端使用"
-      );
-    }
-
-    if (!serviceKey && process.env.NODE_ENV === "production") {
-      console.warn(
-        "[Supabase] 未配置 SUPABASE_SERVICE_ROLE_KEY，降级使用 anon key。建议配置 Service Role Key 以获得完整服务端权限。"
       );
     }
 

@@ -9,7 +9,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { fetchMountainMageArtists } from "@/lib/mountain-mage";
 import { getSupabase } from "@/lib/supabase";
-import type { CalendarEvent } from "@/types";
+
 
 // ─── 类型定义 ──────────────────────────────────────────────
 

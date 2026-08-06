@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
     // 默认 JSON 格式
     const jsonStr = JSON.stringify({
       title: "MTG签绘管家",
-      url: "www.mtgkit.top",
+      url: "https://www.mtgkit.top",
       exportedAt: timestamp,
       exportedBy: adminName,
       ...exportData,
