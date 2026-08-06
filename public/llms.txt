@@ -1,0 +1,21 @@
+# MTG 签绘管家
+
+万智牌签绘收藏管理工具。导入套牌牌表，追踪每张卡的签绘状态，管理送签进度，查看画家出席活动。
+
+## 核心功能
+
+- [套牌管理](https://www.mtgkit.top/decks)：导入牌表、管理套牌、追踪每张卡的签绘状态（未签 / 送签中 / 已签 / 心动）。
+- [卡牌匹配](https://www.mtgkit.top/match)：按画家查找可签卡牌，快速将卡牌加入套牌。
+- [活动日历](https://www.mtgkit.top/events)：查看未来万智牌相关活动及出席画家名单。
+- [设置](https://www.mtgkit.top/settings)：管理账号、修改密码、查看法律信息。
+
+## 法律信息
+
+- [隐私政策](https://www.mtgkit.top/privacy)
+- [用户协议](https://www.mtgkit.top/terms)
+
+## 数据来源
+
+- [Scryfall API](https://scryfall.com)：卡牌数据与图片
+- [MTG Artist Connection](https://mtgartistconnection.com)：活动与画家信息
+- [Mountain Mage Signatures](https://mountainmagesigs.com)：平台代理签绘信息
