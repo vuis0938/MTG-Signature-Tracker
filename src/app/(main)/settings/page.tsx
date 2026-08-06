@@ -572,6 +572,17 @@ export default function SettingsPage() {
               </a>
             </div>
             <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">法律信息</span>
+              <div className="flex flex-col items-end gap-0.5">
+                <Link href="/terms" className="text-foreground underline">
+                  用户协议
+                </Link>
+                <Link href="/privacy" className="text-foreground underline">
+                  隐私政策
+                </Link>
+              </div>
+            </div>
+            <div className="flex justify-between items-center">
               <span className="text-muted-foreground">活动信息</span>
               <div className="flex flex-col items-end gap-0.5">
                 <a
@@ -590,17 +601,6 @@ export default function SettingsPage() {
                 >
                   Mountain Mage Signatures
                 </a>
-              </div>
-            </div>
-            <div className="flex justify-between items-center border-t pt-2">
-              <span className="text-muted-foreground">法律信息</span>
-              <div className="flex flex-col items-end gap-0.5">
-                <Link href="/terms" className="text-foreground underline">
-                  用户协议
-                </Link>
-                <Link href="/privacy" className="text-foreground underline">
-                  隐私政策
-                </Link>
               </div>
             </div>
           </div>
