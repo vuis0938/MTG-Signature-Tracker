@@ -44,7 +44,7 @@ export default function VersionSwitchDialog({
           <CardGridSkeleton className="p-1" rows={2} />
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 p-1 items-start content-start">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 p-1 items-start content-start">
               {(() => {
                 // 确保当前版本始终在列表中（Scryfall 搜索可能遗漏部分 promo/特殊版本）
                 const currentSet = (switchCard?.set_code || "").toLowerCase().trim();
