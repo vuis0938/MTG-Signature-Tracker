@@ -112,56 +112,88 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (body.action === "delete") {
-      // 1. 先获取该用户所有套牌 id，确保级联删除卡牌
-      const { data: decks } = await supabase
-        .from("decks")
-        .select("id")
-        .eq("user_name", body.username);
-      const deckIds = (decks || []).map((d) => d.id);
+      // 优先使用数据库层原子函数永久删除用户及其全部数据（users / decks / cards / feedback）
+      // 函数执行失败时回退到应用层逐表删除，兼容未执行迁移的环境
+      let deleted = false;
 
-      // 2. 删除该用户的所有卡牌（按 user_name 兜底，再按 deck_id 精确清理）
-      const { error: cardsByUserError } = await supabase
-        .from("cards")
-        .delete()
-        .eq("user_name", body.username);
-      if (cardsByUserError) {
-        console.error("[Admin Users API] 删除卡牌失败:", cardsByUserError.message);
-        return NextResponse.json({ error: "删除用户卡牌数据失败" }, { status: 500 });
+      try {
+        const { data: rpcResult, error: rpcError } = await supabase.rpc(
+          "delete_user_completely",
+          { target_username: body.username }
+        );
+
+        if (!rpcError && rpcResult === true) {
+          deleted = true;
+        } else if (rpcError) {
+          console.warn("[Admin Users API] delete_user_completely RPC 不可用，回退到应用层删除:", rpcError.message);
+        }
+      } catch (rpcErr) {
+        console.warn("[Admin Users API] 调用 RPC 异常，回退到应用层删除:", rpcErr);
       }
 
-      if (deckIds.length > 0) {
-        const { error: cardsByDeckError } = await supabase
+      // ─── 应用层降级删除（当 RPC 函数不存在或失败时）───
+      if (!deleted) {
+        // 1. 先获取该用户所有套牌 id，确保级联删除卡牌
+        const { data: decks } = await supabase
+          .from("decks")
+          .select("id")
+          .eq("user_name", body.username);
+        const deckIds = (decks || []).map((d) => d.id);
+
+        // 2. 删除该用户提交的所有反馈
+        const { error: feedbackError } = await supabase
+          .from("feedback")
+          .delete()
+          .eq("user_name", body.username);
+        if (feedbackError) {
+          console.error("[Admin Users API] 删除反馈失败:", feedbackError.message);
+          return NextResponse.json({ error: "删除用户反馈数据失败" }, { status: 500 });
+        }
+
+        // 3. 删除该用户的所有卡牌（按 user_name 兜底，再按 deck_id 精确清理）
+        const { error: cardsByUserError } = await supabase
           .from("cards")
           .delete()
-          .in("deck_id", deckIds);
-        if (cardsByDeckError) {
-          console.error("[Admin Users API] 级联删除卡牌失败:", cardsByDeckError.message);
+          .eq("user_name", body.username);
+        if (cardsByUserError) {
+          console.error("[Admin Users API] 删除卡牌失败:", cardsByUserError.message);
           return NextResponse.json({ error: "删除用户卡牌数据失败" }, { status: 500 });
+        }
+
+        if (deckIds.length > 0) {
+          const { error: cardsByDeckError } = await supabase
+            .from("cards")
+            .delete()
+            .in("deck_id", deckIds);
+          if (cardsByDeckError) {
+            console.error("[Admin Users API] 级联删除卡牌失败:", cardsByDeckError.message);
+            return NextResponse.json({ error: "删除用户卡牌数据失败" }, { status: 500 });
+          }
+        }
+
+        // 4. 删除套牌
+        const { error: decksError } = await supabase
+          .from("decks")
+          .delete()
+          .eq("user_name", body.username);
+        if (decksError) {
+          console.error("[Admin Users API] 删除套牌失败:", decksError.message);
+          return NextResponse.json({ error: "删除用户套牌数据失败" }, { status: 500 });
+        }
+
+        // 5. 删除用户账号
+        const { error: userError } = await supabase
+          .from("users")
+          .delete()
+          .eq("username", body.username);
+        if (userError) {
+          console.error("[Admin Users API] 删除用户失败:", userError.message);
+          return NextResponse.json({ error: "删除用户失败" }, { status: 500 });
         }
       }
 
-      // 3. 删除套牌
-      const { error: decksError } = await supabase
-        .from("decks")
-        .delete()
-        .eq("user_name", body.username);
-      if (decksError) {
-        console.error("[Admin Users API] 删除套牌失败:", decksError.message);
-        return NextResponse.json({ error: "删除用户套牌数据失败" }, { status: 500 });
-      }
-
-      // 4. 删除用户账号
-      const { error: userError } = await supabase
-        .from("users")
-        .delete()
-        .eq("username", body.username);
-      if (userError) {
-        console.error("[Admin Users API] 删除用户失败:", userError.message);
-        return NextResponse.json({ error: "删除用户失败" }, { status: 500 });
-      }
-
       await logAdminAction(adminName, "user_delete", body.username);
-      return NextResponse.json({ success: true, message: `已删除用户 ${body.username}` });
+      return NextResponse.json({ success: true, message: `已永久删除用户 ${body.username}` });
     }
 
     if (body.action === "reset_password") {
