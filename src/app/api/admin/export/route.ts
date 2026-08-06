@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     if (dataType === "all" || dataType === "users") {
       const { data: users } = await supabase
         .from("users")
-        .select("username, created_at, last_active_at, banned_at")
+        .select("username, created_at, last_active_at")
         .order("created_at", { ascending: false });
       exportData.users = users || [];
     }
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
       // CSV 格式导出（仅支持单表）
       if (dataType === "users" && Array.isArray(exportData.users)) {
         const rows = exportData.users as Record<string, unknown>[];
-        const headers = ["username", "created_at", "last_active_at", "banned_at"];
+        const headers = ["username", "created_at", "last_active_at"];
         const csv = [
           headers.join(","),
           ...rows.map((r) => headers.map((h) => String(r[h] ?? "")).join(",")),

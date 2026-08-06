@@ -15,7 +15,7 @@ import { useDisplayMode } from "@/lib/display-mode";
 import { useToast } from "@/lib/toast-context";
 import { useLatestRef } from "@/lib/use-latest-ref";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
-import { useDecks, useEvents } from "@/lib/swr-hooks";
+import { useDecks, useEvents, mutateCards } from "@/lib/swr-hooks";
 import {
   Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Sparkle, Palette, Package, Heart, Check, MoreHorizontal, Lightbulb,
 } from "lucide-react";
@@ -267,6 +267,7 @@ export default function MatchClient({
     let foundCard = false;
     let oldEventName: string | null = null;
     let oldEventDate: string | null = null;
+    const affectedDeckIds = new Set<string>();
     for (const cards of matchedRef.current.values()) {
       const found = cards.find((c) => idSet.has(c.id));
       if (found) {
@@ -274,7 +275,7 @@ export default function MatchClient({
         foundCard = true;
         oldEventName = found.event_name ?? null;
         oldEventDate = found.event_date ?? null;
-        break;
+        affectedDeckIds.add(found.deck_id);
       }
     }
     if (!foundCard) {
@@ -284,6 +285,7 @@ export default function MatchClient({
           currentStatus = found.deckCard.status ?? 0;
           oldEventName = found.deckCard.event_name ?? null;
           oldEventDate = found.deckCard.event_date ?? null;
+          affectedDeckIds.add(found.deckCard.deck_id);
           break;
         }
       }
@@ -381,6 +383,14 @@ export default function MatchClient({
         } else {
           // 刷新共享 /api/decks 缓存，确保套牌页统计同步
           refreshDecks();
+          // 乐观更新受影响套牌的 /api/cards 缓存，套牌页无需显式刷新即可看到最新状态
+          for (const deckId of affectedDeckIds) {
+            mutateCards(deckId, (cards) =>
+              cards.map((c) =>
+                idSet.has(c.id) ? { ...c, ...updatePayload } : c
+              )
+            );
+          }
         }
       })
       .catch(() => {

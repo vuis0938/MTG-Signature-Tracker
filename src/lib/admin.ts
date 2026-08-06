@@ -26,8 +26,7 @@ export function requireAdmin(request: NextRequest):
 // ─── 审计日志 ──────────────────────────────────────────────
 
 export type AdminAction =
-  | "user_ban"
-  | "user_unban"
+  | "user_delete"
   | "user_reset_password"
   | "curate_save"
   | "curate_refresh"

@@ -17,6 +17,22 @@ const DEDUP_WINDOW_MS = 5 * 60 * 1000;
 const MAX_STACK_LEN = 2000;
 
 function report(error: { message: string; stack?: string }) {
+  // 忽略浏览器扩展/密码管理器导致的 React hydration 噪声
+  // 这些错误通常由第三方扩展在 hydration 前修改 DOM 引起，并非应用自身缺陷
+  if (
+    error.message.includes("Minified React error #418") ||
+    error.message.includes("Minified React error #419") ||
+    error.message.includes("Hydration failed because the server rendered HTML")
+  ) {
+    return;
+  }
+
+  // 忽略 React Server Components 流式传输时的连接关闭错误
+  // 常见于移动端网络抖动、用户切换标签或关闭页面，不属于应用缺陷
+  if (error.message.includes("Minified React error #412")) {
+    return;
+  }
+
   // 去重：同一消息 5 分钟内只报一次
   const now = Date.now();
   const last = reported.get(error.message);

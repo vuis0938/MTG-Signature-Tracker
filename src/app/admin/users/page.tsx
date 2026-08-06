@@ -5,14 +5,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/toast-context";
-import { Search, Ban, CheckCircle, KeyRound, Loader2, Eye } from "lucide-react";
+import { Search, Trash2, KeyRound, Loader2, Eye } from "lucide-react";
 
 interface UserItem {
   username: string;
   createdAt: string;
   lastActiveAt: string;
-  bannedAt: string | null;
-  isBanned: boolean;
   deckCount: number;
   cardCount: number;
 }
@@ -47,9 +45,11 @@ export default function UsersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleAction(username: string, action: "ban" | "unban" | "reset_password") {
-    const actionText = action === "ban" ? "封禁" : action === "unban" ? "解封" : "重置密码";
-    if (!confirm(`确定对用户 ${username} 执行「${actionText}」操作？`)) return;
+  async function handleAction(username: string, action: "delete" | "reset_password") {
+    const actionText = action === "delete" ? "删除" : "重置密码";
+    if (action === "delete") {
+      if (!confirm(`确定删除用户 ${username}？\n\n该操作会永久删除该用户的所有套牌和卡牌数据，且不可恢复。`)) return;
+    } else if (!confirm(`确定对用户 ${username} 执行「${actionText}」操作？`)) return;
 
     setActionLoading(`${username}:${action}`);
     try {
@@ -158,7 +158,6 @@ export default function UsersPage() {
                     <th className="px-4 py-3 font-medium">最后活跃</th>
                     <th className="px-4 py-3 font-medium text-center">套牌</th>
                     <th className="px-4 py-3 font-medium text-center">卡牌</th>
-                    <th className="px-4 py-3 font-medium text-center">状态</th>
                     <th className="px-4 py-3 font-medium text-right">操作</th>
                   </tr>
                 </thead>
@@ -174,19 +173,6 @@ export default function UsersPage() {
                       <td className="px-4 py-3 text-muted-foreground">{formatDate(user.lastActiveAt)}</td>
                       <td className="px-4 py-3 text-center">{user.deckCount}</td>
                       <td className="px-4 py-3 text-center">{user.cardCount}</td>
-                      <td className="px-4 py-3 text-center">
-                        {user.isBanned ? (
-                          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                            <Ban className="h-3 w-3" />
-                            已封禁
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                            <CheckCircle className="h-3 w-3" />
-                            正常
-                          </span>
-                        )}
-                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
                           <a href={`/admin/users/detail?username=${encodeURIComponent(user.username)}`}>
@@ -194,36 +180,20 @@ export default function UsersPage() {
                               <Eye className="h-3.5 w-3.5" />
                             </Button>
                           </a>
-                          {user.isBanned ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleAction(user.username, "unban")}
-                              disabled={actionLoading === `${user.username}:unban`}
-                            >
-                              {actionLoading === `${user.username}:unban` ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <CheckCircle className="h-3.5 w-3.5" />
-                              )}
-                              解封
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleAction(user.username, "ban")}
-                              disabled={actionLoading === `${user.username}:ban`}
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              {actionLoading === `${user.username}:ban` ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Ban className="h-3.5 w-3.5" />
-                              )}
-                              封禁
-                            </Button>
-                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleAction(user.username, "delete")}
+                            disabled={actionLoading === `${user.username}:delete`}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            {actionLoading === `${user.username}:delete` ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" />
+                            )}
+                            删除
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"

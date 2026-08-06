@@ -6,7 +6,7 @@ import { useLatestRef } from "@/lib/use-latest-ref";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import { useDisplayMode } from "@/lib/display-mode";
 import { CardImage } from "@/components/card-image";
-import { useDecks, type DecksResponse } from "@/lib/swr-hooks";
+import { useDecks, useCards, mutateCards, type DecksResponse } from "@/lib/swr-hooks";
 import { useDeckLayout } from "@/lib/deck-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -114,49 +114,44 @@ export default function DecksClient({
   // 展开的套牌 + 卡牌数据（用服务端预取数据初始化，展开套牌时零加载）
   const [expandedDeck, setExpandedDeck] = useState<string | null>(null);
   const [cards, setCards] = useState<Record<string, CardEntry[]>>(fallbackCards || {});
-  const [cardsLoading, setCardsLoading] = useState(false);
 
   // Ref 锁定最新状态，让回调函数保持引用稳定（配合 React.memo 减少重渲染）
   const cardsRef = useLatestRef(cards);
   const expandedDeckRef = useLatestRef(expandedDeck);
+  const deckStatsRef = useLatestRef(deckStats);
+  const revalidateRef = useLatestRef(revalidate);
 
-  // SWR 数据的 ref：mutate(updater, false) 在 revalidateOnMount:false + fallbackData 场景下
-  // updater 收到的是 undefined（fallbackData 不写入 SWR 缓存），需要用 ref 获取当前数据
-  const swrDataRef = useLatestRef<DecksResponse | undefined>({
-    success: true,
-    decks,
-    stats: deckStats,
-  });
+  // 用 SWR 管理当前展开套牌的卡牌：匹配页改状态后可直接 mutate 该缓存，
+  // 套牌页无需显式 fetch 就能同步。
+  // SWR 已关闭自动刷新（revalidateOnFocus/Mount/Reconnect 均为 false），
+  // 只有显式 mutate 或用户主动操作才会更新数据，避免界面意外刷新。
+  const cardsFallback = expandedDeck
+    ? { success: true, cards: cards[expandedDeck] || [] }
+    : undefined;
+  const {
+    cards: swrCards,
+    isLoading: swrCardsLoading,
+  } = useCards(expandedDeck, cardsFallback);
 
-  // 标记乐观更新：区分本地 revalidate(data, false) 和服务端 revalidation
-  // 服务端 revalidation 时清除本地 cards 缓存，让展开的套牌重新拉取最新卡牌数据
-  const optimisticUpdateRef = useRef(false);
-  const prevDataRef = useRef<DecksResponse | undefined>(undefined);
+  // SWR 返回新卡牌数据时（如匹配页 mutate 了缓存）同步到本地 cards 缓存
   useEffect(() => {
-    if (optimisticUpdateRef.current) {
-      optimisticUpdateRef.current = false;
-      prevDataRef.current = swrDataRef.current;
-      return;
-    }
-    // SWR 数据引用变化且非乐观更新 → 服务端 revalidation（如匹配页改状态后切回）
-    if (prevDataRef.current !== undefined && prevDataRef.current !== swrDataRef.current) {
-      // 服务端返回了新数据，自动刷新当前展开的套牌
-      const currentExpanded = expandedDeckRef.current;
-      if (currentExpanded) {
-        setCardsLoading(true);
-        fetch(`/api/cards?deckId=${encodeURIComponent(currentExpanded)}`)
-          .then((r) => r.json())
-          .then((d) => {
-            if (d.success && d.cards) {
-              setCards((prev) => ({ ...prev, [currentExpanded]: d.cards }));
-            }
-          })
-          .catch(() => {})
-          .finally(() => setCardsLoading(false));
-      }
-    }
-    prevDataRef.current = swrDataRef.current;
-  }, [decks, deckStats, expandedDeckRef, swrDataRef]);
+    if (!expandedDeck) return;
+    setCards((prev) => {
+      const prevCards = prev[expandedDeck];
+      const sameLength = (prevCards?.length ?? 0) === swrCards.length;
+      const sameContent =
+        sameLength &&
+        (prevCards || []).every(
+          (c, i) =>
+            c.id === swrCards[i].id && c.status === swrCards[i].status
+        );
+      if (sameContent) return prev;
+      return { ...prev, [expandedDeck]: swrCards };
+    });
+  }, [expandedDeck, swrCards]);
+
+  // 卡牌加载态：SWR 首次无缓存时显示加载，有缓存（含本地 fallback）时静默更新
+  const cardsLoading = expandedDeck ? swrCardsLoading && !cards[expandedDeck] : false;
 
   // 添加卡牌弹窗
   const [addCardsOpen, setAddCardsOpen] = useState<string | null>(null);
@@ -180,28 +175,11 @@ export default function DecksClient({
 
   // ─── 展开/收起套牌 ──────────────────────────────────────
 
-  const toggleDeck = useCallback(async (deckId: string) => {
-    if (expandedDeckRef.current === deckId) {
-      setExpandedDeck(null);
-      return;
-    }
-
-    setExpandedDeck(deckId);
-
-    if (!cardsRef.current[deckId]) {
-      setCardsLoading(true);
-      try {
-        const res = await fetch(`/api/cards?deckId=${encodeURIComponent(deckId)}`);
-        const data = await res.json();
-        if (data.success && data.cards) {
-          setCards((prev) => ({ ...prev, [deckId]: data.cards }));
-        }
-      } catch {
-        showToast("加载卡牌失败，请重试", "error");
-      }
-    }
-    setCardsLoading(false);
-  }, [showToast, cardsRef, expandedDeckRef]);
+  const toggleDeck = useCallback((deckId: string) => {
+    setExpandedDeck((prev) => (prev === deckId ? null : deckId));
+    // 只控制展开状态，不触发任何数据请求。
+    // 卡牌来自 SSR fallback / 本地 state / SWR 共享缓存，避免自动刷新。
+  }, []);
 
   // ─── 删除套牌 ──────────────────────────────────────────
 
@@ -375,9 +353,12 @@ export default function DecksClient({
       return updated;
     });
 
+    // 同步乐观更新 SWR 缓存，确保 match 页或其他组件读取同一份 key 时也能立即看到变化
+    mutateCards(deckId, (cards) =>
+      cards.map((c) => (idSet.has(c.id) ? { ...c, ...newCardPatch } : c))
+    );
+
     // 乐观更新 SWR 缓存中的统计（不触发服务端请求）
-    // 注意：SWR v2 中 fallbackData 不写入缓存，mutate(updater, false) 的 updater
-    // 在 revalidateOnMount:false 场景下收到 undefined，必须用 mutate(data, false) 直接设置
     const applyStatsDelta = (stats: Record<string, DeckStats>, fromStatus: number, toStatus: number, times: number) => {
       if (!stats[deckId]) return stats;
       const delta: Record<number, { u: number; p: number; h: number }> = {
@@ -400,12 +381,10 @@ export default function DecksClient({
     };
 
     const times = cardIds.length;
-    // 用 ref 中的当前数据构建乐观更新后的完整数据，直接 mutate(data, false)
-    const currentSWRData = swrDataRef.current;
-    if (currentSWRData) {
-      const newStats = applyStatsDelta({ ...currentSWRData.stats }, currentStatus, newStatus, times);
-      optimisticUpdateRef.current = true;
-      revalidate({ ...currentSWRData, stats: newStats }, false);
+    const currentStats = deckStatsRef.current;
+    if (currentStats) {
+      const newStats = applyStatsDelta({ ...currentStats }, currentStatus, newStatus, times);
+      revalidateRef.current({ success: true, decks, stats: newStats }, false);
     }
 
     // 2. 后台写入数据库（单请求批量），失败则回滚 UI
@@ -433,11 +412,13 @@ export default function DecksClient({
             }
             return updated;
           });
-          const rollbackData = swrDataRef.current;
-          if (rollbackData) {
-            const rollbackStats = applyStatsDelta({ ...rollbackData.stats }, newStatus, currentStatus, times);
-            optimisticUpdateRef.current = true;
-            revalidate({ ...rollbackData, stats: rollbackStats }, false);
+          mutateCards(deckId, (cards) =>
+            cards.map((c) => (idSet.has(c.id) ? oldCards.get(c.id) ?? c : c))
+          );
+          const rollbackStats = deckStatsRef.current;
+          if (rollbackStats) {
+            const newStats = applyStatsDelta({ ...rollbackStats }, newStatus, currentStatus, times);
+            revalidateRef.current({ success: true, decks, stats: newStats }, false);
           }
           showToast(data.error || "状态更新失败，请重试", "error");
         }
@@ -453,15 +434,17 @@ export default function DecksClient({
           }
           return updated;
         });
-        const rollbackData = swrDataRef.current;
-        if (rollbackData) {
-          const rollbackStats = applyStatsDelta({ ...rollbackData.stats }, newStatus, currentStatus, times);
-          optimisticUpdateRef.current = true;
-          revalidate({ ...rollbackData, stats: rollbackStats }, false);
+        mutateCards(deckId, (cards) =>
+          cards.map((c) => (idSet.has(c.id) ? oldCards.get(c.id) ?? c : c))
+        );
+        const rollbackStats = deckStatsRef.current;
+        if (rollbackStats) {
+          const newStats = applyStatsDelta({ ...rollbackStats }, newStatus, currentStatus, times);
+          revalidateRef.current({ success: true, decks, stats: newStats }, false);
         }
         showToast("网络错误，状态已恢复", "error");
       });
-  }, [showToast, revalidate, cardsRef, swrDataRef]);
+  }, [showToast, cardsRef, deckStatsRef, revalidateRef]);
 
   // ─── 添加卡牌到套牌 ──────────────────────────────────
 
@@ -938,7 +921,7 @@ export const DeckListItem = memo(function DeckListItem({
                     {stats.total - stats.unsigned - stats.pending > 0 &&
                       <span> · {stats.total - stats.unsigned - stats.pending} 已签</span>}
                     <br />
-                    签绘进度 {stats.total > 0 ? Math.round(((stats.total - stats.unsigned - stats.pending) / stats.total) * 100) : 0}% · 上次更新 {new Date(deck.updated_at || deck.created_at!).toLocaleDateString("zh-CN")}
+                    签绘进度 {stats.total > 0 ? Math.round(((stats.total - stats.unsigned - stats.pending) / stats.total) * 100) : 0}%
                   </>
                 )}
               </CardDescription>

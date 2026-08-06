@@ -60,6 +60,12 @@ export async function getDecksWithStats(
       else if (card.status === 2) {
         /* 已签：不计入待签/心动/送签中，由 total 反推 */
       }
+      else if (card.status === 3) {
+        // 心动：既计入待签（业务上仍是待签目标），也单独统计 heart
+        // 这样 deckStats 在心动状态变化时一定会变化，触发套牌页缓存失效
+        s.unsigned++;
+        s.heart++;
+      }
       else s.unsigned++;
     }
   }
@@ -122,6 +128,11 @@ export async function getDecksWithCards(
         if (card.status === 1) s.pending++;
         else if (card.status === 2) {
           /* 已签：不计入待签/心动/送签中，由 total 反推 */
+        }
+        else if (card.status === 3) {
+          // 心动：既计入待签（业务上仍是待签目标），也单独统计 heart
+          s.unsigned++;
+          s.heart++;
         }
         else s.unsigned++;
       }

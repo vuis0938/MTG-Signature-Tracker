@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,23 @@ export default function LoginPage() {
   const [forgotStep, setForgotStep] = useState(1); // 1=输入用户名, 2=回答问题+新密码
   const [forgotQuestion, setForgotQuestion] = useState("");
   const router = useRouter();
+
+  const usernameRef = useRef<HTMLInputElement>(null);
+  const forgotUsernameRef = useRef<HTMLInputElement>(null);
+  const forgotAnswerRef = useRef<HTMLInputElement>(null);
+
+  // 在客户端 hydration 完成后聚焦输入框，避免 SSR 时 autoFocus 造成 DOM 不一致
+  useEffect(() => {
+    if (mode === "login" || mode === "register") {
+      usernameRef.current?.focus();
+    } else if (mode === "forgot") {
+      if (forgotStep === 1) {
+        forgotUsernameRef.current?.focus();
+      } else if (forgotStep === 2) {
+        forgotAnswerRef.current?.focus();
+      }
+    }
+  }, [mode, forgotStep]);
 
   function switchMode(newMode: Mode) {
     setMode(newMode);
@@ -146,7 +163,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-sm" suppressHydrationWarning>
         <CardHeader className="text-center">
           <CardTitle className="text-2xl flex items-center justify-center gap-2">
             <Palette className="h-6 w-6 text-primary" />
@@ -172,10 +189,10 @@ export default function LoginPage() {
                   <Label htmlFor="username">用户名</Label>
                   <Input
                     id="username"
+                    ref={usernameRef}
                     placeholder="请输入用户名"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    autoFocus
                     required
                   />
                 </div>
@@ -275,10 +292,10 @@ export default function LoginPage() {
                     <Label htmlFor="forgot-username">用户名</Label>
                     <Input
                       id="forgot-username"
+                      ref={forgotUsernameRef}
                       placeholder="请输入用户名"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
-                      autoFocus
                       required
                     />
                   </div>
@@ -300,10 +317,10 @@ export default function LoginPage() {
                     <Label htmlFor="forgot-answer">答案</Label>
                     <Input
                       id="forgot-answer"
+                      ref={forgotAnswerRef}
                       placeholder="请输入答案"
                       value={securityAnswer}
                       onChange={(e) => setSecurityAnswer(e.target.value)}
-                      autoFocus
                       required
                     />
                   </div>

@@ -63,17 +63,12 @@ export async function POST(request: NextRequest) {
 
     const { data: users } = await supabase
       .from("users")
-      .select("username, password, banned_at")
+      .select("username, password")
       .eq("username", username)
       .limit(1);
 
     if (!users || users.length === 0) {
       return NextResponse.json({ error: "用户名或密码不正确" }, { status: 401 });
-    }
-
-    // 检查是否被封禁
-    if (users[0].banned_at) {
-      return NextResponse.json({ error: "账号已被封禁，请联系管理员" }, { status: 403 });
     }
 
     // 兼容旧明文密码：如果存储的密码不含 ":" 分隔符，说明是旧明文密码

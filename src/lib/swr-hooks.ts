@@ -3,9 +3,9 @@
  *
  * 核心优势：
  * - 页面切换时瞬间显示缓存数据（stale-while-revalidate）
- * - 后台静默刷新，用户无感知
+ * - 跨页面共享缓存（match 页和 decks 页共享 /api/decks、/api/cards 缓存）
  * - 自动去重，同一 key 的并发请求只发一次
- * - 跨页面共享缓存（match 页和 decks 页共享 /api/decks 缓存）
+ * - 手动/乐观更新缓存，避免用户看到意外的自动刷新
  */
 
 import useSWR, { mutate } from "swr";
@@ -23,9 +23,27 @@ async function fetcher<T>(url: string): Promise<T> {
   return res.json();
 }
 
-// ─── SWR 全局配置常量 ──────────────────────────────────────
+// ─── SWR 配置常量 ──────────────────────────────────────────
 
-/** 重新验证间隔（毫秒）：后台刷新频率 */
+/**
+ * 静态缓存配置：不自动刷新
+ * 用于 decks、cards 等用户操作后会手动/乐观更新缓存的数据。
+ * 避免窗口聚焦、网络恢复、组件挂载时触发意外的后台请求。
+ */
+export const STATIC_CACHE_CONFIG = {
+  revalidateOnFocus: false,
+  revalidateOnReconnect: false,
+  revalidateOnMount: false,
+  shouldRetryOnError: true,
+  errorRetryCount: 1,
+  errorRetryInterval: 3000,
+  dedupingInterval: 5000,
+} as const;
+
+/**
+ * 后台重新验证配置：允许网络恢复时刷新
+ * 用于 events、announcements 等对实时性要求稍高的数据。
+ */
 export const FOCUS_REVALIDATION = {
   // 窗口聚焦时重新验证（用户切回标签页时刷新）
   revalidateOnFocus: false,
@@ -56,10 +74,8 @@ export function useDecks(fallbackData?: DecksResponse) {
     "/api/decks",
     fetcher,
     {
-      ...FOCUS_REVALIDATION,
+      ...STATIC_CACHE_CONFIG,
       fallbackData,
-      // 始终在挂载时重验证：跨页面切换时确保数据最新（匹配页改状态后切到套牌页能立即同步）
-      revalidateOnMount: true,
     }
   );
   return { decks: data?.decks || [], stats: data?.stats || {}, error, isLoading, revalidate };
@@ -73,13 +89,40 @@ interface CardsResponse {
 }
 
 /** 指定套牌的卡牌列表 */
-export function useCards(deckId: string | null) {
+export function useCards(deckId: string | null, fallbackData?: CardsResponse) {
   const { data, error, isLoading, mutate: revalidate } = useSWR<CardsResponse>(
     deckId ? `/api/cards?deckId=${encodeURIComponent(deckId)}` : null,
     fetcher,
-    FOCUS_REVALIDATION
+    {
+      ...STATIC_CACHE_CONFIG,
+      fallbackData,
+    }
   );
   return { cards: data?.cards || [], error, isLoading, revalidate };
+}
+
+/** 卡牌缓存 key */
+export function getCardsKey(deckId: string) {
+  return `/api/cards?deckId=${encodeURIComponent(deckId)}`;
+}
+
+/**
+ * 乐观更新指定套牌的卡牌缓存（不触发请求）
+ * 用于 decks 页和 match 页改状态后即时同步 UI
+ */
+export function mutateCards(
+  deckId: string,
+  updater: (cards: CardEntry[]) => CardEntry[]
+) {
+  const key = getCardsKey(deckId);
+  return mutate(
+    key,
+    (current: CardsResponse | undefined) => {
+      if (!current) return current;
+      return { ...current, cards: updater(current.cards) };
+    },
+    false
+  );
 }
 
 // ─── Events 相关 hooks ─────────────────────────────────────

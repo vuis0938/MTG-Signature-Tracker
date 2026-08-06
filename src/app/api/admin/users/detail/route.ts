@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     // 1. 用户基本信息
     const { data: user, error: userError } = await supabase
       .from("users")
-      .select("username, created_at, last_active_at, banned_at")
+      .select("username, created_at, last_active_at")
       .eq("username", username)
       .single();
 
@@ -122,8 +122,6 @@ export async function GET(request: NextRequest) {
         username: user.username,
         createdAt: user.created_at,
         lastActiveAt: user.last_active_at,
-        bannedAt: user.banned_at,
-        isBanned: user.banned_at !== null,
       },
       decks: decksWithStats,
       stats: {

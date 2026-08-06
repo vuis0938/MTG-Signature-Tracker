@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       cardsAggRes,
     ] = await Promise.all([
       // 用户总数
-      supabase.from("users").select("username, created_at, last_active_at, banned_at", { count: "exact" }),
+      supabase.from("users").select("username, created_at, last_active_at", { count: "exact" }),
       // 套牌总数
       supabase.from("decks").select("id", { count: "exact", head: true }),
       // 卡牌总数
@@ -52,8 +52,6 @@ export async function GET(request: NextRequest) {
     const active30d = users.filter(
       (u) => u.last_active_at && new Date(u.last_active_at).getTime() > thirtyDaysAgo,
     ).length;
-    const bannedUsers = users.filter((u) => u.banned_at !== null).length;
-
     // 注册趋势（最近 14 天，按日期分组）
     const registrationTrend: Record<string, number> = {};
     for (let i = 13; i >= 0; i--) {
@@ -102,7 +100,6 @@ export async function GET(request: NextRequest) {
         totalUsers: users.length,
         activeUsers7d: active7d,
         activeUsers30d: active30d,
-        bannedUsers,
         totalDecks: decksRes.count ?? 0,
         totalCards,
         signedCards,

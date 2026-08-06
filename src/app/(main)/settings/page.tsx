@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useToast } from "@/lib/toast-context";
@@ -44,6 +44,22 @@ export default function SettingsPage() {
   const { toast: showToast } = useToast();
   const { mode: displayMode, toggle: toggleDisplayMode } = useDisplayMode();
   const { layout: deckLayout, setLayout: setDeckLayout } = useDeckLayout();
+
+  const oldPwdRef = useRef<HTMLInputElement>(null);
+  const feedbackRef = useRef<HTMLTextAreaElement>(null);
+
+  // 在客户端 hydration 完成后聚焦输入框，避免 SSR 时 autoFocus 造成 DOM 不一致
+  useEffect(() => {
+    if (showPwdForm) {
+      oldPwdRef.current?.focus();
+    }
+  }, [showPwdForm]);
+
+  useEffect(() => {
+    if (showFeedbackForm) {
+      feedbackRef.current?.focus();
+    }
+  }, [showFeedbackForm]);
 
   // ─── 退出登录 ───
   async function handleLogout() {
@@ -302,11 +318,11 @@ export default function SettingsPage() {
                 <Label htmlFor="oldPwd">旧密码</Label>
                 <Input
                   id="oldPwd"
+                  ref={oldPwdRef}
                   type="password"
                   placeholder="请输入当前密码"
                   value={oldPwd}
                   onChange={(e) => setOldPwd(e.target.value)}
-                  autoFocus
                   required
                 />
               </div>
@@ -505,13 +521,13 @@ export default function SettingsPage() {
                 <Label htmlFor="feedbackContent">反馈内容</Label>
                 <Textarea
                   id="feedbackContent"
+                  ref={feedbackRef}
                   value={feedbackContent}
                   onChange={(e) => setFeedbackContent(e.target.value)}
                   placeholder="请详细描述遇到的问题或建议..."
                   rows={4}
                   maxLength={1000}
                   required
-                  autoFocus
                 />
                 <p className="text-xs text-muted-foreground text-right">
                   {feedbackContent.length}/1000

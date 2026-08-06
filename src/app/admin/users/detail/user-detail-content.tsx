@@ -12,8 +12,6 @@ interface UserDetail {
     username: string;
     createdAt: string;
     lastActiveAt: string;
-    bannedAt: string | null;
-    isBanned: boolean;
   };
   decks: {
     id: string;
@@ -127,7 +125,6 @@ export default function UserDetailContent({ username }: { username: string | und
         <h1 className="text-2xl font-semibold tracking-tight">{user.username}</h1>
         <p className="text-muted-foreground text-sm">
           注册于 {formatDate(user.createdAt)} · 最后活跃 {formatDate(user.lastActiveAt)}
-          {user.isBanned && <span className="text-red-600 ml-2">· 已封禁</span>}
         </p>
       </div>
 

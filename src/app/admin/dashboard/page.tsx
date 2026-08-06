@@ -10,7 +10,6 @@ interface DashboardData {
     totalUsers: number;
     activeUsers7d: number;
     activeUsers30d: number;
-    bannedUsers: number;
     totalDecks: number;
     totalCards: number;
     signedCards: number;
@@ -25,8 +24,7 @@ interface DashboardData {
 }
 
 const actionLabels: Record<string, { label: string; color: string }> = {
-  user_ban: { label: "封禁用户", color: "text-red-600" },
-  user_unban: { label: "解封用户", color: "text-emerald-600" },
+  user_delete: { label: "删除用户", color: "text-red-600" },
   user_reset_password: { label: "重置密码", color: "text-amber-600" },
   curate_save: { label: "保存策展", color: "text-blue-600" },
   curate_refresh: { label: "刷新策展", color: "text-blue-600" },
