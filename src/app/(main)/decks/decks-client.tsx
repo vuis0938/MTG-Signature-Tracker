@@ -103,6 +103,27 @@ export default function DecksClient({
   const { mode: displayMode } = useDisplayMode();
   const { layout: deckLayout } = useDeckLayout();
 
+  // 调试：核心断点处输出当前视口与布局模式
+  useEffect(() => {
+    function logLayout() {
+      const width = window.innerWidth;
+      const bp =
+        width < 640 ? "default"
+        : width < 768 ? "sm"
+        : width < 1024 ? "md"
+        : width < 1280 ? "lg"
+        : "xl";
+      const compactConfig =
+        width < 768 ? "2x2"
+        : width < 1280 ? "2x4"
+        : "3x4";
+      console.log("[decks debug]", { width, bp, deckLayout, compactConfig });
+    }
+    logLayout();
+    window.addEventListener("resize", logLayout);
+    return () => window.removeEventListener("resize", logLayout);
+  }, [deckLayout]);
+
   // 导入失败卡牌的手动重试
   const [failedCards, setFailedCards] = useState<
     Array<{ name: string; setCode: string; collectorNumber: string }>
@@ -1025,7 +1046,7 @@ const DeckListItem = memo(function DeckListItem({
                     <h4 className={"text-base font-medium flex items-center gap-1 " + (deckLayout === "compact" ? "mb-1 sm:mb-1.5 truncate" : "mb-2")}>
                       <Palette className={"h-4 w-4 text-foreground shrink-0 " + (deckLayout === "compact" ? "hidden sm:block" : "")} />{artist} ({artistCards.length})
                     </h4>
-                    <div className={deckLayout === "compact" ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1 sm:gap-1.5 lg:gap-2" : "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 sm:gap-3 lg:gap-4"}>
+                    <div className={deckLayout === "compact" ? "grid grid-cols-2 md:grid-cols-4 gap-1 sm:gap-1.5 lg:gap-2" : "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 sm:gap-3 lg:gap-4"}>
                       {displayCards.map((group) => (
                         <CardThumbnail
                           key={group.ids[0]}
