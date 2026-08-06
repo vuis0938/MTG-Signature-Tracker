@@ -921,7 +921,7 @@ export const DeckListItem = memo(function DeckListItem({
                     {stats.total - stats.unsigned - stats.pending > 0 &&
                       <span> · {stats.total - stats.unsigned - stats.pending} 已签</span>}
                     <br />
-                    签绘进度 {stats.total > 0 ? Math.round(((stats.total - stats.unsigned - stats.pending) / stats.total) * 100) : 0}%
+                    签绘进度 {stats.total > 0 ? Math.round(((stats.total - stats.unsigned - stats.pending) / stats.total) * 100) : 0}% · 上次更新 {new Date(deck.updated_at || deck.created_at!).toLocaleDateString("zh-CN")}
                   </>
                 )}
               </CardDescription>
