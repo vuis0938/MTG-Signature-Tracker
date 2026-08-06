@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 const STORAGE_KEY = "mtg-deck-layout";
 export type DeckLayout = "default" | "compact" | "list";
@@ -15,20 +15,23 @@ const LAYOUTS: DeckLayout[] = ["default", "compact", "list"];
  * - list：高密度文本视图，纯文字行，适合快速浏览大套牌
  *
  * 通过 localStorage 持久化，默认 default。
+ *
+ * 注意：初始值固定为默认值，避免 SSR/客户端首次渲染不一致导致的 hydration mismatch。
+ * localStorage 的读取放在 useEffect 中，hydration 完成后再恢复用户偏好。
  */
 export function useDeckLayout() {
-  const [layout, setLayout] = useState<DeckLayout>(() => {
-    if (typeof window === "undefined") return "default";
+  const [layout, setLayout] = useState<DeckLayout>("default");
+
+  useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored && LAYOUTS.includes(stored as DeckLayout)) {
-        return stored as DeckLayout;
+        setLayout(stored as DeckLayout);
       }
     } catch {
       // localStorage 不可用时忽略
     }
-    return "default";
-  });
+  }, []);
 
   const setLayoutPersisted = useCallback((next: DeckLayout) => {
     setLayout(next);
