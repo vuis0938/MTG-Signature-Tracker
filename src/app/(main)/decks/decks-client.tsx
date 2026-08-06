@@ -6,7 +6,7 @@ import { useLatestRef } from "@/lib/use-latest-ref";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import { useDisplayMode } from "@/lib/display-mode";
 import { CardImage } from "@/components/card-image";
-import { useDecks, useCards, mutateCards, type DecksResponse } from "@/lib/swr-hooks";
+import { useDecks, useCards, mutateCards, mutateDecks, type DecksResponse } from "@/lib/swr-hooks";
 import { useDeckLayout } from "@/lib/deck-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -118,6 +118,7 @@ export default function DecksClient({
   // Ref 锁定最新状态，让回调函数保持引用稳定（配合 React.memo 减少重渲染）
   const cardsRef = useLatestRef(cards);
   const expandedDeckRef = useLatestRef(expandedDeck);
+  const decksRef = useLatestRef(decks);
   const deckStatsRef = useLatestRef(deckStats);
   const revalidateRef = useLatestRef(revalidate);
 
@@ -381,10 +382,18 @@ export default function DecksClient({
     };
 
     const times = cardIds.length;
+    const now = new Date().toISOString();
+    const oldUpdatedAt = decksRef.current.find((d) => d.id === deckId)?.updated_at;
+
+    // 同步乐观更新 SWR 缓存：stats + 套牌 updated_at，使「上次更新」时间立即变化
     const currentStats = deckStatsRef.current;
     if (currentStats) {
       const newStats = applyStatsDelta({ ...currentStats }, currentStatus, newStatus, times);
-      revalidateRef.current({ success: true, decks, stats: newStats }, false);
+      mutateDecks((current) => ({
+        ...current,
+        decks: current.decks.map((d) => (d.id === deckId ? { ...d, updated_at: now } : d)),
+        stats: newStats,
+      }));
     }
 
     // 2. 后台写入数据库（单请求批量），失败则回滚 UI
@@ -418,7 +427,13 @@ export default function DecksClient({
           const rollbackStats = deckStatsRef.current;
           if (rollbackStats) {
             const newStats = applyStatsDelta({ ...rollbackStats }, newStatus, currentStatus, times);
-            revalidateRef.current({ success: true, decks, stats: newStats }, false);
+            mutateDecks((current) => ({
+              ...current,
+              decks: current.decks.map((d) =>
+                d.id === deckId ? { ...d, updated_at: oldUpdatedAt || d.updated_at } : d
+              ),
+              stats: newStats,
+            }));
           }
           showToast(data.error || "状态更新失败，请重试", "error");
         }
@@ -440,11 +455,17 @@ export default function DecksClient({
         const rollbackStats = deckStatsRef.current;
         if (rollbackStats) {
           const newStats = applyStatsDelta({ ...rollbackStats }, newStatus, currentStatus, times);
-          revalidateRef.current({ success: true, decks, stats: newStats }, false);
+          mutateDecks((current) => ({
+            ...current,
+            decks: current.decks.map((d) =>
+              d.id === deckId ? { ...d, updated_at: oldUpdatedAt || d.updated_at } : d
+            ),
+            stats: newStats,
+          }));
         }
         showToast("网络错误，状态已恢复", "error");
       });
-  }, [showToast, cardsRef, deckStatsRef, revalidateRef]);
+  }, [showToast, cardsRef, decksRef, deckStatsRef, mutateDecks]);
 
   // ─── 添加卡牌到套牌 ──────────────────────────────────
 

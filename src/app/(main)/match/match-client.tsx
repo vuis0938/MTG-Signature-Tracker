@@ -15,7 +15,7 @@ import { useDisplayMode } from "@/lib/display-mode";
 import { useToast } from "@/lib/toast-context";
 import { useLatestRef } from "@/lib/use-latest-ref";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
-import { useDecks, useEvents, mutateCards } from "@/lib/swr-hooks";
+import { useDecks, useEvents, mutateCards, mutateDecks } from "@/lib/swr-hooks";
 import {
   Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Sparkle, Palette, Package, Heart, Check, MoreHorizontal, Lightbulb,
 } from "lucide-react";
@@ -391,6 +391,14 @@ export default function MatchClient({
               )
             );
           }
+          // 同步更新套牌 updated_at，使套牌页「上次更新」时间即时变化
+          const now = new Date().toISOString();
+          mutateDecks((current) => ({
+            ...current,
+            decks: current.decks.map((d) =>
+              affectedDeckIds.has(d.id) ? { ...d, updated_at: now } : d
+            ),
+          }));
         }
       })
       .catch(() => {

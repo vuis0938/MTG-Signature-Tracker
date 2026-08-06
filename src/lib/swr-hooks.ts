@@ -125,6 +125,19 @@ export function mutateCards(
   );
 }
 
+/**
+ * 乐观更新套牌列表缓存（不触发请求）
+ * 用于卡牌状态变化后同步 updated_at / stats 等元数据
+ */
+export function mutateDecks(
+  updater: (decksResponse: DecksResponse) => DecksResponse
+) {
+  return mutate("/api/decks", (current: DecksResponse | undefined) => {
+    if (!current) return current;
+    return updater(current);
+  }, false);
+}
+
 // ─── Events 相关 hooks ─────────────────────────────────────
 
 export interface EventsResponse {
