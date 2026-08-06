@@ -426,7 +426,7 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium">导出数据</p>
-              <p className="text-xs text-muted-foreground">导出全部套牌签绘清单为 TXT 文件</p>
+              <p className="text-xs text-muted-foreground">导出全部套牌签绘清单</p>
             </div>
             <Button
               variant="outline"
