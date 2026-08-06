@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { extractArtists, extractImageUrl, ScryfallCard, SCRYFALL_UA, SCRYFALL_BASE_URL } from "@/lib/scryfall-client";
 import { getUserFromRequest } from "@/lib/auth";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
+import { touchDecks } from "@/lib/touch-deck";
 
 export async function POST(request: NextRequest) {
   // 鉴权
@@ -122,6 +123,9 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // 更新套牌更新时间
+    await touchDecks(deckIds);
 
     return NextResponse.json({
       success: true,

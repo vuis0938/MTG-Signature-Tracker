@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { getUserFromRequest } from "@/lib/auth";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
+import { touchDeck, touchDecks } from "@/lib/touch-deck";
 import type { CardEntry } from "@/types";
 
 /** 只选渲染所需列，减少网络负载 */
@@ -194,11 +195,16 @@ export async function PATCH(request: NextRequest) {
           }
         }
         if (failedIds.length === 0) {
+          // 降级 RPC 全部成功，也更新套牌时间
+          await touchDecks(deckIds);
           return NextResponse.json({ success: true });
         }
         console.error("[Cards API] 降级后仍失败的卡牌:", failedIds);
         return NextResponse.json({ error: "部分卡牌更新失败" }, { status: 500 });
       }
+
+      // 批量更新成功，同步更新套牌时间
+      await touchDecks(deckIds);
 
       return NextResponse.json({ success: true });
     }
@@ -226,6 +232,15 @@ export async function PATCH(request: NextRequest) {
     if (!rpcError && rpcResult && rpcResult.length > 0) {
       const result = rpcResult[0] as { success: boolean; error: string | null };
       if (result.success) {
+        // 更新套牌时间：查询卡牌所属 deck_id
+        const { data: card } = await supabase
+          .from("cards")
+          .select("deck_id")
+          .eq("id", singleCardId)
+          .single();
+        if (card) {
+          await touchDeck(card.deck_id);
+        }
         return NextResponse.json({ success: true });
       }
       console.error("[Cards API] RPC 返回失败:", result.error, "cardId:", singleCardId);
@@ -277,6 +292,7 @@ export async function PATCH(request: NextRequest) {
           .update({ status, is_signed: is_signed ?? false })
           .eq("id", singleCardId);
         if (!retryError) {
+          await touchDeck(card.deck_id);
           return NextResponse.json({ success: true });
         }
         console.error("[Cards API] 重试仍失败:", retryError.message);
@@ -284,6 +300,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "更新失败" }, { status: 500 });
     }
 
+    await touchDeck(card.deck_id);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[Cards API PATCH]", error);
@@ -341,6 +358,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "删除失败" }, { status: 500 });
     }
 
+    await touchDeck(card.deck_id);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[Cards API DELETE]", error);

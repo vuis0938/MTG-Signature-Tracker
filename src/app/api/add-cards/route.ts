@@ -6,6 +6,7 @@ import { parseMoxfieldFormat } from "@/lib/moxfield-parser";
 import { getUserFromRequest } from "@/lib/auth";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
 import { warmCardPrintingsCache } from "@/lib/cache-printings";
+import { touchDeck } from "@/lib/touch-deck";
 
 // ─── API Handler ──────────────────────────────────────────
 
@@ -140,6 +141,9 @@ export async function POST(request: NextRequest) {
     if (uniqueCardNames.length > 0) {
       warmCardPrintingsCache(uniqueCardNames).catch(() => {});
     }
+
+    // 更新套牌更新时间
+    await touchDeck(deckId);
 
     const isTimedOut = timedOutCards.length > 0;
     return NextResponse.json({

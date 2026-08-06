@@ -7,6 +7,7 @@ export interface Deck {
   name: string;
   source?: string;
   created_at?: string;
+  updated_at?: string;
 }
 
 /** 套牌中的卡牌（数据库行） */
