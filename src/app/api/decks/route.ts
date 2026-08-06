@@ -53,7 +53,9 @@ export async function GET(request: NextRequest) {
         if (!s) continue;
         s.total++;
         if (card.status === 1) s.pending++;
-        else if (card.status === 3) s.heart++;
+        else if (card.status === 2) {
+          /* 已签：不统计进待签/心动/送签中 */
+        }
         else s.unsigned++;
       }
     }

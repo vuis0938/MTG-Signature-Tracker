@@ -57,7 +57,9 @@ export async function getDecksWithStats(
       if (!s) continue;
       s.total++;
       if (card.status === 1) s.pending++;
-      else if (card.status === 3) s.heart++;
+      else if (card.status === 2) {
+        /* 已签：不计入待签/心动/送签中，由 total 反推 */
+      }
       else s.unsigned++;
     }
   }
@@ -118,7 +120,9 @@ export async function getDecksWithCards(
       if (s) {
         s.total++;
         if (card.status === 1) s.pending++;
-        else if (card.status === 3) s.heart++;
+        else if (card.status === 2) {
+          /* 已签：不计入待签/心动/送签中，由 total 反推 */
+        }
         else s.unsigned++;
       }
       if (list) list.push(card as CardEntry);

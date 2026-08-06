@@ -372,7 +372,7 @@ export default function DecksClient({
         0: { u: 1, p: 0, h: 0 },
         1: { u: 0, p: 1, h: 0 },
         2: { u: 0, p: 0, h: 0 },
-        3: { u: 0, p: 0, h: 1 },
+        3: { u: 1, p: 0, h: 0 }, // 心动归类到待签
       };
       const old = delta[fromStatus] ?? { u: 0, p: 0, h: 0 };
       const now = delta[toStatus] ?? { u: 0, p: 0, h: 0 };
@@ -923,10 +923,9 @@ const DeckListItem = memo(function DeckListItem({
                     <span>共 {stats.total} 张</span>
                     {stats.unsigned > 0 && <span> · {stats.unsigned} 待签</span>}
                     {stats.pending > 0 && <span> · {stats.pending} 送签中</span>}
-                    {stats.total - stats.unsigned - stats.heart - stats.pending > 0 &&
-                      <span> · {stats.total - stats.unsigned - stats.heart - stats.pending} 已签</span>}
-                    <br />
-                    签绘进度 {stats.total > 0 ? Math.round(((stats.total - stats.unsigned - stats.heart - stats.pending) / stats.total) * 100) : 0}% · 上次更新 {new Date(deck.created_at!).toLocaleDateString("zh-CN")}
+                    {stats.total - stats.unsigned - stats.pending > 0 &&
+                      <span> · {stats.total - stats.unsigned - stats.pending} 已签</span>}
+                    签绘进度 {stats.total > 0 ? Math.round(((stats.total - stats.unsigned - stats.pending) / stats.total) * 100) : 0}% · 上次更新 {new Date(deck.created_at!).toLocaleDateString("zh-CN")}
                   </>
                 )}
               </CardDescription>
