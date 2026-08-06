@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/lib/toast-context";
-import { MessageSquare, Check, Trash2, Loader2, CheckCheck, Bug, Lightbulb, HelpCircle, AlertTriangle } from "lucide-react";
+import { MessageSquare, Check, Trash2, Loader2, CheckCheck, Bug, Lightbulb, HelpCircle, AlertTriangle, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Feedback {
@@ -28,6 +28,7 @@ export default function FeedbackPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const { toast: showToast } = useToast();
 
   const loadFeedback = useCallback(async () => {
@@ -114,6 +115,21 @@ export default function FeedbackPage() {
       showToast("删除失败", "error");
     } finally {
       setActionLoading(null);
+    }
+  }
+
+  // 一键复制反馈内容
+  async function handleCopy(f: Feedback) {
+    const meta = categoryMeta[f.category] || categoryMeta.other;
+    const text = `[${meta.label}] ${f.user_name} · ${formatDateTime(f.created_at)}\n\n${f.content}`;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(f.id);
+      showToast("已复制到剪贴板", "success");
+      setTimeout(() => setCopiedId((current) => (current === f.id ? null : current)), 2000);
+    } catch {
+      showToast("复制失败，请手动复制", "error");
     }
   }
 
@@ -233,6 +249,19 @@ export default function FeedbackPage() {
                       <p className="text-sm whitespace-pre-wrap break-words">{f.content}</p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleCopy(f)}
+                        disabled={!!actionLoading}
+                        title="复制反馈内容"
+                      >
+                        {copiedId === f.id ? (
+                          <Check className="h-3.5 w-3.5 text-green-600" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
                       {!f.is_read && (
                         <Button
                           variant="ghost"
