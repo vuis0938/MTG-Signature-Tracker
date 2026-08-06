@@ -10,7 +10,6 @@ export const metadata: Metadata = {
 export default function TermsPage() {
   return (
     <div className="container max-w-3xl mx-auto px-4 py-8">
-      <BackButton />
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">用户协议</CardTitle>
@@ -85,6 +84,7 @@ export default function TermsPage() {
           </section>
         </CardContent>
       </Card>
+      <BackButton className="w-full mt-6" />
     </div>
   );
 }

@@ -10,7 +10,6 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <div className="container max-w-3xl mx-auto px-4 py-8">
-      <BackButton />
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">隐私政策</CardTitle>
@@ -82,6 +81,7 @@ export default function PrivacyPage() {
           </section>
         </CardContent>
       </Card>
+      <BackButton className="w-full mt-6" />
     </div>
   );
 }
