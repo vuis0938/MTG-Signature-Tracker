@@ -151,7 +151,7 @@ export default function EventsClient({ fallbackEvents }: EventsClientProps = {})
           {events.map((event) => (
             <Card key={event.id}>
               <CardHeader
-                className="cursor-pointer hover:bg-accent/50 rounded-t-lg"
+                className="cursor-pointer hover:bg-background rounded-t-lg"
                 onClick={() => toggleExpand(event.id)}
               >
                 <div className="flex items-start justify-between">
