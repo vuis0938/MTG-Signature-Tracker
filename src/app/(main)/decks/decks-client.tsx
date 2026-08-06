@@ -33,7 +33,7 @@ import VersionSwitchDialog from "./version-switch-dialog";
 // ─── 纯工具函数 ──────────────────────────────────────────
 
 /** 按画家分组 */
-function groupCardsByArtist(cardList: CardEntry[]): Map<string, CardEntry[]> {
+export function groupCardsByArtist(cardList: CardEntry[]): Map<string, CardEntry[]> {
   const map = new Map<string, CardEntry[]>();
   for (const card of cardList) {
     for (const artist of card.artist_names) {
@@ -46,7 +46,7 @@ function groupCardsByArtist(cardList: CardEntry[]): Map<string, CardEntry[]> {
 }
 
 /** 合并相同卡牌（同名+同系列+同编号+同状态），返回 { card, count, ids } */
-function mergeIdenticalCards(
+export function mergeIdenticalCards(
   cardList: CardEntry[]
 ): Array<{ card: CardEntry; count: number; ids: string[] }> {
   // 合并 key 包含 status，不同状态的卡牌分开显示
@@ -161,8 +161,20 @@ export default function DecksClient({
     }
     // SWR 数据引用变化且非乐观更新 → 服务端 revalidation（如匹配页改状态后切回）
     if (prevDataRef.current !== undefined && prevDataRef.current !== swrDataRef.current) {
-      // 服务端返回了新数据，清除本地 cards 缓存，让展开的套牌重新拉取
-      setCards({});
+      // 服务端返回了新数据，自动刷新当前展开的套牌
+      const currentExpanded = expandedDeckRef.current;
+      if (currentExpanded) {
+        setCardsLoading(true);
+        fetch(`/api/cards?deckId=${encodeURIComponent(currentExpanded)}`)
+          .then((r) => r.json())
+          .then((d) => {
+            if (d.success && d.cards) {
+              setCards((prev) => ({ ...prev, [currentExpanded]: d.cards }));
+            }
+          })
+          .catch(() => {})
+          .finally(() => setCardsLoading(false));
+      }
     }
     prevDataRef.current = swrDataRef.current;
   }, [decks, deckStats]);
@@ -902,7 +914,7 @@ interface DeckListItemProps {
   onLoadPrintings: (card: CardEntry, allIds?: string[]) => void;
 }
 
-const DeckListItem = memo(function DeckListItem({
+export const DeckListItem = memo(function DeckListItem({
   deck, stats, isExpanded, cards, cardsLoading, displayMode, deckLayout,
   onToggle, onAddCards, onDelete, onToggleStatus, onLoadPrintings,
 }: DeckListItemProps) {
