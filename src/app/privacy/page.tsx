@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { BackButton } from "@/components/back-button";
 
 export const metadata: Metadata = {
   title: "隐私政策",
@@ -9,6 +10,7 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <div className="container max-w-3xl mx-auto px-4 py-8">
+      <BackButton />
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">隐私政策</CardTitle>
