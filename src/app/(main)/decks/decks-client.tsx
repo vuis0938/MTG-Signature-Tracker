@@ -965,7 +965,7 @@ const DeckListItem = memo(function DeckListItem({
           ) : cards?.length === 0 ? (
             <p className="text-muted-foreground text-sm">暂无卡牌</p>
           ) : (
-            <div className={deckLayout === "compact" ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3 sm:gap-y-4" : deckLayout === "list" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4" : "space-y-4"}>
+            <div className={deckLayout === "compact" ? "grid grid-cols-2 gap-x-4 sm:gap-x-6 lg:gap-x-8 gap-y-3 sm:gap-y-4" : deckLayout === "list" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4" : "space-y-4"}>
               <p className="text-xs text-muted-foreground flex items-center gap-1 col-span-full">
                 <Lightbulb className="h-3.5 w-3.5 shrink-0" />
                 点击卡牌可切换状态：未签 → 送签中 → 已签
@@ -1025,7 +1025,7 @@ const DeckListItem = memo(function DeckListItem({
                     <h4 className={"text-base font-medium flex items-center gap-1 " + (deckLayout === "compact" ? "mb-1 sm:mb-1.5 truncate" : "mb-2")}>
                       <Palette className={"h-4 w-4 text-foreground shrink-0 " + (deckLayout === "compact" ? "hidden sm:block" : "")} />{artist} ({artistCards.length})
                     </h4>
-                    <div className={deckLayout === "compact" ? "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1 sm:gap-1.5 lg:gap-2" : "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 sm:gap-3 lg:gap-4"}>
+                    <div className={deckLayout === "compact" ? "grid grid-cols-2 gap-1 sm:gap-1.5 lg:gap-2" : "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 sm:gap-3 lg:gap-4"}>
                       {displayCards.map((group) => (
                         <CardThumbnail
                           key={group.ids[0]}
