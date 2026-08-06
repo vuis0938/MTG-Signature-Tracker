@@ -133,7 +133,7 @@ export async function PATCH(request: NextRequest) {
 
       // ─── 应用层降级删除（当 RPC 函数不存在或失败时）───
       if (!deleted) {
-        // 1. 先获取该用户所有套牌 id，确保级联删除卡牌
+        // 1. 先获取该用户所有套牌 id
         const { data: decks } = await supabase
           .from("decks")
           .select("id")
@@ -150,28 +150,19 @@ export async function PATCH(request: NextRequest) {
           return NextResponse.json({ error: "删除用户反馈数据失败" }, { status: 500 });
         }
 
-        // 3. 删除该用户的所有卡牌（按 user_name 兜底，再按 deck_id 精确清理）
-        const { error: cardsByUserError } = await supabase
-          .from("cards")
-          .delete()
-          .eq("user_name", body.username);
-        if (cardsByUserError) {
-          console.error("[Admin Users API] 删除卡牌失败:", cardsByUserError.message);
-          return NextResponse.json({ error: "删除用户卡牌数据失败" }, { status: 500 });
-        }
-
+        // 3. 删除该用户的所有卡牌（按 deck_id，不依赖可能不存在的 cards.user_name 列）
         if (deckIds.length > 0) {
           const { error: cardsByDeckError } = await supabase
             .from("cards")
             .delete()
             .in("deck_id", deckIds);
           if (cardsByDeckError) {
-            console.error("[Admin Users API] 级联删除卡牌失败:", cardsByDeckError.message);
+            console.error("[Admin Users API] 删除卡牌失败:", cardsByDeckError.message);
             return NextResponse.json({ error: "删除用户卡牌数据失败" }, { status: 500 });
           }
         }
 
-        // 4. 删除套牌
+        // 4. 删除套牌（fk_cards_deck_id ON DELETE CASCADE 已确保卡牌被清理）
         const { error: decksError } = await supabase
           .from("decks")
           .delete()

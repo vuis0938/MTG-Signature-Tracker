@@ -8,7 +8,6 @@
 --   在数据库层提供一个原子事务，一次性永久删除用户账号及其全部数据：
 --     - users 表中的账号记录
 --     - decks 表中的套牌（依赖外键 fk_cards_deck_id 级联删除其下卡牌）
---     - cards 表中按 user_name 残留/孤立的卡牌
 --     - feedback 表中该用户提交的所有反馈
 --
 -- 安全说明：
@@ -37,13 +36,10 @@ BEGIN
   -- 1. 删除该用户提交的所有反馈
   DELETE FROM public.feedback WHERE user_name = target_username;
 
-  -- 2. 删除按 user_name 残留/孤立的卡牌（兜底清理）
-  DELETE FROM public.cards WHERE user_name = target_username;
-
-  -- 3. 删除套牌；fk_cards_deck_id ON DELETE CASCADE 会自动删除其下卡牌
+  -- 2. 删除套牌；fk_cards_deck_id ON DELETE CASCADE 会自动删除其下卡牌
   DELETE FROM public.decks WHERE user_name = target_username;
 
-  -- 4. 最后删除账号本身
+  -- 3. 最后删除账号本身
   DELETE FROM public.users WHERE username = target_username;
 
   RETURN TRUE;
