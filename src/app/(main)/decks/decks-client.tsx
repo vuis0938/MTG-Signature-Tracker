@@ -986,7 +986,7 @@ const DeckListItem = memo(function DeckListItem({
           ) : cards?.length === 0 ? (
             <p className="text-muted-foreground text-sm">暂无卡牌</p>
           ) : (
-            <div className={deckLayout === "compact" ? "grid grid-cols-2 lg:grid-cols-3 gap-x-4 sm:gap-x-6 lg:gap-x-8 gap-y-3 sm:gap-y-4" : deckLayout === "list" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4" : "space-y-4"}>
+            <div className={deckLayout === "compact" ? "grid grid-cols-2 lg:grid-cols-3 gap-x-4 sm:gap-x-6 lg:gap-x-8 gap-y-3 sm:gap-y-4" : deckLayout === "list" ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4" : "space-y-4"}>
               <p className="text-xs text-muted-foreground flex items-center gap-1 col-span-full">
                 <Lightbulb className="h-3.5 w-3.5 shrink-0" />
                 点击卡牌可切换状态：未签 → 送签中 → 已签
