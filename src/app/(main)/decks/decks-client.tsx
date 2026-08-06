@@ -6,7 +6,7 @@ import { useLatestRef } from "@/lib/use-latest-ref";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import { useDisplayMode } from "@/lib/display-mode";
 import { CardImage } from "@/components/card-image";
-import { useDecks, useCards, mutateCards, mutateDecks, type DecksResponse } from "@/lib/swr-hooks";
+import { useDecks, useCards, mutateCards, type DecksResponse } from "@/lib/swr-hooks";
 import { useDeckLayout } from "@/lib/deck-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -386,14 +386,14 @@ export default function DecksClient({
     const oldUpdatedAt = decksRef.current.find((d) => d.id === deckId)?.updated_at;
 
     // 同步乐观更新 SWR 缓存：stats + 套牌 updated_at，使「上次更新」时间立即变化
+    // 注意：必须用 useDecks 返回的 revalidate（本地 mutate）直接写入完整数据，
+    // 因为 SWR fallbackData 不会进入全局缓存，全局 mutate 的 updater 会收到 undefined。
     const currentStats = deckStatsRef.current;
+    const currentDecks = decksRef.current;
     if (currentStats) {
       const newStats = applyStatsDelta({ ...currentStats }, currentStatus, newStatus, times);
-      mutateDecks((current) => ({
-        ...current,
-        decks: current.decks.map((d) => (d.id === deckId ? { ...d, updated_at: now } : d)),
-        stats: newStats,
-      }));
+      const newDecks = currentDecks.map((d) => (d.id === deckId ? { ...d, updated_at: now } : d));
+      revalidateRef.current({ success: true, decks: newDecks, stats: newStats }, false);
     }
 
     // 2. 后台写入数据库（单请求批量），失败则回滚 UI
@@ -425,15 +425,13 @@ export default function DecksClient({
             cards.map((c) => (idSet.has(c.id) ? oldCards.get(c.id) ?? c : c))
           );
           const rollbackStats = deckStatsRef.current;
+          const rollbackDecks = decksRef.current;
           if (rollbackStats) {
             const newStats = applyStatsDelta({ ...rollbackStats }, newStatus, currentStatus, times);
-            mutateDecks((current) => ({
-              ...current,
-              decks: current.decks.map((d) =>
-                d.id === deckId ? { ...d, updated_at: oldUpdatedAt || d.updated_at } : d
-              ),
-              stats: newStats,
-            }));
+            const newDecks = rollbackDecks.map((d) =>
+              d.id === deckId ? { ...d, updated_at: oldUpdatedAt || d.updated_at } : d
+            );
+            revalidateRef.current({ success: true, decks: newDecks, stats: newStats }, false);
           }
           showToast(data.error || "状态更新失败，请重试", "error");
         }
@@ -453,19 +451,17 @@ export default function DecksClient({
           cards.map((c) => (idSet.has(c.id) ? oldCards.get(c.id) ?? c : c))
         );
         const rollbackStats = deckStatsRef.current;
+        const rollbackDecks = decksRef.current;
         if (rollbackStats) {
           const newStats = applyStatsDelta({ ...rollbackStats }, newStatus, currentStatus, times);
-          mutateDecks((current) => ({
-            ...current,
-            decks: current.decks.map((d) =>
-              d.id === deckId ? { ...d, updated_at: oldUpdatedAt || d.updated_at } : d
-            ),
-            stats: newStats,
-          }));
+          const newDecks = rollbackDecks.map((d) =>
+            d.id === deckId ? { ...d, updated_at: oldUpdatedAt || d.updated_at } : d
+          );
+          revalidateRef.current({ success: true, decks: newDecks, stats: newStats }, false);
         }
         showToast("网络错误，状态已恢复", "error");
       });
-  }, [showToast, cardsRef, decksRef, deckStatsRef, mutateDecks]);
+  }, [showToast, cardsRef, decksRef, deckStatsRef, revalidateRef]);
 
   // ─── 添加卡牌到套牌 ──────────────────────────────────
 
