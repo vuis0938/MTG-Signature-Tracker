@@ -15,7 +15,7 @@ import { LandingForm } from "./landing-form";
 
 export const metadata: Metadata = {
   description:
-    "万智牌签绘管理工具 — 导入套牌，匹配活动画家，追踪签绘进度。",
+    "万智牌签绘管理工具 — 一键导入套牌，匹配活动画家，实时追踪签绘。",
 };
 
 export default async function Home({

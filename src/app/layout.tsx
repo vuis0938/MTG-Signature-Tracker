@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     template: "%s - MTG 签绘管家",
   },
   description:
-    "万智牌签绘管理工具 — 导入套牌，匹配活动画家，追踪签绘进度。",
+    "万智牌签绘管理工具 — 一键导入套牌，匹配活动画家，实时追踪签绘。",
   keywords: [
     "万智牌",
     "MTG",
@@ -35,13 +35,13 @@ export const metadata: Metadata = {
     siteName: "MTG 签绘管家",
     title: "MTG 签绘管家",
     description:
-      "万智牌签绘管理工具 — 导入套牌，匹配活动画家，追踪签绘进度。",
+      "万智牌签绘管理工具 — 一键导入套牌，匹配活动画家，实时追踪签绘。",
   },
   twitter: {
     card: "summary_large_image",
     title: "MTG 签绘管家",
     description:
-      "万智牌签绘管理工具 — 导入套牌，匹配活动画家，追踪签绘进度。",
+      "万智牌签绘管理工具 — 一键导入套牌，匹配活动画家，实时追踪签绘。",
   },
   icons: {
     icon: [
