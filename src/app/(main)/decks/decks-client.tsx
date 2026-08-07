@@ -958,6 +958,10 @@ export const DeckListItem = memo(function DeckListItem({
     [cards, displayMode]
   );
 
+  // 全局首屏优先加载计数器：跨所有画家组只让前 8 张卡牌 priority
+  // 手机一屏约 3 列 × 3 行 ≈ 9 张可见，取 8 张优先加载
+  let priorityCount = 0;
+
   return (
     <Card>
       <CardHeader
@@ -1085,19 +1089,23 @@ export const DeckListItem = memo(function DeckListItem({
                       <Palette className={"h-4 w-4 text-foreground shrink-0 " + (deckLayout === "compact" ? "hidden sm:block" : "")} />{artist} ({artistCards.length})
                     </h4>
                     <div className={deckLayout === "compact" ? "grid grid-cols-2 sm:grid-cols-4 gap-1 sm:gap-1.5 lg:gap-2" : "grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 sm:gap-3 lg:gap-4"}>
-                      {displayCards.map((group, idx) => (
-                        <CardThumbnail
-                          key={group.ids[0]}
-                          card={group.card}
-                          count={group.count}
-                          allIds={group.ids}
-                          deckId={deck.id}
-                          deckLayout={deckLayout}
-                          onToggleStatus={onToggleStatus}
-                          onLoadPrintings={onLoadPrintings}
-                          priority={idx < 4}
-                        />
-                      ))}
+                      {displayCards.map((group) => {
+                        const isPriority = priorityCount < 8;
+                        priorityCount++;
+                        return (
+                          <CardThumbnail
+                            key={group.ids[0]}
+                            card={group.card}
+                            count={group.count}
+                            allIds={group.ids}
+                            deckId={deck.id}
+                            deckLayout={deckLayout}
+                            onToggleStatus={onToggleStatus}
+                            onLoadPrintings={onLoadPrintings}
+                            priority={isPriority}
+                          />
+                        );
+                      })}
                     </div>
                   </div>
                 );

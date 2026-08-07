@@ -1234,6 +1234,9 @@ function ExactMatchResults({ matched, displayMode, toggleStatus }: {
   displayMode: "individual" | "grouped";
   toggleStatus: (cardIdOrIds: string | string[]) => void;
 }) {
+  // 全局首屏优先加载计数器：跨所有画家/套牌组只让前 8 张卡牌 priority
+  let priorityCount = 0;
+
   return (
     <div className="space-y-6">
       {Array.from(matched).map(([artist, cards]) => (
@@ -1260,19 +1263,23 @@ function ExactMatchResults({ matched, displayMode, toggleStatus }: {
                 <div key={deckName} className="mb-3">
                   <p className="text-sm text-muted-foreground mb-2 flex items-center gap-1"><Package className="h-3.5 w-3.5" /> {deckName}</p>
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
-                    {displayCards.map((group, idx) => (
-                      <CardThumbnail
-                        key={group.ids[0]}
-                        cardId={group.ids[0]}
-                        imageUrl={group.card.image_url}
-                        cardName={group.card.card_name}
-                        status={group.card.status}
-                        count={group.count}
-                        allIds={group.ids}
-                        toggleStatus={toggleStatus}
-                        priority={idx < 3}
-                      />
-                    ))}
+                    {displayCards.map((group) => {
+                      const isPriority = priorityCount < 8;
+                      priorityCount++;
+                      return (
+                        <CardThumbnail
+                          key={group.ids[0]}
+                          cardId={group.ids[0]}
+                          imageUrl={group.card.image_url}
+                          cardName={group.card.card_name}
+                          status={group.card.status}
+                          count={group.count}
+                          allIds={group.ids}
+                          toggleStatus={toggleStatus}
+                          priority={isPriority}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -1287,6 +1294,9 @@ function ExactMatchResults({ matched, displayMode, toggleStatus }: {
 // ─── 模糊匹配结果 ──────────────────────────────────────────
 
 function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<string, FuzzyCardEntry[]>; toggleStatus: (cardIdOrIds: string | string[]) => void }) {
+  // 全局首屏优先加载计数器：跨所有画家/卡牌组只让前 8 张卡牌 priority
+  let priorityCount = 0;
+
   return (
     <div className="space-y-6">
       {Array.from(fuzzyMatched).map(([artist, entries]) => {
@@ -1314,6 +1324,8 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
                     const isInDeck = !!v.deckCard;
                     const cardId = v.deckCard?.id;
                     const status = v.deckCard?.status ?? 0;
+                    const isPriority = priorityCount < 8;
+                    priorityCount++;
 
                     return (
                       <div
@@ -1324,7 +1336,7 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
                       >
                         <div className={isInDeck && status >= 1 ? "opacity-75" : ""}>
                           {v.image_url ? (
-                            <CardImage src={v.image_url} alt={v.card_name} className="w-full" priority={idx < 3} />
+                            <CardImage src={v.image_url} alt={v.card_name} className="w-full" priority={isPriority} />
                           ) : (
                             <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
                               {v.card_name}
