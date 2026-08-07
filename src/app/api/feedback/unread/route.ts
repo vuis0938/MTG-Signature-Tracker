@@ -5,7 +5,7 @@ import { requireAdmin } from "@/lib/admin";
 // ─── GET: 管理员获取未读反馈数量 ────────────────────────────
 // 用于管理后台导航栏角标轮询，返回最小数据量保证响应极快
 export async function GET(request: NextRequest) {
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if (auth.error) return auth.error;
 
   try {

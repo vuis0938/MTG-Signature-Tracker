@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { hashPassword, verifyPassword } from "@/lib/auth";
+import { hashPassword, verifyPassword, revokeTokens } from "@/lib/auth";
 import { getUserFromRequest } from "@/lib/auth";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
 
@@ -10,14 +10,14 @@ const WINDOW_MS = 60 * 60 * 1000;
 
 // POST: 修改密码（需登录，验证旧密码）
 export async function POST(request: NextRequest) {
-  const userName = getUserFromRequest(request);
+  const userName = await getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
   // 限流
   const ip = getClientIP(request);
-  const limit = rateLimit(`change-pwd:${ip}`, MAX_ATTEMPTS, WINDOW_MS);
+  const limit = await rateLimit(`change-pwd:${ip}`, MAX_ATTEMPTS, WINDOW_MS);
   if (!limit.allowed) {
     const waitMin = Math.ceil((limit.resetAt - Date.now()) / 60000);
     return NextResponse.json(
@@ -53,17 +53,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "用户不存在" }, { status: 404 });
     }
 
-    // 验证旧密码
+    // 验证旧密码（明文密码已被废弃）
     const storedPassword = user.password as string;
-    let isValid = false;
 
-    if (storedPassword.includes(":")) {
-      isValid = await verifyPassword(oldPassword, storedPassword);
-    } else {
-      // 兼容旧明文密码
-      isValid = storedPassword === oldPassword;
+    if (!storedPassword.includes(":")) {
+      return NextResponse.json(
+        { error: "密码格式已过期，请使用「忘记密码」重设密码" },
+        { status: 401 }
+      );
     }
 
+    const isValid = await verifyPassword(oldPassword, storedPassword);
     if (!isValid) {
       return NextResponse.json({ error: "旧密码不正确" }, { status: 401 });
     }
@@ -78,6 +78,9 @@ export async function POST(request: NextRequest) {
     if (error) {
       return NextResponse.json({ error: "修改失败，请重试" }, { status: 500 });
     }
+
+    // 撤销所有旧 token，强制重新登录
+    await revokeTokens(userName);
 
     return NextResponse.json({ success: true, message: "密码修改成功" });
   } catch {

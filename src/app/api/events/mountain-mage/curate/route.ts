@@ -19,7 +19,7 @@ interface TaggedLine {
 
 export async function POST(request: NextRequest) {
   // 鉴权：策展是管理操作，必须登录
-  const userName = getUserFromRequest(request);
+  const userName = await getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
 /** GET: 读取已保存的策展数据（含 taggedLines 用于恢复页面状态） */
 export async function GET(request: NextRequest) {
   // 鉴权
-  const userName = getUserFromRequest(request);
+  const userName = await getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }

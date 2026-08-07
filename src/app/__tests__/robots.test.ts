@@ -22,7 +22,7 @@ describe("robots.ts", () => {
     expect(result.rules).toEqual({
       userAgent: "*",
       allow: "/",
-      disallow: ["/admin", "/api"],
+      disallow: ["/admin", "/api", "/decks", "/match", "/events", "/settings", "/login"],
     });
   });
 

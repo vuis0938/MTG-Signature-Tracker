@@ -5,7 +5,7 @@ import { requireAdmin } from "@/lib/admin";
 
 // GET: 审计日志列表（分页 + 筛选）
 export async function GET(request: NextRequest) {
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if (auth.error) return auth.error;
 
   try {

@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default async function EventsPage() {
   // 服务端预取活动数据，消除首屏加载
   const token = (await cookies()).get("auth_token")?.value;
-  const userName = verifyToken(token);
+  const userName = await verifyToken(token);
 
   if (!userName) {
     return <EventsClient fallbackEvents={[]} />;

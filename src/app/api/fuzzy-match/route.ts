@@ -11,16 +11,43 @@ interface FuzzyCardResult {
   allArtists: string[];
 }
 
+/** 验证单个 printing 对象是否包含所有必需字段 */
+function isValidPrinting(p: unknown): p is Printing {
+  if (!p || typeof p !== "object") return false;
+  const obj = p as Record<string, unknown>;
+  return (
+    typeof obj.artist === "string" &&
+    typeof obj.set === "string" &&
+    typeof obj.set_name === "string" &&
+    typeof obj.collector_number === "string" &&
+    (obj.image_url === null || typeof obj.image_url === "string") &&
+    typeof obj.released_at === "string"
+  );
+}
+
+/** 清理 printings 数组：过滤无效项并确保字段类型正确 */
+function sanitizePrintings(printings: unknown[]): Printing[] {
+  const valid: Printing[] = [];
+  for (const p of printings) {
+    if (!isValidPrinting(p)) {
+      console.warn("[FuzzyMatch] 跳过无效 printing 缓存项:", p);
+      continue;
+    }
+    valid.push(p);
+  }
+  return valid;
+}
+
 export async function POST(request: NextRequest) {
   // 鉴权
-  const userName = getUserFromRequest(request);
+  const userName = await getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
   // 限流：防止 Scryfall API 滥用
   const ip = getClientIP(request);
-  const limit = rateLimit(`fuzzy-match:${ip}`, 10, 10 * 60 * 1000);
+  const limit = await rateLimit(`fuzzy-match:${ip}`, 10, 10 * 60 * 1000);
   if (!limit.allowed) {
     return NextResponse.json({ error: "操作过于频繁，请稍后再试" }, { status: 429 });
   }
@@ -74,10 +101,17 @@ export async function POST(request: NextRequest) {
     const cachedMap = new Map<string, FuzzyCardResult>();
     if (cachedRows) {
       for (const row of cachedRows) {
+        // 防御：历史数据或异常写入可能导致 printings/all_artists 非数组
+        const rawPrintings = Array.isArray(row.printings) ? row.printings : [];
+        const printings = sanitizePrintings(rawPrintings);
+        const allArtists = Array.isArray(row.all_artists)
+          ? (row.all_artists as string[]).filter((a): a is string => typeof a === "string")
+          : [];
+        if (printings.length === 0) continue;
         cachedMap.set(row.card_name, {
           card_name: row.card_name,
-          printings: row.printings as Printing[],
-          allArtists: row.all_artists as string[],
+          printings,
+          allArtists,
         });
       }
     }
@@ -93,7 +127,8 @@ export async function POST(request: NextRequest) {
         const batch = missedNames.slice(i, i + CONCURRENCY);
         const batchResults = await Promise.all(
           batch.map(async (name) => {
-            const printings = await fetchAllPrintings(name);
+            const rawPrintings = await fetchAllPrintings(name);
+            const printings = sanitizePrintings(rawPrintings as unknown[]);
             return {
               card_name: name,
               printings,
@@ -107,13 +142,15 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 第三步：将从 Scryfall 查到的结果写入缓存 ──
-    if (scryfallResults.length > 0) {
-      const rows = scryfallResults.map((r) => ({
+    const rowsToCache = scryfallResults
+      .filter((r) => r.printings.length > 0)
+      .map((r) => ({
         card_name: r.card_name,
         printings: r.printings,
         all_artists: r.allArtists,
       }));
-      supabase.from("card_printings").upsert(rows, { onConflict: "card_name" }).then(
+    if (rowsToCache.length > 0) {
+      supabase.from("card_printings").upsert(rowsToCache, { onConflict: "card_name" }).then(
         ({ error }) => {
           if (error) console.warn("[FuzzyMatch] 写缓存失败:", error.message);
         }

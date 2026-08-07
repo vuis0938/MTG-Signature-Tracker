@@ -1,3 +1,7 @@
+import "server-only";
+import { getSupabase } from "@/lib/supabase";
+import { createTimeoutSignal } from "@/lib/timeout-signal";
+
 /**
  * Mountain Mage Signatures 数据获取与解析
  *
@@ -262,10 +266,16 @@ export async function fetchMountainMageArtists(forceRefresh = false): Promise<Mo
   }
 
   try {
-    const res = await fetch(GOOGLE_DOC_URL, {
-      headers: { "User-Agent": UA },
-      signal: AbortSignal.timeout(15_000),
-    });
+    const { signal, clear } = createTimeoutSignal(15_000);
+    let res: Response;
+    try {
+      res = await fetch(GOOGLE_DOC_URL, {
+        headers: { "User-Agent": UA },
+        signal,
+      });
+    } finally {
+      clear();
+    }
 
     if (!res.ok) {
       console.warn(`[MountainMage] Google Docs HTTP ${res.status}`);

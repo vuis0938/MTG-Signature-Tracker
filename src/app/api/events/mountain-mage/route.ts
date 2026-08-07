@@ -4,7 +4,7 @@ import { getUserFromRequest, isAdmin } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   // 鉴权
-  const userName = getUserFromRequest(request);
+  const userName = await getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }

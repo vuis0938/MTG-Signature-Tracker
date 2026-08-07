@@ -5,7 +5,7 @@ import { requireAdmin, logAdminAction } from "@/lib/admin";
 
 // GET: 公告列表（管理后台，含未激活的）
 export async function GET(request: NextRequest) {
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if (auth.error) return auth.error;
 
   try {
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 
 // POST: 创建公告
 export async function POST(request: NextRequest) {
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if (auth.error) return auth.error;
   const adminName = auth.userName;
 
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
 
 // PATCH: 更新公告
 export async function PATCH(request: NextRequest) {
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if (auth.error) return auth.error;
   const adminName = auth.userName;
 
@@ -123,7 +123,7 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE: 删除公告
 export async function DELETE(request: NextRequest) {
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if (auth.error) return auth.error;
   const adminName = auth.userName;
 

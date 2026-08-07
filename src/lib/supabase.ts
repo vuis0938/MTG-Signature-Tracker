@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createTimeoutSignal, combineSignals } from "@/lib/timeout-signal";
 
 // ─── 服务端专用 Client（使用 Service Role Key，绕过 RLS）─────
 // 所有 API 路由应使用此 Client，享有完整数据库权限。
@@ -15,12 +16,15 @@ let _serviceClient: SupabaseClient | null = null;
 const SUPABASE_TIMEOUT_MS = 15000;
 
 const fetchWithTimeout: typeof fetch = (input, init) => {
-  const timeout = AbortSignal.timeout(SUPABASE_TIMEOUT_MS);
-  const signal =
-    init?.signal && typeof AbortSignal.any === "function"
-      ? AbortSignal.any([init.signal, timeout])
-      : timeout;
-  return fetch(input, { ...init, signal });
+  const { signal: timeoutSignal, clear: clearTimeoutSignal } = createTimeoutSignal(SUPABASE_TIMEOUT_MS);
+  const { signal, clear: clearCombined } = init?.signal
+    ? combineSignals([init.signal, timeoutSignal])
+    : { signal: timeoutSignal, clear: clearTimeoutSignal };
+
+  return fetch(input, { ...init, signal }).finally(() => {
+    clearCombined();
+    clearTimeoutSignal();
+  });
 };
 
 export function getSupabase(): SupabaseClient {

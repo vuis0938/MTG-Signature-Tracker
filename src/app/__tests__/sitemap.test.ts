@@ -21,13 +21,14 @@ describe("sitemap.ts", () => {
     const urls = result.map((item) => item.url);
 
     expect(urls).toContain("https://www.mtgkit.top/");
-    expect(urls).toContain("https://www.mtgkit.top/decks");
-    expect(urls).toContain("https://www.mtgkit.top/match");
-    expect(urls).toContain("https://www.mtgkit.top/events");
-    expect(urls).toContain("https://www.mtgkit.top/settings");
-    expect(urls).toContain("https://www.mtgkit.top/login");
     expect(urls).toContain("https://www.mtgkit.top/privacy");
     expect(urls).toContain("https://www.mtgkit.top/terms");
+    // 仅保留公开可索引页面
+    expect(urls).not.toContain("https://www.mtgkit.top/decks");
+    expect(urls).not.toContain("https://www.mtgkit.top/match");
+    expect(urls).not.toContain("https://www.mtgkit.top/events");
+    expect(urls).not.toContain("https://www.mtgkit.top/settings");
+    expect(urls).not.toContain("https://www.mtgkit.top/login");
   });
 
   it("支持通过 NEXT_PUBLIC_SITE_URL 覆盖域名", () => {

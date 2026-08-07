@@ -12,14 +12,14 @@ function matchesCardName(card: Record<string, unknown>, target: string): boolean
 
 export async function GET(request: NextRequest) {
   // 鉴权
-  const userName = getUserFromRequest(request);
+  const userName = await getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
   // 限流：外部 API 调用，20 次/分钟
   const ip = getClientIP(request);
-  const limit = rateLimit(`card-printings:${ip}`, 20, 60 * 1000);
+  const limit = await rateLimit(`card-printings:${ip}`, 20, 60 * 1000);
   if (!limit.allowed) {
     return NextResponse.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
   }

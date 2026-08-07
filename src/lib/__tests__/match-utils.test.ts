@@ -45,6 +45,20 @@ describe("normalizeArtists", () => {
   it("数字类型返回空数组", () => {
     expect(normalizeArtists(123)).toEqual([]);
   });
+
+  it("数组中的非字符串项被过滤", () => {
+    expect(normalizeArtists(["Alice", null, undefined, 123, "Bob"])).toEqual([
+      "Alice",
+      "Bob",
+    ]);
+  });
+
+  it("JSON 字符串中的非字符串项被过滤", () => {
+    expect(normalizeArtists('["Alice", null, 123, "Bob"]')).toEqual([
+      "Alice",
+      "Bob",
+    ]);
+  });
 });
 
 // ═════════════════════════════════════════════════════════════
@@ -183,6 +197,23 @@ describe("matchAgainstArtists", () => {
     expect(result.newFuzzyMatched.size).toBe(0);
     expect(result.newUnmatched).toEqual([]);
   });
+
+  it("活动画家列表含非字符串项时忽略并继续匹配", () => {
+    const expanded = new Map();
+    expanded.set("Alice", [makeFuzzy("Sol Ring", "CMM", "345", "Alice")]);
+
+    const result = matchAgainstArtists(
+      ["Alice", null, undefined, 123, "Bob"] as unknown as string[],
+      expanded,
+      new Set(),
+      [], new Map(),
+      new Map()
+    );
+
+    expect(result.newFuzzyMatched.has("Alice")).toBe(true);
+    expect(result.newFuzzyMatched.has("Bob")).toBe(false);
+    expect(result.newUnmatched).toEqual(["Bob"]);
+  });
 });
 
 // ═════════════════════════════════════════════════════════════
@@ -219,6 +250,19 @@ describe("buildNormalizedMap", () => {
 // ═════════════════════════════════════════════════════════════
 
 describe("findMatchingArtist", () => {
+  describe("输入校验", () => {
+    it("非字符串输入返回 null", () => {
+      expect(findMatchingArtist(null as unknown as string, ["alice", "bob"])).toBeNull();
+      expect(findMatchingArtist(123 as unknown as string, ["alice", "bob"])).toBeNull();
+      expect(findMatchingArtist(undefined as unknown as string, ["alice", "bob"])).toBeNull();
+    });
+
+    it("空字符串返回 null", () => {
+      expect(findMatchingArtist("", ["alice", "bob"])).toBeNull();
+      expect(findMatchingArtist("   ", ["alice", "bob"])).toBeNull();
+    });
+  });
+
   describe("规则 1：精确匹配（大小写不敏感）", () => {
     it("完全相同", () => {
       expect(findMatchingArtist("Alice", ["alice", "bob"])).toBe("alice");

@@ -14,13 +14,13 @@ const MIN_CONTENT_LEN = 5;
 // ─── POST: 用户提交反馈 ─────────────────────────────────────
 export async function POST(request: NextRequest) {
   // 鉴权：必须登录
-  const userName = getUserFromRequest(request);
+  const userName = await getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
   // 限流：每用户每 10 分钟最多 3 条反馈，防止刷屏
-  const limit = rateLimit(`feedback:${userName}`, 3, 10 * 60 * 1000);
+  const limit = await rateLimit(`feedback:${userName}`, 3, 10 * 60 * 1000);
   if (!limit.allowed) {
     const waitMin = Math.ceil((limit.resetAt - Date.now()) / 60000);
     return NextResponse.json(
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
 
 // ─── GET: 管理员获取反馈列表 ────────────────────────────────
 export async function GET(request: NextRequest) {
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if (auth.error) return auth.error;
 
   try {
@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
 
 // ─── PATCH: 管理员标记反馈为已读 ────────────────────────────
 export async function PATCH(request: NextRequest) {
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if (auth.error) return auth.error;
   const adminUser = auth.userName!;
 
@@ -149,7 +149,7 @@ export async function PATCH(request: NextRequest) {
 
 // ─── DELETE: 管理员删除反馈 ─────────────────────────────────
 export async function DELETE(request: NextRequest) {
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if (auth.error) return auth.error;
   const adminUser = auth.userName!;
 

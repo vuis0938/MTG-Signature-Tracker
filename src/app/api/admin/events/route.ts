@@ -5,7 +5,7 @@ import { requireAdmin, logAdminAction } from "@/lib/admin";
 
 // GET: 自定义活动列表
 export async function GET(request: NextRequest) {
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if (auth.error) return auth.error;
 
   try {
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
 
 // POST: 创建自定义活动
 export async function POST(request: NextRequest) {
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if (auth.error) return auth.error;
   const adminName = auth.userName;
 
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
 
 // PATCH: 更新活动（编辑或归档）
 export async function PATCH(request: NextRequest) {
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if (auth.error) return auth.error;
   const adminName = auth.userName;
 
@@ -130,7 +130,7 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE: 删除活动
 export async function DELETE(request: NextRequest) {
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if (auth.error) return auth.error;
   const adminName = auth.userName;
 

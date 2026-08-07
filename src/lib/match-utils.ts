@@ -23,11 +23,15 @@ export interface FuzzyApiResponse {
 
 /** 安全解析 artist_names：兼容 string[] 和 Supabase 可能返回的 string */
 export function normalizeArtists(raw: unknown): string[] {
-  if (Array.isArray(raw)) return raw;
+  if (Array.isArray(raw)) {
+    return raw.filter((item): item is string => typeof item === "string");
+  }
   if (typeof raw === "string") {
     try {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) {
+        return parsed.filter((item): item is string => typeof item === "string");
+      }
     } catch {}
     return [raw];
   }
@@ -36,11 +40,22 @@ export function normalizeArtists(raw: unknown): string[] {
 
 // ─── 变音符号规范化 ──────────────────────────────────────
 
+/**
+ * 安全 NFD 规范化：部分旧版浏览器不支持 String.prototype.normalize，
+ * 此时直接返回原字符串，避免匹配流程抛异常。
+ */
+export function safeNormalize(str: string): string {
+  if (typeof str.normalize === "function") {
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  }
+  return str;
+}
+
 /** 构建 NFD 规范化 key → 原始 key 映射 */
 export function buildNormalizedMap(dbKeys: string[]): Map<string, string> {
   const map = new Map<string, string>();
   for (const dbKey of dbKeys) {
-    const normalized = dbKey.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const normalized = safeNormalize(dbKey);
     if (!map.has(normalized)) {
       map.set(normalized, dbKey);
     }
@@ -62,7 +77,9 @@ export function findMatchingArtist(
   dbKeys: string[],
   normalizedMap?: Map<string, string>
 ): string | null {
+  if (typeof parsedArtist !== "string") return null;
   const key = parsedArtist.toLowerCase().trim();
+  if (key.length === 0) return null;
   if (dbKeys.includes(key)) return key;
 
   const words = key.split(/\s+/).filter(Boolean);
@@ -83,7 +100,7 @@ export function findMatchingArtist(
 
   // 规则 3：变音符号规范化
   const map = normalizedMap ?? buildNormalizedMap(dbKeys);
-  const normalizedKey = key.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const normalizedKey = safeNormalize(key);
   return map.get(normalizedKey) || null;
 }
 
@@ -157,31 +174,33 @@ export function matchAgainstArtists(
   const expandedNormalizedMap = buildNormalizedMap(expandedDbKeys);
 
   // 2. 用三级匹配规则匹配活动画家
-  for (const parsedArtist of parsedArtists) {
-    const matchedKey = findMatchingArtist(parsedArtist, expandedDbKeys, expandedNormalizedMap);
+  for (const raw of parsedArtists) {
+    if (typeof raw !== "string") continue;
+    const matchedKey = findMatchingArtist(raw, expandedDbKeys, expandedNormalizedMap);
     if (matchedKey) {
-      newFuzzyMatched.set(parsedArtist, expandedKeyMap.get(matchedKey) || []);
+      newFuzzyMatched.set(raw, expandedKeyMap.get(matchedKey) || []);
     } else {
-      newUnmatched.push(parsedArtist);
+      newUnmatched.push(raw);
     }
   }
 
   // 3. 兜底：确保精确匹配结果 100% 包含
-  for (const parsedArtist of parsedArtists) {
-    if (newFuzzyMatched.has(parsedArtist)) continue;
-    const key = findMatchingArtist(parsedArtist, artistDbKeys, artistNormalizedMap);
+  for (const raw of parsedArtists) {
+    if (typeof raw !== "string") continue;
+    if (newFuzzyMatched.has(raw)) continue;
+    const key = findMatchingArtist(raw, artistDbKeys, artistNormalizedMap);
     if (!key || !exactMatchedKeys.has(key)) continue;
 
     const exactCards = artistCards.get(key) || [];
     if (exactCards.length === 0) continue;
 
     const displayArtist = normalizeArtists(exactCards[0].artist_names)[0] || key;
-    newFuzzyMatched.set(parsedArtist, exactCards.map((c) => ({
+    newFuzzyMatched.set(raw, exactCards.map((c) => ({
       card_name: c.card_name, set_code: c.set_code, set_name: "",
       collector_number: c.collector_number, image_url: c.image_url,
       artist: displayArtist, deckCard: c,
     })));
-    const idx = newUnmatched.indexOf(parsedArtist);
+    const idx = newUnmatched.indexOf(raw);
     if (idx !== -1) newUnmatched.splice(idx, 1);
   }
 

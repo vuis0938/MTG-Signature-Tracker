@@ -16,12 +16,14 @@ import {
 import { Palette, ArrowLeft } from "lucide-react";
 import { SECURITY_QUESTIONS } from "@/lib/security-questions";
 
-type Mode = "login" | "register" | "forgot";
+type Mode = "login" | "register" | "forgot" | "setup";
+type SetupReason = "plaintext_password" | "missing_security_question" | null;
 
 export default function LoginPage() {
   const [mode, setMode] = useState<Mode>("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [securityQuestion, setSecurityQuestion] = useState<string>("");
   const [securityAnswer, setSecurityAnswer] = useState("");
@@ -30,6 +32,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [forgotStep, setForgotStep] = useState(1); // 1=输入用户名, 2=回答问题+新密码
   const [forgotQuestion, setForgotQuestion] = useState("");
+  const [setupReason, setSetupReason] = useState<SetupReason>(null);
   const router = useRouter();
 
   const usernameRef = useRef<HTMLInputElement>(null);
@@ -55,6 +58,8 @@ export default function LoginPage() {
     setSuccess("");
     setConfirmPassword("");
     setSecurityAnswer("");
+    setCurrentPassword("");
+    setSetupReason(null);
     setForgotStep(1);
   }
 
@@ -80,6 +85,64 @@ export default function LoginPage() {
 
       const res = await fetch("/api/auth", {
         method: mode === "register" ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.needsSetup) {
+          setSetupReason(data.setupReason as SetupReason);
+          setCurrentPassword(password);
+          setPassword("");
+          setConfirmPassword("");
+          setSecurityQuestion("");
+          setSecurityAnswer("");
+          setMode("setup");
+        } else {
+          router.push("/decks");
+          router.refresh();
+        }
+      } else {
+        const data = await res.json();
+        setError(data.error || "操作失败");
+      }
+    } catch {
+      setError("网络错误，请重试");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ─── 完善账号：补充安全问题 / 升级明文密码 ───
+  async function handleSetupSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    if (setupReason === "plaintext_password" && password !== confirmPassword) {
+      setError("两次输入的新密码不一致");
+      return;
+    }
+    if (setupReason === "plaintext_password" && password.length < 8) {
+      setError("新密码至少 8 个字符");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const body: Record<string, string> = {
+        username: username.trim(),
+        currentPassword,
+        securityQuestion,
+        securityAnswer,
+      };
+      if (setupReason === "plaintext_password") {
+        body.newPassword = password;
+      }
+
+      const res = await fetch("/api/auth", {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
@@ -145,7 +208,7 @@ export default function LoginPage() {
 
       const data = await res.json();
       if (data.success) {
-        setSuccess("密码重置成功，请重新登录");
+        setSuccess(data.message || "如果用户名与安全问题答案匹配，密码已重置，请使用新密码登录");
         setMode("login");
         setPassword("");
         setConfirmPassword("");
@@ -173,6 +236,7 @@ export default function LoginPage() {
             {mode === "login" && "请输入用户名和密码"}
             {mode === "register" && "注册新账号"}
             {mode === "forgot" && "找回密码"}
+            {mode === "setup" && "完善账号安全信息"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -352,6 +416,100 @@ export default function LoginPage() {
                   </Button>
                 </form>
               )}
+              <Button
+                variant="link"
+                size="sm"
+                className="mt-4 w-full"
+                onClick={() => switchMode("login")}
+              >
+                <ArrowLeft className="h-3 w-3 mr-1" />
+                返回登录
+              </Button>
+            </>
+          )}
+
+          {/* ─── 完善账号 ─── */}
+          {mode === "setup" && (
+            <>
+              <form onSubmit={handleSetupSubmit} className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  {setupReason === "plaintext_password"
+                    ? "检测到账号密码仍为明文存储，需要设置新密码和安全问题。"
+                    : "账号缺少安全问题，补充后即可正常使用。"}
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="setup-current-password">当前密码</Label>
+                  <Input
+                    id="setup-current-password"
+                    type="password"
+                    placeholder="请输入当前密码"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                {setupReason === "plaintext_password" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="setup-password">新密码</Label>
+                      <Input
+                        id="setup-password"
+                        type="password"
+                        placeholder="至少 8 个字符"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="setup-confirm">确认新密码</Label>
+                      <Input
+                        id="setup-confirm"
+                        type="password"
+                        placeholder="请再次输入新密码"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="setup-security-question">安全问题</Label>
+                  <select
+                    id="setup-security-question"
+                    value={securityQuestion}
+                    onChange={(e) => setSecurityQuestion(e.target.value)}
+                    className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base md:text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30 appearance-none cursor-pointer bg-no-repeat pr-8"
+                    style={{
+                      backgroundImage:
+                        "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")",
+                      backgroundPosition: "right 0.5rem center",
+                      backgroundSize: "1rem",
+                    }}
+                    required
+                  >
+                    <option value="" disabled>凭此问题找回密码</option>
+                    {SECURITY_QUESTIONS.map((q) => (
+                      <option key={q} value={q}>{q}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="setup-security-answer">安全问题答案</Label>
+                  <Input
+                    id="setup-security-answer"
+                    placeholder="请输入答案"
+                    value={securityAnswer}
+                    onChange={(e) => setSecurityAnswer(e.target.value)}
+                    required
+                  />
+                </div>
+                {error && <p className="text-sm text-destructive">{error}</p>}
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "保存中..." : "保存并登录"}
+                </Button>
+              </form>
               <Button
                 variant="link"
                 size="sm"

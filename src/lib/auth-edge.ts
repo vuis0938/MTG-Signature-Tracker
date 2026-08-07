@@ -3,24 +3,22 @@
  *
  * Next.js Middleware 在 Edge Runtime 中执行，无法使用 Node.js 的 `crypto` 模块。
  * 本模块使用 Web Crypto API 实现 token 验证，与 src/lib/auth.ts 保持相同格式。
+ * 同时通过 Supabase 验证 token_version，实现 token 撤销。
  */
 
-// 生产环境必须设置 TOKEN_SECRET，否则运行时报错
-// 开发环境使用默认值方便本地调试
+import { getSupabaseEdge } from "@/lib/supabase-edge";
+
+// 任何环境都必须设置 TOKEN_SECRET，否则运行时报错
 let _tokenSecret: string | null = null;
 function getTokenSecret(): string {
   if (_tokenSecret !== null) return _tokenSecret;
   const secret = process.env.TOKEN_SECRET;
-  if (!secret) {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error(
-        "生产环境必须设置 TOKEN_SECRET 环境变量（建议 32+ 字符随机字符串）"
-      );
-    }
-    _tokenSecret = "mtg-dev-secret-change-in-production";
-  } else {
-    _tokenSecret = secret;
+  if (!secret || secret.length < 32) {
+    throw new Error(
+      "必须设置 TOKEN_SECRET 环境变量（建议 32+ 字符随机字符串）"
+    );
   }
+  _tokenSecret = secret;
   return _tokenSecret;
 }
 
@@ -30,6 +28,69 @@ const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 interface TokenPayload {
   u: string; // username
   e: number; // expiry timestamp (ms)
+  v: string; // token_version（用于撤销）
+}
+
+/**
+ * 生成或读取用户的 token_version（Edge Runtime 版本）
+ */
+async function getOrCreateTokenVersionEdge(
+  username: string
+): Promise<string | null> {
+  try {
+    const supabase = getSupabaseEdge();
+    const trimmed = username.trim();
+
+    const { data: user } = await supabase
+      .from("users")
+      .select("token_version")
+      .eq("username", trimmed)
+      .single();
+
+    if (!user) return null;
+
+    if (user.token_version) {
+      return user.token_version as string;
+    }
+
+    const newVersion = crypto.randomUUID().replace(/-/g, "");
+    const { error } = await supabase
+      .from("users")
+      .update({ token_version: newVersion })
+      .eq("username", trimmed);
+
+    if (error) {
+      console.error("[getOrCreateTokenVersionEdge] 更新失败:", error);
+      return null;
+    }
+    return newVersion;
+  } catch (err) {
+    console.error("[getOrCreateTokenVersionEdge] 异常:", err);
+    return null;
+  }
+}
+
+/**
+ * 验证 token_version 是否与数据库一致（Edge Runtime 版本）
+ */
+async function verifyTokenVersionEdge(
+  username: string,
+  tokenVersion: string
+): Promise<boolean> {
+  try {
+    const supabase = getSupabaseEdge();
+    const { data: user } = await supabase
+      .from("users")
+      .select("token_version")
+      .eq("username", username.trim())
+      .single();
+
+    if (!user || !user.token_version) return false;
+    return user.token_version === tokenVersion;
+  } catch (err) {
+    console.error("[verifyTokenVersionEdge] 异常:", err);
+    return false;
+  }
 }
 
 function base64UrlToBase64(input: string): string {
@@ -72,10 +133,16 @@ async function importHmacKey(secret: string): Promise<CryptoKey> {
  * 边缘运行时版本，与 auth.ts 的 createToken 输出格式完全一致。
  * 注意：由于 Web Crypto 是异步 API，此函数为 async。
  */
-export async function createToken(username: string): Promise<string> {
+export async function createToken(
+  username: string
+): Promise<string | null> {
+  const tokenVersion = await getOrCreateTokenVersionEdge(username);
+  if (!tokenVersion) return null;
+
   const payload: TokenPayload = {
     u: username,
     e: Date.now() + TOKEN_TTL_MS,
+    v: tokenVersion,
   };
   const payloadStr = base64UrlEncode(
     new TextEncoder().encode(JSON.stringify(payload))
@@ -128,6 +195,9 @@ export async function verifyToken(
       new TextDecoder().decode(base64UrlDecode(payloadStr))
     ) as TokenPayload;
     if (typeof payload.e !== "number" || Date.now() > payload.e) {
+      return null;
+    }
+    if (!payload.v || !(await verifyTokenVersionEdge(payload.u, payload.v))) {
       return null;
     }
     return payload.u;
