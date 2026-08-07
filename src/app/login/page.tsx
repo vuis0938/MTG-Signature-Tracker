@@ -19,6 +19,24 @@ import { SECURITY_QUESTIONS } from "@/lib/security-questions";
 type Mode = "login" | "register" | "forgot" | "setup";
 type SetupReason = "plaintext_password" | "missing_security_question" | null;
 
+/** 轻量错误上报（不阻塞流程） */
+function reportClientError(message: string, context?: Record<string, unknown>) {
+  try {
+    fetch("/api/error-log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        url: typeof window !== "undefined" ? window.location.href : "",
+        userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
+        ...context,
+      }),
+    }).catch(() => {});
+  } catch {
+    // 上报失败静默处理
+  }
+}
+
 export default function LoginPage() {
   const [mode, setMode] = useState<Mode>("login");
   const [username, setUsername] = useState("");
@@ -99,15 +117,27 @@ export default function LoginPage() {
           setSecurityQuestion("");
           setSecurityAnswer("");
           setMode("setup");
-        } else {
+        } else if (data.success) {
           router.push("/decks");
           router.refresh();
+        } else {
+          reportClientError("[login] 登录响应异常", { response: JSON.stringify(data) });
+          setError(data.error || "登录失败，请重试");
         }
       } else {
-        const data = await res.json();
-        setError(data.error || "操作失败");
+        let errMsg = "登录失败";
+        try {
+          const data = await res.json();
+          errMsg = data.error || errMsg;
+        } catch {
+          errMsg = `登录失败（${res.status}）`;
+        }
+        reportClientError("[login] 登录请求失败", { status: res.status, error: errMsg });
+        setError(errMsg);
       }
-    } catch {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      reportClientError("[login] 登录异常", { error: msg });
       setError("网络错误，请重试");
     } finally {
       setLoading(false);
@@ -148,13 +178,28 @@ export default function LoginPage() {
       });
 
       if (res.ok) {
-        router.push("/decks");
-        router.refresh();
-      } else {
         const data = await res.json();
-        setError(data.error || "操作失败");
+        if (data.success) {
+          router.push("/decks");
+          router.refresh();
+        } else {
+          reportClientError("[login] 完善账号响应异常", { response: JSON.stringify(data) });
+          setError(data.error || "完善账号失败，请重试");
+        }
+      } else {
+        let errMsg = "完善账号失败";
+        try {
+          const data = await res.json();
+          errMsg = data.error || errMsg;
+        } catch {
+          errMsg = `完善账号失败（${res.status}）`;
+        }
+        reportClientError("[login] 完善账号请求失败", { status: res.status, error: errMsg });
+        setError(errMsg);
       }
-    } catch {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      reportClientError("[login] 完善账号异常", { error: msg });
       setError("网络错误，请重试");
     } finally {
       setLoading(false);
