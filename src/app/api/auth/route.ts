@@ -14,22 +14,25 @@ const REGISTER_WINDOW_MS = 60 * 60 * 1000;
 // Cookie 有效期：7 天（与 Token TTL 一致）
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60;
 
-async function setCookies(response: NextResponse, username: string) {
+async function setCookies(response: NextResponse, request: NextRequest, username: string) {
   const token = await createToken(username);
   if (!token) {
     // 只有在用户不存在时才会失败，理论上登录流程已确认用户存在
     return;
   }
+  // 根据实际请求协议决定 secure 标志，避免生产环境通过 HTTP 访问时 cookie 无法写入
+  const protocol = request.headers.get("x-forwarded-proto") || "http";
+  const isSecure = protocol === "https";
   response.cookies.set("auth_token", token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: isSecure,
     sameSite: "lax",
     maxAge: COOKIE_MAX_AGE,
     path: "/",
   });
   response.cookies.set("user_name", username, {
     httpOnly: false,
-    secure: process.env.NODE_ENV === "production",
+    secure: isSecure,
     sameSite: "lax",
     maxAge: COOKIE_MAX_AGE,
     path: "/",
@@ -38,7 +41,7 @@ async function setCookies(response: NextResponse, username: string) {
   // 安全保障：所有管理员 API 均有服务端 isAdmin() 验证，伪造此 cookie 无法执行任何操作。
   response.cookies.set("is_admin", isAdmin(username) ? "true" : "false", {
     httpOnly: false,
-    secure: process.env.NODE_ENV === "production",
+    secure: isSecure,
     sameSite: "lax",
     maxAge: COOKIE_MAX_AGE,
     path: "/",
@@ -114,7 +117,7 @@ export async function POST(request: NextRequest) {
     }
 
     const response = NextResponse.json({ success: true, user: username });
-    await setCookies(response, username);
+    await setCookies(response, request, username);
 
     // 更新最后活跃时间（异步执行，不阻塞响应）
     void (async () => {
@@ -191,7 +194,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const response = NextResponse.json({ success: true, user: username });
-    await setCookies(response, username);
+    await setCookies(response, request, username);
     return response;
   } catch {
     return NextResponse.json({ error: "服务器异常，请稍后再试" }, { status: 500 });
@@ -311,7 +314,7 @@ export async function PATCH(request: NextRequest) {
     await revokeTokens(trimmed);
 
     const response = NextResponse.json({ success: true, user: trimmed });
-    await setCookies(response, trimmed);
+    await setCookies(response, request, trimmed);
 
     // 更新最后活跃时间（异步执行，不阻塞响应）
     void (async () => {
