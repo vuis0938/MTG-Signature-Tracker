@@ -1260,7 +1260,7 @@ function ExactMatchResults({ matched, displayMode, toggleStatus }: {
                 <div key={deckName} className="mb-3">
                   <p className="text-sm text-muted-foreground mb-2 flex items-center gap-1"><Package className="h-3.5 w-3.5" /> {deckName}</p>
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
-                    {displayCards.map((group) => (
+                    {displayCards.map((group, idx) => (
                       <CardThumbnail
                         key={group.ids[0]}
                         cardId={group.ids[0]}
@@ -1270,6 +1270,7 @@ function ExactMatchResults({ matched, displayMode, toggleStatus }: {
                         count={group.count}
                         allIds={group.ids}
                         toggleStatus={toggleStatus}
+                        priority={idx < 3}
                       />
                     ))}
                   </div>
@@ -1323,7 +1324,7 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
                       >
                         <div className={isInDeck && status >= 1 ? "opacity-75" : ""}>
                           {v.image_url ? (
-                            <CardImage src={v.image_url} alt={v.card_name} className="w-full" />
+                            <CardImage src={v.image_url} alt={v.card_name} className="w-full" priority={idx < 3} />
                           ) : (
                             <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
                               {v.card_name}
@@ -1376,7 +1377,7 @@ function statusBorderClass(isInDeck: boolean, status: number): string {
 // ─── 卡牌缩略图（精确匹配用） ──────────────────────────────
 
 function CardThumbnail({
-  cardId, imageUrl, cardName, status, count = 1, allIds, toggleStatus,
+  cardId, imageUrl, cardName, status, count = 1, allIds, toggleStatus, priority = false,
 }: {
   cardId: string;
   imageUrl: string | null;
@@ -1385,6 +1386,8 @@ function CardThumbnail({
   count?: number;
   allIds?: string[];
   toggleStatus: (cardIdOrIds: string | string[]) => void;
+  /** 首屏可见的图片传 true，提升 LCP */
+  priority?: boolean;
 }) {
   function handleToggle() {
     const ids = allIds && allIds.length > 0 ? allIds : [cardId];
@@ -1401,7 +1404,7 @@ function CardThumbnail({
       >
         <div className={status >= 1 ? "opacity-75" : ""}>
           {imageUrl ? (
-            <CardImage src={imageUrl} alt={cardName} className="w-full" />
+            <CardImage src={imageUrl} alt={cardName} className="w-full" priority={priority} />
           ) : (
             <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
               {cardName}

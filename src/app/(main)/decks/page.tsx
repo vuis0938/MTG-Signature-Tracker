@@ -8,6 +8,9 @@ import type { CardEntry, Deck } from "@/types";
 export const metadata: Metadata = {
   title: "我的套牌",
   description: "管理您的万智牌套牌，追踪每张卡牌的签绘状态。",
+  openGraph: {
+    description: "管理您的万智牌套牌，追踪每张卡牌的签绘状态。",
+  },
 };
 
 export default async function DecksPage() {

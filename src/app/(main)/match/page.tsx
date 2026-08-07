@@ -8,7 +8,10 @@ import type { Deck, CalendarEvent } from "@/types";
 
 export const metadata: Metadata = {
   title: "画家匹配",
-  description: "将您的套牌与 upcoming 活动画家进行匹配，快速找到需要签绘的卡牌。",
+  description: "将您的套牌与即将到来的活动画家进行匹配，快速找到需要签绘的卡牌。",
+  openGraph: {
+    description: "将您的套牌与即将到来的活动画家进行匹配，快速找到需要签绘的卡牌。",
+  },
 };
 
 export default async function MatchPage() {

@@ -15,6 +15,9 @@ import Image from "next/image";
  * size 属性：数据库统一存 normal 尺寸 URL，
  * 弹窗场景传 size="small" 自动转换为 small 尺寸（146×204），
  * 减少弹窗内大量图片的传输量。
+ *
+ * priority 属性：首屏可见的图片传 priority=true 优先加载，
+ * 提升 LCP（最大内容绘制）性能指标。
  */
 
 // 覆盖两类展示场景：结果网格（移动端 3 列 ≈ 33vw）
@@ -32,12 +35,14 @@ export function CardImage({
   className,
   sizes = DEFAULT_SIZES,
   size = "normal",
+  priority = false,
 }: {
   src: string;
   alt: string;
   className?: string;
   sizes?: string;
   size?: "normal" | "small";
+  priority?: boolean;
 }) {
   const [errored, setErrored] = useState(false);
 
@@ -52,7 +57,7 @@ export function CardImage({
         src={imageSrc}
         alt={alt}
         className={className}
-        loading="lazy"
+        loading={priority ? "eager" : "lazy"}
       />
     );
   }
@@ -67,7 +72,8 @@ export function CardImage({
         fill
         sizes={sizes}
         className="object-cover"
-        loading="lazy"
+        loading={priority ? undefined : "lazy"}
+        priority={priority}
         placeholder="blur"
         blurDataURL={BLUR_PLACEHOLDER}
         onError={() => setErrored(true)}

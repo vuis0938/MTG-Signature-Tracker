@@ -7,7 +7,10 @@ import type { CalendarEvent } from "@/types";
 
 export const metadata: Metadata = {
   title: "活动信息",
-  description: "查看 upcoming 万智牌签绘活动、出席画家及相关信息。",
+  description: "查看即将到来的万智牌签绘活动、出席画家及相关信息。",
+  openGraph: {
+    description: "查看即将到来的万智牌签绘活动、出席画家及相关信息。",
+  },
 };
 
 export default async function EventsPage() {

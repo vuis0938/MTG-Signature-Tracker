@@ -5,6 +5,9 @@ import { BackButton } from "@/components/back-button";
 export const metadata: Metadata = {
   title: "用户协议",
   description: "使用 MTG 签绘管家服务前，请仔细阅读本用户协议。",
+  openGraph: {
+    description: "使用 MTG 签绘管家服务前，请仔细阅读本用户协议。",
+  },
 };
 
 export default function TermsPage() {

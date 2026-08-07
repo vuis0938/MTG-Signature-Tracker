@@ -5,6 +5,9 @@ import { BackButton } from "@/components/back-button";
 export const metadata: Metadata = {
   title: "隐私政策",
   description: "了解 MTG 签绘管家如何收集、使用和保护您的个人信息。",
+  openGraph: {
+    description: "了解 MTG 签绘管家如何收集、使用和保护您的个人信息。",
+  },
 };
 
 export default function PrivacyPage() {

@@ -308,7 +308,9 @@ export default function DecksClient({
                   setCards((prev) => ({ ...prev, [retryingDeckId]: d.cards }));
                 }
               })
-              .catch(() => {})
+              .catch(() => {
+                showToast("卡牌列表刷新失败，请刷新页面", "error");
+              })
           : Promise.resolve();
         await Promise.all([revalidate(), refreshCards]);
       } else {
@@ -521,7 +523,9 @@ export default function DecksClient({
                   setCards((prev) => ({ ...prev, [addCardsOpen]: d.cards }));
                 }
               })
-              .catch(() => {})
+              .catch(() => {
+                showToast("卡牌列表刷新失败，请刷新页面", "error");
+              })
           : Promise.resolve();
         await Promise.all([revalidate(), refreshCards]);
       } else {
@@ -1081,7 +1085,7 @@ export const DeckListItem = memo(function DeckListItem({
                       <Palette className={"h-4 w-4 text-foreground shrink-0 " + (deckLayout === "compact" ? "hidden sm:block" : "")} />{artist} ({artistCards.length})
                     </h4>
                     <div className={deckLayout === "compact" ? "grid grid-cols-2 sm:grid-cols-4 gap-1 sm:gap-1.5 lg:gap-2" : "grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 sm:gap-3 lg:gap-4"}>
-                      {displayCards.map((group) => (
+                      {displayCards.map((group, idx) => (
                         <CardThumbnail
                           key={group.ids[0]}
                           card={group.card}
@@ -1091,6 +1095,7 @@ export const DeckListItem = memo(function DeckListItem({
                           deckLayout={deckLayout}
                           onToggleStatus={onToggleStatus}
                           onLoadPrintings={onLoadPrintings}
+                          priority={idx < 4}
                         />
                       ))}
                     </div>
@@ -1117,9 +1122,11 @@ interface CardThumbnailProps {
   deckLayout?: "default" | "compact" | "list";
   onToggleStatus: (cardIds: string | string[], currentStatus: number, deckId: string) => void;
   onLoadPrintings: (card: CardEntry, allIds?: string[]) => void;
+  /** 首屏可见的图片传 true，提升 LCP */
+  priority?: boolean;
 }
 
-const CardThumbnail = memo(function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleStatus, onLoadPrintings }: CardThumbnailProps) {
+const CardThumbnail = memo(function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleStatus, onLoadPrintings, priority = false }: CardThumbnailProps) {
   const status = card.status ?? (card.is_signed ? 2 : 0);
   const statusLabels: Record<number, string> = {
     0: "未签（点击切换为送签中）",
@@ -1151,7 +1158,7 @@ const CardThumbnail = memo(function CardThumbnail({ card, deckId, count = 1, all
       >
         <div className={hasOverlay ? "opacity-75" : ""}>
           {card.image_url ? (
-            <CardImage src={card.image_url} alt={card.card_name} className="w-full" />
+            <CardImage src={card.image_url} alt={card.card_name} className="w-full" priority={priority} />
           ) : (
             <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
               {card.card_name}
