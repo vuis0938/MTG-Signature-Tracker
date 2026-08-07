@@ -6,7 +6,7 @@ import { useLatestRef } from "@/lib/use-latest-ref";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import { useDisplayMode } from "@/lib/display-mode";
 import { CardImage } from "@/components/card-image";
-import { useDecks, useCards, mutateCards } from "@/lib/swr-hooks";
+import { useDecks, useCards, mutateCards, refreshDecksForce } from "@/lib/swr-hooks";
 import { useDeckLayout } from "@/lib/deck-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -199,8 +199,8 @@ export default function DecksClient({
       return;
     }
 
-    // 删除后刷新 SWR 缓存（服务端返回最新数据）
-    revalidate();
+    // 删除后强制刷新 SWR 缓存（直接 fetch 最新数据写入缓存，绕过 dedup）
+    refreshDecksForce();
     setCards((prev) => {
       const next = { ...prev };
       delete next[deckId];
@@ -208,7 +208,7 @@ export default function DecksClient({
     });
     if (expandedDeckRef.current === deckId) setExpandedDeck(null);
     showToast("套牌已删除", "success");
-  }, [showToast, revalidate, expandedDeckRef]);
+  }, [showToast, expandedDeckRef]);
 
   /** 打开"添加卡牌"弹窗（稳定引用，供 memo 子组件使用） */
   const openAddCards = useCallback((deckId: string) => {
@@ -263,7 +263,7 @@ export default function DecksClient({
         setDeckName("");
         setDeckText("");
         setShowImport(false);
-        await revalidate();
+        await refreshDecksForce();
       } else {
         showToast(data.error, "error");
       }
@@ -272,7 +272,7 @@ export default function DecksClient({
     } finally {
       setImporting(false);
     }
-  }, [deckName, deckText, revalidate, showToast]);
+  }, [deckName, deckText, showToast]);
 
   // ─── 手动重试单张卡牌 ──────────────────────────────────
 
