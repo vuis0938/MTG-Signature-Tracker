@@ -37,6 +37,15 @@ function reportClientError(message: string, context?: Record<string, unknown>) {
   }
 }
 
+/** 显眼的错误提示条（确保用户在各种浏览器都能看到红色提示） */
+function ErrorAlert({ message }: { message: string }) {
+  return (
+    <div className="rounded-md bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-3">
+      <p className="text-sm font-medium text-red-700 dark:text-red-300">{message}</p>
+    </div>
+  );
+}
+
 export default function LoginPage() {
   const [mode, setMode] = useState<Mode>("login");
   const [username, setUsername] = useState("");
@@ -86,29 +95,85 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
 
-    if (mode === "register" && password !== confirmPassword) {
-      setError("两次输入的密码不一致");
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername) {
+      setError("请输入用户名");
       return;
+    }
+    if (!password) {
+      setError("请输入密码");
+      return;
+    }
+
+    if (mode === "register") {
+      if (password !== confirmPassword) {
+        setError("两次输入的密码不一致");
+        return;
+      }
+      if (password.length < 8) {
+        setError("密码至少 8 个字符");
+        return;
+      }
+      if (!securityQuestion) {
+        setError("请选择一个安全问题");
+        return;
+      }
+      if (!securityAnswer.trim()) {
+        setError("请输入安全问题答案");
+        return;
+      }
     }
 
     setLoading(true);
 
     try {
-      const body: Record<string, string> = { username: username.trim(), password };
+      const body: Record<string, string> = { username: trimmedUsername, password };
 
       if (mode === "register") {
         body.securityQuestion = securityQuestion;
         body.securityAnswer = securityAnswer;
       }
 
+      reportClientError("[login] 提交登录/注册", { mode, username: trimmedUsername });
+
       const res = await fetch("/api/auth", {
         method: mode === "register" ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "Pragma": "no-cache",
+        },
         body: JSON.stringify(body),
+        cache: "no-store",
       });
 
+      // 防御 UC 等浏览器省流/云端加速把 JSON 响应篡改为 HTML
+      const contentType = res.headers.get("content-type") || "";
+      const responseText = await res.text();
+      const isHtmlResponse = responseText.trim().startsWith("<");
+      if (!contentType.includes("application/json") || isHtmlResponse) {
+        reportClientError("[login] 登录响应被拦截或格式异常", {
+          status: res.status,
+          contentType,
+          bodyPreview: responseText.slice(0, 500),
+        });
+        setError(isHtmlResponse
+          ? "浏览器省流模式干扰了登录，请关闭 UC 极速/云端加速后重试"
+          : "登录响应异常，请重试");
+        return;
+      }
+
+      let data: Record<string, unknown>;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseErr: unknown) {
+        const parseMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+        reportClientError("[login] 登录响应 JSON 解析失败", { error: parseMsg, bodyPreview: responseText.slice(0, 500) });
+        setError("登录响应解析失败，请重试");
+        return;
+      }
+
       if (res.ok) {
-        const data = await res.json();
         if (data.needsSetup) {
           setSetupReason(data.setupReason as SetupReason);
           setCurrentPassword(password);
@@ -122,16 +187,10 @@ export default function LoginPage() {
           router.refresh();
         } else {
           reportClientError("[login] 登录响应异常", { response: JSON.stringify(data) });
-          setError(data.error || "登录失败，请重试");
+          setError(typeof data.error === "string" ? data.error : "登录失败，请重试");
         }
       } else {
-        let errMsg = "登录失败";
-        try {
-          const data = await res.json();
-          errMsg = data.error || errMsg;
-        } catch {
-          errMsg = `登录失败（${res.status}）`;
-        }
+        const errMsg = typeof data.error === "string" ? data.error : `登录失败（${res.status}）`;
         reportClientError("[login] 登录请求失败", { status: res.status, error: errMsg });
         setError(errMsg);
       }
@@ -149,12 +208,33 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
 
-    if (setupReason === "plaintext_password" && password !== confirmPassword) {
-      setError("两次输入的新密码不一致");
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername) {
+      setError("请输入用户名");
       return;
     }
-    if (setupReason === "plaintext_password" && password.length < 8) {
-      setError("新密码至少 8 个字符");
+    if (!currentPassword) {
+      setError("请输入当前密码");
+      return;
+    }
+
+    if (setupReason === "plaintext_password") {
+      if (password !== confirmPassword) {
+        setError("两次输入的新密码不一致");
+        return;
+      }
+      if (password.length < 8) {
+        setError("新密码至少 8 个字符");
+        return;
+      }
+    }
+
+    if (!securityQuestion) {
+      setError("请选择一个安全问题");
+      return;
+    }
+    if (!securityAnswer.trim()) {
+      setError("请输入安全问题答案");
       return;
     }
 
@@ -162,7 +242,7 @@ export default function LoginPage() {
 
     try {
       const body: Record<string, string> = {
-        username: username.trim(),
+        username: trimmedUsername,
         currentPassword,
         securityQuestion,
         securityAnswer,
@@ -171,29 +251,55 @@ export default function LoginPage() {
         body.newPassword = password;
       }
 
+      reportClientError("[login] 提交完善账号", { setupReason, username: trimmedUsername });
+
       const res = await fetch("/api/auth", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "Pragma": "no-cache",
+        },
         body: JSON.stringify(body),
+        cache: "no-store",
       });
 
+      // 防御 UC 等浏览器省流/云端加速把 JSON 响应篡改为 HTML
+      const contentType = res.headers.get("content-type") || "";
+      const responseText = await res.text();
+      const isHtmlResponse = responseText.trim().startsWith("<");
+      if (!contentType.includes("application/json") || isHtmlResponse) {
+        reportClientError("[login] 完善账号响应被拦截或格式异常", {
+          status: res.status,
+          contentType,
+          bodyPreview: responseText.slice(0, 500),
+        });
+        setError(isHtmlResponse
+          ? "浏览器省流模式干扰了请求，请关闭 UC 极速/云端加速后重试"
+          : "完善账号响应异常，请重试");
+        return;
+      }
+
+      let data: Record<string, unknown>;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseErr: unknown) {
+        const parseMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+        reportClientError("[login] 完善账号响应 JSON 解析失败", { error: parseMsg, bodyPreview: responseText.slice(0, 500) });
+        setError("完善账号响应解析失败，请重试");
+        return;
+      }
+
       if (res.ok) {
-        const data = await res.json();
         if (data.success) {
           router.push("/decks");
           router.refresh();
         } else {
           reportClientError("[login] 完善账号响应异常", { response: JSON.stringify(data) });
-          setError(data.error || "完善账号失败，请重试");
+          setError(typeof data.error === "string" ? data.error : "完善账号失败，请重试");
         }
       } else {
-        let errMsg = "完善账号失败";
-        try {
-          const data = await res.json();
-          errMsg = data.error || errMsg;
-        } catch {
-          errMsg = `完善账号失败（${res.status}）`;
-        }
+        const errMsg = typeof data.error === "string" ? data.error : `完善账号失败（${res.status}）`;
         reportClientError("[login] 完善账号请求失败", { status: res.status, error: errMsg });
         setError(errMsg);
       }
@@ -210,18 +316,45 @@ export default function LoginPage() {
   async function handleFetchQuestion(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername) {
+      setError("请输入用户名");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const res = await fetch(`/api/forgot-password?username=${encodeURIComponent(username.trim())}`);
-      const data = await res.json();
+      const res = await fetch(`/api/forgot-password?username=${encodeURIComponent(trimmedUsername)}&_t=${Date.now()}`, {
+        headers: {
+          "X-Requested-With": "XMLHttpRequest",
+          "Pragma": "no-cache",
+        },
+        cache: "no-store",
+      });
+      const text = await res.text();
+      if (text.trim().startsWith("<")) {
+        reportClientError("[login] 找回密码响应被拦截", { bodyPreview: text.slice(0, 500) });
+        setError("浏览器省流模式干扰了请求，请关闭 UC 极速/云端加速后重试");
+        return;
+      }
+      let data: Record<string, unknown>;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        setError("服务器响应异常，请重试");
+        return;
+      }
       if (data.success) {
-        setForgotQuestion(data.question);
+        setForgotQuestion(String(data.question || ""));
         setForgotStep(2);
       } else {
-        setError(data.error || "操作失败");
+        setError(typeof data.error === "string" ? data.error : "操作失败");
       }
-    } catch {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      reportClientError("[login] 找回密码请求异常", { error: msg });
       setError("网络错误，请重试");
     } finally {
       setLoading(false);
@@ -233,6 +366,23 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
 
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername) {
+      setError("请输入用户名");
+      return;
+    }
+    if (!securityAnswer.trim()) {
+      setError("请输入安全问题答案");
+      return;
+    }
+    if (!password) {
+      setError("请输入新密码");
+      return;
+    }
+    if (password.length < 8) {
+      setError("新密码至少 8 个字符");
+      return;
+    }
     if (password !== confirmPassword) {
       setError("两次输入的密码不一致");
       return;
@@ -243,26 +393,45 @@ export default function LoginPage() {
     try {
       const res = await fetch("/api/forgot-password", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "Pragma": "no-cache",
+        },
         body: JSON.stringify({
-          username: username.trim(),
+          username: trimmedUsername,
           securityAnswer,
           newPassword: password,
         }),
+        cache: "no-store",
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      if (text.trim().startsWith("<")) {
+        reportClientError("[login] 重置密码响应被拦截", { bodyPreview: text.slice(0, 500) });
+        setError("浏览器省流模式干扰了请求，请关闭 UC 极速/云端加速后重试");
+        return;
+      }
+      let data: Record<string, unknown>;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        setError("服务器响应异常，请重试");
+        return;
+      }
       if (data.success) {
-        setSuccess(data.message || "如果用户名与安全问题答案匹配，密码已重置，请使用新密码登录");
+        setSuccess(typeof data.message === "string" ? data.message : "密码已重置，请使用新密码登录");
         setMode("login");
         setPassword("");
         setConfirmPassword("");
         setSecurityAnswer("");
         setForgotStep(1);
       } else {
-        setError(data.error || "操作失败");
+        setError(typeof data.error === "string" ? data.error : "操作失败");
       }
-    } catch {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      reportClientError("[login] 重置密码请求异常", { error: msg });
       setError("网络错误，请重试");
     } finally {
       setLoading(false);
@@ -290,10 +459,13 @@ export default function LoginPage() {
             <p className="text-sm text-green-600 mb-4 text-center">{success}</p>
           )}
 
+          {/* 顶部错误提示（确保任何模式下都可见） */}
+          {error && <div className="mb-4"><ErrorAlert message={error} /></div>}
+
           {/* ─── 登录 / 注册 ─── */}
           {(mode === "login" || mode === "register") && (
             <>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-4" noValidate>
                 <div className="space-y-2">
                   <Label htmlFor="username">用户名</Label>
                   <Input
@@ -362,9 +534,6 @@ export default function LoginPage() {
                     </div>
                   </>
                 )}
-                {error && (
-                  <p className="text-sm text-destructive">{error}</p>
-                )}
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading
                     ? (mode === "register" ? "注册中..." : "登录中...")
@@ -396,7 +565,7 @@ export default function LoginPage() {
           {mode === "forgot" && (
             <>
               {forgotStep === 1 && (
-                <form onSubmit={handleFetchQuestion} className="space-y-4">
+                <form onSubmit={handleFetchQuestion} className="space-y-4" noValidate>
                   <div className="space-y-2">
                     <Label htmlFor="forgot-username">用户名</Label>
                     <Input
@@ -405,17 +574,15 @@ export default function LoginPage() {
                       placeholder="请输入用户名"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
-                      required
                     />
                   </div>
-                  {error && <p className="text-sm text-destructive">{error}</p>}
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? "查询中..." : "下一步"}
                   </Button>
                 </form>
               )}
               {forgotStep === 2 && (
-                <form onSubmit={handleResetPassword} className="space-y-4">
+                <form onSubmit={handleResetPassword} className="space-y-4" noValidate>
                   <div className="space-y-2">
                     <Label>安全问题</Label>
                     <p className="text-sm font-medium p-3 rounded-md bg-muted">
@@ -430,7 +597,6 @@ export default function LoginPage() {
                       placeholder="请输入答案"
                       value={securityAnswer}
                       onChange={(e) => setSecurityAnswer(e.target.value)}
-                      required
                     />
                   </div>
                   <div className="space-y-2">
@@ -441,7 +607,6 @@ export default function LoginPage() {
                       placeholder="至少 8 个字符"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      required
                     />
                   </div>
                   <div className="space-y-2">
@@ -452,10 +617,8 @@ export default function LoginPage() {
                       placeholder="请再次输入新密码"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      required
                     />
                   </div>
-                  {error && <p className="text-sm text-destructive">{error}</p>}
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? "重置中..." : "重置密码"}
                   </Button>
@@ -476,7 +639,7 @@ export default function LoginPage() {
           {/* ─── 完善账号 ─── */}
           {mode === "setup" && (
             <>
-              <form onSubmit={handleSetupSubmit} className="space-y-4">
+              <form onSubmit={handleSetupSubmit} className="space-y-4" noValidate>
                 <p className="text-sm text-muted-foreground">
                   {setupReason === "plaintext_password"
                     ? "检测到账号密码仍为明文存储，需要设置新密码和安全问题。"
@@ -490,7 +653,6 @@ export default function LoginPage() {
                     placeholder="请输入当前密码"
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
-                    required
                   />
                 </div>
                 {setupReason === "plaintext_password" && (
@@ -503,7 +665,6 @@ export default function LoginPage() {
                         placeholder="至少 8 个字符"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        required
                       />
                     </div>
                     <div className="space-y-2">
@@ -514,7 +675,6 @@ export default function LoginPage() {
                         placeholder="请再次输入新密码"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        required
                       />
                     </div>
                   </>
@@ -532,7 +692,6 @@ export default function LoginPage() {
                       backgroundPosition: "right 0.5rem center",
                       backgroundSize: "1rem",
                     }}
-                    required
                   >
                     <option value="" disabled>凭此问题找回密码</option>
                     {SECURITY_QUESTIONS.map((q) => (
@@ -547,10 +706,8 @@ export default function LoginPage() {
                     placeholder="请输入答案"
                     value={securityAnswer}
                     onChange={(e) => setSecurityAnswer(e.target.value)}
-                    required
                   />
                 </div>
-                {error && <p className="text-sm text-destructive">{error}</p>}
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "保存中..." : "保存并登录"}
                 </Button>
