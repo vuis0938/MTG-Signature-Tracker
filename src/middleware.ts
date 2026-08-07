@@ -39,8 +39,8 @@ export async function middleware(request: NextRequest) {
   const token = request.cookies.get("auth_token")?.value;
   const userName = await verifyToken(token);
   if (!userName) {
-    const loginUrl = new URL("/login", request.url);
-    return NextResponse.redirect(loginUrl);
+    const homeUrl = new URL("/", request.url);
+    return NextResponse.redirect(homeUrl);
   }
 
   // 管理后台路由：非管理员重定向到主站（纵深防御层）
