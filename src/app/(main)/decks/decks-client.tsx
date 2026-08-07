@@ -167,6 +167,10 @@ export default function DecksClient({
   const [switchPrintingLoading, setSwitchPrintingLoading] = useState<string | null>(null);
   const [deletingCard, setDeletingCard] = useState<string | null>(null);
 
+  // toggleStatus 操作锁：记录正在请求中的卡牌 ID，防止快速连点产生并发 PATCH
+  const [pendingToggleIds, setPendingToggleIds] = useState<Set<string>>(new Set());
+  const pendingToggleIdsRef = useLatestRef(pendingToggleIds);
+
   // 批量修改确认弹窗（独立模式下，卡牌有副本时弹出）
   const [batchConfirmCard, setBatchConfirmCard] = useState<{
     card: CardEntry;
@@ -324,6 +328,17 @@ export default function DecksClient({
     const cardIds = Array.isArray(cardIdOrIds) ? cardIdOrIds : [cardIdOrIds];
     if (cardIds.length === 0) return;
     const idSet = new Set(cardIds);
+
+    // 操作锁：如果已有任一卡牌正在切换中，跳过本次请求防止并发 PATCH
+    const hasPending = cardIds.some((id) => pendingToggleIdsRef.current.has(id));
+    if (hasPending) return;
+
+    // 标记这些卡牌为"切换中"
+    setPendingToggleIds((prev) => {
+      const next = new Set(prev);
+      for (const id of cardIds) next.add(id);
+      return next;
+    });
     const newStatus = getNextDeckStatus(currentStatus);
 
     // 记录旧卡牌数据，用于回滚时恢复全部字段（含 event_name/event_date）
@@ -366,7 +381,7 @@ export default function DecksClient({
         0: { u: 1, p: 0, h: 0 },
         1: { u: 0, p: 1, h: 0 },
         2: { u: 0, p: 0, h: 0 },
-        3: { u: 1, p: 0, h: 0 }, // 心动归类到待签
+        3: { u: 1, p: 0, h: 1 }, // 心动：既计入待签，也单独统计 heart（与后端 data.ts 逻辑一致）
       };
       const old = delta[fromStatus] ?? { u: 0, p: 0, h: 0 };
       const now = delta[toStatus] ?? { u: 0, p: 0, h: 0 };
@@ -460,8 +475,16 @@ export default function DecksClient({
           revalidateRef.current({ success: true, decks: newDecks, stats: newStats }, false);
         }
         showToast("网络错误，状态已恢复", "error");
+      })
+      .finally(() => {
+        // 释放操作锁，允许这些卡牌再次切换
+        setPendingToggleIds((prev) => {
+          const next = new Set(prev);
+          for (const id of cardIds) next.delete(id);
+          return next;
+        });
       });
-  }, [showToast, cardsRef, decksRef, deckStatsRef, revalidateRef]);
+  }, [showToast, cardsRef, decksRef, deckStatsRef, revalidateRef, pendingToggleIdsRef]);
 
   // ─── 添加卡牌到套牌 ──────────────────────────────────
 
@@ -620,6 +643,24 @@ export default function DecksClient({
             }
             return updated;
           });
+          // 同步 SWR 缓存，确保 match 页等共享组件也能立即看到版本切换
+          mutateCards(deckId, (cards) => {
+            const idSet = new Set(allIds);
+            const updated = cards.map((c) =>
+              idSet.has(c.id)
+                ? {
+                    ...c,
+                    set_code: data.newSetCode,
+                    collector_number: data.newCollectorNumber,
+                    artist_names: data.newArtistNames,
+                    image_url: data.newImageUrl,
+                  }
+                : c
+            );
+            return [...updated].sort((a, b) =>
+              (a.artist_names[0] || "").localeCompare(b.artist_names[0] || "")
+            );
+          });
         }
         setSwitchCard(null);
         setSwitchCardAllIds([]);
@@ -658,6 +699,8 @@ export default function DecksClient({
           }
           return updated;
         });
+        // 同步 SWR 缓存，确保 match 页等共享组件也能立即看到删除
+        mutateCards(deckId, (cards) => cards.filter((c) => c.id !== cardId));
       }
 
       setSwitchCard(null);

@@ -3,6 +3,35 @@ import type { NextRequest } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { requireAdmin, logAdminAction } from "@/lib/admin";
 
+/**
+ * CSV 字段转义（RFC 4180）
+ *
+ * 规则：
+ * - 字段包含逗号、双引号或换行符时，用双引号包裹
+ * - 字段内的双引号转义为两个双引号
+ * - 防止公式注入：以 = + - @ 开头的字段前加单引号前缀
+ */
+function escapeCsvField(value: unknown): string {
+  let str = String(value ?? "");
+
+  // 防止 CSV 公式注入（= + - @ 开头的值在 Excel 中会被当作公式执行）
+  if (/^[=+\-@]/.test(str)) {
+    str = "'" + str;
+  }
+
+  // 包含逗号、双引号或换行符时需要引号包裹
+  if (/[",\n\r]/.test(str)) {
+    str = '"' + str.replace(/"/g, '""') + '"';
+  }
+
+  return str;
+}
+
+/** 将行数据转为 CSV 行 */
+function toCsvRow(headers: string[], row: Record<string, unknown>): string {
+  return headers.map((h) => escapeCsvField(row[h])).join(",");
+}
+
 // GET: 全局数据导出（JSON 格式）
 export async function GET(request: NextRequest) {
   const auth = requireAdmin(request);
@@ -73,7 +102,7 @@ export async function GET(request: NextRequest) {
         const headers = ["username", "created_at", "last_active_at"];
         const csv = [
           headers.join(","),
-          ...rows.map((r) => headers.map((h) => String(r[h] ?? "")).join(",")),
+          ...rows.map((r) => toCsvRow(headers, r)),
         ].join("\n");
         return new NextResponse(csv, {
           headers: {
@@ -87,7 +116,7 @@ export async function GET(request: NextRequest) {
         const headers = ["id", "name", "user_name", "created_at"];
         const csv = [
           headers.join(","),
-          ...rows.map((r) => headers.map((h) => String(r[h] ?? "")).join(",")),
+          ...rows.map((r) => toCsvRow(headers, r)),
         ].join("\n");
         return new NextResponse(csv, {
           headers: {
