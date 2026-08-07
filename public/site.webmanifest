@@ -1,7 +1,7 @@
 {
   "name": "MTG 签绘管家",
   "short_name": "签绘管家",
-  "description": "万智牌签绘管理工具 — 一键导入套牌，匹配活动画家，实时追踪签绘。",
+  "description": "万智牌签绘管理工具 — 导入管理套牌，匹配活动画家，查看近期活动，实时追踪签绘。",
   "start_url": "/decks",
   "display": "standalone",
   "background_color": "#ffffff",
