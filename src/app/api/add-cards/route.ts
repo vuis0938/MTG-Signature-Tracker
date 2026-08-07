@@ -130,8 +130,12 @@ export async function POST(request: NextRequest) {
     if (cardsToInsert.length > 0) {
       const { error: batchError } = await supabase.from("cards").insert(cardsToInsert);
       if (batchError) {
+        console.warn("[AddCards] 批量写入失败，降级逐条插入:", batchError.message);
         for (const c of cardsToInsert) {
-          await supabase.from("cards").insert(c);
+          const { error: singleError } = await supabase.from("cards").insert(c);
+          if (singleError) {
+            console.error("[AddCards] 单条写入失败:", singleError.message, "card:", c.card_name);
+          }
         }
       }
     }

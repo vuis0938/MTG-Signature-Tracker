@@ -36,12 +36,21 @@ export const metadata: Metadata = {
     title: "MTG 签绘管家",
     description:
       "万智牌签绘管理工具 — 导入管理套牌，匹配活动画家，查看近期活动，实时追踪签绘。",
+    images: [
+      {
+        url: "/og-image.jpg",
+        width: 2560,
+        height: 1440,
+        alt: "MTG 签绘管家",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "MTG 签绘管家",
     description:
       "万智牌签绘管理工具 — 导入管理套牌，匹配活动画家，查看近期活动，实时追踪签绘。",
+    images: ["/og-image.jpg"],
   },
   icons: {
     icon: [

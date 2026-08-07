@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { isAdmin } from "@/lib/auth";
+import { verifyToken, isAdmin } from "@/lib/auth";
 import { AdminNav } from "@/components/admin-nav";
 
 export const metadata: Metadata = {
@@ -18,8 +18,11 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // 验证签名 auth_token（httpOnly），而非未签名的 user_name cookie
+  // user_name cookie 可被客户端篡改，auth_token 经 HMAC-SHA256 签名无法伪造
   const cookieStore = await cookies();
-  const userName = cookieStore.get("user_name")?.value;
+  const token = cookieStore.get("auth_token")?.value;
+  const userName = verifyToken(token);
 
   if (!userName || !isAdmin(userName)) {
     redirect("/decks");

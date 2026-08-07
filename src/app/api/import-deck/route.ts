@@ -36,6 +36,9 @@ export async function POST(request: NextRequest) {
     if (!name?.trim()) {
       return NextResponse.json({ error: "请输入套牌名称" }, { status: 400 });
     }
+    if (name.trim().length > 100) {
+      return NextResponse.json({ error: "套牌名称不能超过 100 个字符" }, { status: 400 });
+    }
     if (!text?.trim()) {
       return NextResponse.json({ error: "请粘贴套牌列表内容" }, { status: 400 });
     }
@@ -143,7 +146,10 @@ export async function POST(request: NextRequest) {
       if (batchError) {
         console.warn("[Import] 批量写入失败，降级:", batchError.message);
         for (const c of cardsToInsert) {
-          await supabase.from("cards").insert(c);
+          const { error: singleError } = await supabase.from("cards").insert(c);
+          if (singleError) {
+            console.error("[Import] 单条写入失败:", singleError.message, "card:", c.card_name);
+          }
         }
       }
     }
