@@ -9,7 +9,7 @@ const CARD_SELECT_COLUMNS =
 
 // POST: 批量查询多个套牌的所有卡牌（用于活动匹配页面）
 export async function POST(request: NextRequest) {
-  const userName = await getUserFromRequest(request);
+  const userName = getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }

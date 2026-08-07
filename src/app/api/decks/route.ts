@@ -5,14 +5,14 @@ import { rateLimit, getClientIP } from "@/lib/rate-limit";
 
 // GET: 获取当前用户的套牌列表（含统计信息）
 export async function GET(request: NextRequest) {
-  const userName = await getUserFromRequest(request);
+  const userName = getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
   // 限流：高频读取，60 次/分钟
   const ip = getClientIP(request);
-  const limit = await rateLimit(`decks:${ip}`, 60, 60 * 1000);
+  const limit = rateLimit(`decks:${ip}`, 60, 60 * 1000);
   if (!limit.allowed) {
     return NextResponse.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
   }
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
 
 // DELETE: 删除套牌（同时删除其下所有卡牌）
 export async function DELETE(request: NextRequest) {
-  const userName = await getUserFromRequest(request);
+  const userName = getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }

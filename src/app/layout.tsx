@@ -1,11 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Providers } from "@/components/providers";
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 const siteUrl =
-  process.env.NEXT_PUBLIC_SITE_URL || "https://www.mtgkit.top";
+  process.env.NEXT_PUBLIC_SITE_URL || "https://mtgkit.top";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -30,9 +28,6 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
-  alternates: {
-    canonical: "/",
-  },
   openGraph: {
     type: "website",
     locale: "zh_CN",
@@ -41,21 +36,12 @@ export const metadata: Metadata = {
     title: "MTG 签绘管家",
     description:
       "万智牌签绘管理工具 — 导入套牌，匹配活动画家，追踪签绘进度。",
-    images: [
-      {
-        url: "/og-image.jpg",
-        width: 1200,
-        height: 630,
-        alt: "MTG 签绘管家 — 万智牌签绘管理工具",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "MTG 签绘管家",
     description:
       "万智牌签绘管理工具 — 导入套牌，匹配活动画家，追踪签绘进度。",
-    images: ["/twitter-image.jpg"],
   },
   icons: {
     icon: "/favicon.ico",
@@ -81,11 +67,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" className="h-full antialiased" suppressHydrationWarning>
       <body className="min-h-full flex flex-col">
-        <Providers>
-          {children}
-          <Analytics />
-          <SpeedInsights />
-        </Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

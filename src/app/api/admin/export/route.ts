@@ -3,37 +3,9 @@ import type { NextRequest } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { requireAdmin, logAdminAction } from "@/lib/admin";
 
-/**
- * CSV 字段转义：
- * 1. 包含逗号、双引号、换行的字段用双引号包裹，内部双引号转义为两个双引号
- * 2. 以公式注入前缀（=, +, -, @, 制表符, 回车）开头的字段前加单引号，防止 Excel 等自动执行公式
- */
-function escapeCsvField(value: unknown): string {
-  let str = String(value ?? "");
-
-  // 防御 CSV 公式注入：在危险前缀前加单引号
-  if (/^[\t\r\n=@+\-]/.test(str)) {
-    str = `'${str}`;
-  }
-
-  // RFC 4180 转义
-  if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
-    str = `"${str.replace(/"/g, '""')}"`;
-  }
-
-  return str;
-}
-
-function buildCsv(rows: Record<string, unknown>[], headers: string[]): string {
-  return [
-    headers.join(","),
-    ...rows.map((r) => headers.map((h) => escapeCsvField(r[h])).join(",")),
-  ].join("\n");
-}
-
 // GET: 全局数据导出（JSON 格式）
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = requireAdmin(request);
   if (auth.error) return auth.error;
   const adminName = auth.userName;
 
@@ -99,7 +71,11 @@ export async function GET(request: NextRequest) {
       if (dataType === "users" && Array.isArray(exportData.users)) {
         const rows = exportData.users as Record<string, unknown>[];
         const headers = ["username", "created_at", "last_active_at"];
-        return new NextResponse(buildCsv(rows, headers), {
+        const csv = [
+          headers.join(","),
+          ...rows.map((r) => headers.map((h) => String(r[h] ?? "")).join(",")),
+        ].join("\n");
+        return new NextResponse(csv, {
           headers: {
             "Content-Type": "text/csv; charset=utf-8",
             "Content-Disposition": `attachment; filename="users_${timestamp.split("T")[0]}.csv"`,
@@ -109,7 +85,11 @@ export async function GET(request: NextRequest) {
       if (dataType === "decks" && Array.isArray(exportData.decks)) {
         const rows = exportData.decks as Record<string, unknown>[];
         const headers = ["id", "name", "user_name", "created_at"];
-        return new NextResponse(buildCsv(rows, headers), {
+        const csv = [
+          headers.join(","),
+          ...rows.map((r) => headers.map((h) => String(r[h] ?? "")).join(",")),
+        ].join("\n");
+        return new NextResponse(csv, {
           headers: {
             "Content-Type": "text/csv; charset=utf-8",
             "Content-Disposition": `attachment; filename="decks_${timestamp.split("T")[0]}.csv"`,

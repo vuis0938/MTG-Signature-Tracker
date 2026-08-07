@@ -4,7 +4,7 @@ import { getSupabase } from "@/lib/supabase";
 import { requireAdmin } from "@/lib/admin";
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = requireAdmin(request);
   if (auth.error) return auth.error;
 
   try {

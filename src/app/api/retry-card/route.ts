@@ -7,14 +7,14 @@ import { touchDeck } from "@/lib/touch-deck";
 
 export async function POST(request: NextRequest) {
   // 鉴权
-  const userName = await getUserFromRequest(request);
+  const userName = getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
   // 限流：外部 API 调用，10 次/分钟
   const ip = getClientIP(request);
-  const limit = await rateLimit(`retry-card:${ip}`, 10, 60 * 1000);
+  const limit = rateLimit(`retry-card:${ip}`, 10, 60 * 1000);
   if (!limit.allowed) {
     return NextResponse.json({ error: "操作过于频繁，请稍后再试" }, { status: 429 });
   }

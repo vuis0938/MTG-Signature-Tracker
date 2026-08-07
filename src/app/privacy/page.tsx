@@ -2,31 +2,14 @@ import type { Metadata } from "next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BackButton } from "@/components/back-button";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.mtgkit.top";
-
 export const metadata: Metadata = {
   title: "隐私政策",
   description: "了解 MTG 签绘管家如何收集、使用和保护您的个人信息。",
-  alternates: {
-    canonical: "/privacy",
-  },
 };
 
 export default function PrivacyPage() {
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "WebPage",
-    name: "隐私政策",
-    url: `${siteUrl}/privacy`,
-    description: "了解 MTG 签绘管家如何收集、使用和保护您的个人信息。",
-  };
-
   return (
     <div className="container max-w-3xl mx-auto px-4 py-8">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">隐私政策</CardTitle>

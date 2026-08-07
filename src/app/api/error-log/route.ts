@@ -13,19 +13,18 @@ import { rateLimit, getClientIP } from "@/lib/rate-limit";
  */
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request);
-  const limit = await rateLimit(`error-log:${ip}`, 5, 60 * 1000);
+  const limit = rateLimit(`error-log:${ip}`, 5, 60 * 1000);
   if (!limit.allowed) {
     return NextResponse.json({ success: false }, { status: 429 });
   }
 
   try {
     const body = await request.json();
-    const { message, stack, url, userAgent, context } = body as {
+    const { message, stack, url, userAgent } = body as {
       message?: string;
       stack?: string;
       url?: string;
       userAgent?: string;
-      context?: Record<string, unknown>;
     };
 
     if (!message || message.length > 2000) {
@@ -33,16 +32,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 尝试提取用户名（未登录也不阻断上报）
-    const userName = await getUserFromRequest(request) || "anonymous";
+    const userName = getUserFromRequest(request) || "anonymous";
 
     // 组装错误内容
     const parts = [message];
     if (url) parts.push(`\nURL: ${url}`);
     if (userAgent) parts.push(`\nUA: ${userAgent.slice(0, 200)}`);
-    if (context && Object.keys(context).length > 0) {
-      const ctxText = JSON.stringify(context, null, 2).slice(0, 2000);
-      parts.push(`\n\nContext:\n${ctxText}`);
-    }
     if (stack) parts.push(`\n\nStack:\n${stack.slice(0, 2000)}`);
 
     await supabase.from("feedback").insert({

@@ -11,14 +11,14 @@ const CARD_SELECT_COLUMNS =
 
 // GET: 获取指定套牌的卡牌列表
 export async function GET(request: NextRequest) {
-  const userName = await getUserFromRequest(request);
+  const userName = getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
   // 限流：高频读取，60 次/分钟
   const ip = getClientIP(request);
-  const limit = await rateLimit(`cards:${ip}`, 60, 60 * 1000);
+  const limit = rateLimit(`cards:${ip}`, 60, 60 * 1000);
   if (!limit.allowed) {
     return NextResponse.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
   }
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
 
 // PATCH: 更新卡牌状态
 export async function PATCH(request: NextRequest) {
-  const userName = await getUserFromRequest(request);
+  const userName = getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
@@ -310,7 +310,7 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE: 删除卡牌
 export async function DELETE(request: NextRequest) {
-  const userName = await getUserFromRequest(request);
+  const userName = getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }

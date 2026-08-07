@@ -19,15 +19,7 @@ const PUBLIC_PATHS = [
 ];
 
 export async function middleware(request: NextRequest) {
-  const { pathname, hostname } = request.nextUrl;
-
-  // 强制 canonical 域名：mtgkit.top -> www.mtgkit.top（308 永久重定向）
-  const canonicalHost = "www.mtgkit.top";
-  if (hostname && hostname.toLowerCase() === "mtgkit.top") {
-    const canonicalUrl = new URL(request.url);
-    canonicalUrl.hostname = canonicalHost;
-    return NextResponse.redirect(canonicalUrl, 308);
-  }
+  const { pathname } = request.nextUrl;
 
   // 公开路由直接放行（精确匹配，避免 /api/auth-xxx 误匹配）
   if (PUBLIC_PATHS.includes(pathname)) {

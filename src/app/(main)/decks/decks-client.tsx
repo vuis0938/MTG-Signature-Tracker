@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect, memo, type ReactNode } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect, memo, type ReactNode } from "react";
 import { useToast } from "@/lib/toast-context";
 import { useLatestRef } from "@/lib/use-latest-ref";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import { useDisplayMode } from "@/lib/display-mode";
 import { CardImage } from "@/components/card-image";
-import { useDecks, useCards, mutateCards, mutateDecks, type DecksResponse } from "@/lib/swr-hooks";
+import { useDecks, useCards, mutateCards, type DecksResponse } from "@/lib/swr-hooks";
 import { useDeckLayout } from "@/lib/deck-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -111,30 +111,48 @@ export default function DecksClient({
   const [retryingDeckId, setRetryingDeckId] = useState<string | null>(null);
   const [retryingCard, setRetryingCard] = useState<string | null>(null);
 
-  // 展开的套牌
+  // 展开的套牌 + 卡牌数据（用服务端预取数据初始化，展开套牌时零加载）
   const [expandedDeck, setExpandedDeck] = useState<string | null>(null);
+  const [cards, setCards] = useState<Record<string, CardEntry[]>>(fallbackCards || {});
 
   // Ref 锁定最新状态，让回调函数保持引用稳定（配合 React.memo 减少重渲染）
+  const cardsRef = useLatestRef(cards);
   const expandedDeckRef = useLatestRef(expandedDeck);
   const decksRef = useLatestRef(decks);
   const deckStatsRef = useLatestRef(deckStats);
+  const revalidateRef = useLatestRef(revalidate);
 
-  // 用 SWR 管理当前展开套牌的卡牌：作为唯一数据源，跨页面共享。
+  // 用 SWR 管理当前展开套牌的卡牌：匹配页改状态后可直接 mutate 该缓存，
+  // 套牌页无需显式 fetch 就能同步。
   // SWR 已关闭自动刷新（revalidateOnFocus/Mount/Reconnect 均为 false），
   // 只有显式 mutate 或用户主动操作才会更新数据，避免界面意外刷新。
   const cardsFallback = expandedDeck
-    ? { success: true, cards: fallbackCards?.[expandedDeck] || [] }
+    ? { success: true, cards: cards[expandedDeck] || [] }
     : undefined;
   const {
     cards: swrCards,
     isLoading: swrCardsLoading,
   } = useCards(expandedDeck, cardsFallback);
 
-  // Ref 锁定当前 SWR 卡牌，供事件处理器读取最新列表
-  const cardsRef = useLatestRef(swrCards);
+  // SWR 返回新卡牌数据时（如匹配页 mutate 了缓存）同步到本地 cards 缓存
+  useEffect(() => {
+    if (!expandedDeck) return;
+    setCards((prev) => {
+      const prevCards = prev[expandedDeck];
+      const sameLength = (prevCards?.length ?? 0) === swrCards.length;
+      const sameContent =
+        sameLength &&
+        (prevCards || []).every(
+          (c, i) =>
+            c.id === swrCards[i].id && c.status === swrCards[i].status
+        );
+      if (sameContent) return prev;
+      return { ...prev, [expandedDeck]: swrCards };
+    });
+  }, [expandedDeck, swrCards]);
 
-  // 卡牌加载态：SWR 首次无缓存时显示加载，有 fallback 时静默显示
-  const cardsLoading = expandedDeck ? swrCardsLoading && swrCards.length === 0 : false;
+  // 卡牌加载态：SWR 首次无缓存时显示加载，有缓存（含本地 fallback）时静默更新
+  const cardsLoading = expandedDeck ? swrCardsLoading && !cards[expandedDeck] : false;
 
   // 添加卡牌弹窗
   const [addCardsOpen, setAddCardsOpen] = useState<string | null>(null);
@@ -156,15 +174,12 @@ export default function DecksClient({
     singleId: string;
   } | null>(null);
 
-  // 状态切换中的卡牌 ID 集合，防止快速连点导致并发请求
-  const [pendingStatusIds, setPendingStatusIds] = useState<Set<string>>(new Set());
-
   // ─── 展开/收起套牌 ──────────────────────────────────────
 
   const toggleDeck = useCallback((deckId: string) => {
     setExpandedDeck((prev) => (prev === deckId ? null : deckId));
     // 只控制展开状态，不触发任何数据请求。
-    // 卡牌来自 SSR fallback / SWR 共享缓存，避免自动刷新。
+    // 卡牌来自 SSR fallback / 本地 state / SWR 共享缓存，避免自动刷新。
   }, []);
 
   // ─── 删除套牌 ──────────────────────────────────────────
@@ -186,6 +201,11 @@ export default function DecksClient({
 
     // 删除后刷新 SWR 缓存（服务端返回最新数据）
     revalidate();
+    setCards((prev) => {
+      const next = { ...prev };
+      delete next[deckId];
+      return next;
+    });
     if (expandedDeckRef.current === deckId) setExpandedDeck(null);
     showToast("套牌已删除", "success");
   }, [showToast, revalidate, expandedDeckRef]);
@@ -275,15 +295,17 @@ export default function DecksClient({
         } else {
           showToast(`「${cardName}」导入成功`, "success");
         }
-        // 把新卡牌写进 SWR 缓存（即使当前未展开也能保证跨页面同步）
-        const refreshCards = fetch(`/api/cards?deckId=${encodeURIComponent(retryingDeckId)}`)
-          .then((r) => r.json())
-          .then((d) => {
-            if (d.success && d.cards) {
-              mutateCards(retryingDeckId, d.cards);
-            }
-          })
-          .catch(() => {});
+        // 并行刷新：decks 列表 + 当前展开套牌的卡牌（原先串行）
+        const refreshCards = expandedDeck === retryingDeckId
+          ? fetch(`/api/cards?deckId=${encodeURIComponent(retryingDeckId)}`)
+              .then((r) => r.json())
+              .then((d) => {
+                if (d.success && d.cards) {
+                  setCards((prev) => ({ ...prev, [retryingDeckId]: d.cards }));
+                }
+              })
+              .catch(() => {})
+          : Promise.resolve();
         await Promise.all([revalidate(), refreshCards]);
       } else {
         showToast(`${cardName}: ${data.error}`, "error");
@@ -293,7 +315,7 @@ export default function DecksClient({
     } finally {
       setRetryingCard(null);
     }
-  }, [retryingDeckId, revalidate, showToast]);
+  }, [retryingDeckId, expandedDeck, revalidate, showToast]);
 
   // ─── 三态切换 ──────────────────────────────────────────
 
@@ -301,30 +323,18 @@ export default function DecksClient({
     // 支持单卡与批量：合并模式下同款多张卡牌一次请求完成
     const cardIds = Array.isArray(cardIdOrIds) ? cardIdOrIds : [cardIdOrIds];
     if (cardIds.length === 0) return;
-
-    // 请求去重：任一卡牌正在处理中则忽略本次点击
-    if (cardIds.some((id) => pendingStatusIds.has(id))) return;
-    setPendingStatusIds((prev) => new Set([...prev, ...cardIds]));
-
     const idSet = new Set(cardIds);
     const newStatus = getNextDeckStatus(currentStatus);
 
-    // 快照当前 SWR 数据，用于乐观更新和回滚
-    const previousCards = cardsRef.current;
-    const previousDecksResponse: DecksResponse = {
-      success: true,
-      decks: decksRef.current,
-      stats: deckStatsRef.current,
-    };
-
     // 记录旧卡牌数据，用于回滚时恢复全部字段（含 event_name/event_date）
     const oldCards = new Map<string, CardEntry>();
-    for (const c of previousCards) {
+    for (const c of cardsRef.current[deckId] || []) {
       if (idSet.has(c.id)) oldCards.set(c.id, c);
     }
     const firstOldCard = oldCards.get(cardIds[0]);
 
-    // 1. 乐观更新：立即更新 SWR 缓存，用户零延迟感知
+    // 1. 乐观更新：立即更新 UI，用户零延迟感知
+    // 切换到非心动状态时清除活动信息
     const newCardPatch: Partial<CardEntry> = {
       status: newStatus,
       is_signed: newStatus === 2,
@@ -334,10 +344,20 @@ export default function DecksClient({
       newCardPatch.event_date = null;
     }
 
-    const newCards = previousCards.map((c) =>
-      idSet.has(c.id) ? { ...c, ...newCardPatch } : c
+    setCards((prev) => {
+      const updated = { ...prev };
+      if (updated[deckId]) {
+        updated[deckId] = updated[deckId].map((c) =>
+          idSet.has(c.id) ? { ...c, ...newCardPatch } : c
+        );
+      }
+      return updated;
+    });
+
+    // 同步乐观更新 SWR 缓存，确保 match 页或其他组件读取同一份 key 时也能立即看到变化
+    mutateCards(deckId, (cards) =>
+      cards.map((c) => (idSet.has(c.id) ? { ...c, ...newCardPatch } : c))
     );
-    mutateCards(deckId, newCards);
 
     // 乐观更新 SWR 缓存中的统计（不触发服务端请求）
     const applyStatsDelta = (stats: Record<string, DeckStats>, fromStatus: number, toStatus: number, times: number) => {
@@ -346,7 +366,7 @@ export default function DecksClient({
         0: { u: 1, p: 0, h: 0 },
         1: { u: 0, p: 1, h: 0 },
         2: { u: 0, p: 0, h: 0 },
-        3: { u: 1, p: 0, h: 1 }, // 心动同时计入待签和心动
+        3: { u: 1, p: 0, h: 0 }, // 心动归类到待签
       };
       const old = delta[fromStatus] ?? { u: 0, p: 0, h: 0 };
       const now = delta[toStatus] ?? { u: 0, p: 0, h: 0 };
@@ -363,20 +383,18 @@ export default function DecksClient({
 
     const times = cardIds.length;
     const now = new Date().toISOString();
+    const oldUpdatedAt = decksRef.current.find((d) => d.id === deckId)?.updated_at;
 
-    if (previousDecksResponse.stats[deckId]) {
-      const newStats = applyStatsDelta({ ...previousDecksResponse.stats }, currentStatus, newStatus, times);
-      const newDecks = previousDecksResponse.decks.map((d) =>
-        d.id === deckId ? { ...d, updated_at: now } : d
-      );
-      mutateDecks({ success: true, decks: newDecks, stats: newStats }, false);
+    // 同步乐观更新 SWR 缓存：stats + 套牌 updated_at，使「上次更新」时间立即变化
+    // 注意：必须用 useDecks 返回的 revalidate（本地 mutate）直接写入完整数据，
+    // 因为 SWR fallbackData 不会进入全局缓存，全局 mutate 的 updater 会收到 undefined。
+    const currentStats = deckStatsRef.current;
+    const currentDecks = decksRef.current;
+    if (currentStats) {
+      const newStats = applyStatsDelta({ ...currentStats }, currentStatus, newStatus, times);
+      const newDecks = currentDecks.map((d) => (d.id === deckId ? { ...d, updated_at: now } : d));
+      revalidateRef.current({ success: true, decks: newDecks, stats: newStats }, false);
     }
-
-    const rolledBackCards = previousCards.map((c) => oldCards.get(c.id) ?? c);
-    const rollback = () => {
-      mutateCards(deckId, rolledBackCards);
-      mutateDecks(previousDecksResponse, false);
-    };
 
     // 2. 后台写入数据库（单请求批量），失败则回滚 UI
     fetch("/api/cards", {
@@ -393,22 +411,57 @@ export default function DecksClient({
       .then((res) => res.json())
       .then((data) => {
         if (!data.success) {
-          rollback();
+          // 回滚到旧状态（恢复全部字段）
+          setCards((prev) => {
+            const updated = { ...prev };
+            if (updated[deckId]) {
+              updated[deckId] = updated[deckId].map((c) =>
+                oldCards.get(c.id) ?? c
+              );
+            }
+            return updated;
+          });
+          mutateCards(deckId, (cards) =>
+            cards.map((c) => (idSet.has(c.id) ? oldCards.get(c.id) ?? c : c))
+          );
+          const rollbackStats = deckStatsRef.current;
+          const rollbackDecks = decksRef.current;
+          if (rollbackStats) {
+            const newStats = applyStatsDelta({ ...rollbackStats }, newStatus, currentStatus, times);
+            const newDecks = rollbackDecks.map((d) =>
+              d.id === deckId ? { ...d, updated_at: oldUpdatedAt || d.updated_at } : d
+            );
+            revalidateRef.current({ success: true, decks: newDecks, stats: newStats }, false);
+          }
           showToast(data.error || "状态更新失败，请重试", "error");
         }
       })
       .catch(() => {
-        rollback();
-        showToast("网络错误，状态已恢复", "error");
-      })
-      .finally(() => {
-        setPendingStatusIds((prev) => {
-          const next = new Set(prev);
-          for (const id of cardIds) next.delete(id);
-          return next;
+        // 网络异常，回滚（恢复全部字段）
+        setCards((prev) => {
+          const updated = { ...prev };
+          if (updated[deckId]) {
+            updated[deckId] = updated[deckId].map((c) =>
+              oldCards.get(c.id) ?? c
+            );
+          }
+          return updated;
         });
+        mutateCards(deckId, (cards) =>
+          cards.map((c) => (idSet.has(c.id) ? oldCards.get(c.id) ?? c : c))
+        );
+        const rollbackStats = deckStatsRef.current;
+        const rollbackDecks = decksRef.current;
+        if (rollbackStats) {
+          const newStats = applyStatsDelta({ ...rollbackStats }, newStatus, currentStatus, times);
+          const newDecks = rollbackDecks.map((d) =>
+            d.id === deckId ? { ...d, updated_at: oldUpdatedAt || d.updated_at } : d
+          );
+          revalidateRef.current({ success: true, decks: newDecks, stats: newStats }, false);
+        }
+        showToast("网络错误，状态已恢复", "error");
       });
-  }, [showToast, cardsRef, decksRef, deckStatsRef, pendingStatusIds]);
+  }, [showToast, cardsRef, decksRef, deckStatsRef, revalidateRef]);
 
   // ─── 添加卡牌到套牌 ──────────────────────────────────
 
@@ -436,15 +489,17 @@ export default function DecksClient({
         showToast(msg, "success");
         setAddCardsOpen(null);
         setAddCardsText("");
-        // 把新卡牌写进 SWR 缓存（即使当前未展开也能保证跨页面同步）
-        const refreshCards = fetch(`/api/cards?deckId=${encodeURIComponent(addCardsOpen)}`)
-          .then((r) => r.json())
-          .then((d) => {
-            if (d.success && d.cards) {
-              mutateCards(addCardsOpen, d.cards);
-            }
-          })
-          .catch(() => {});
+        // 并行刷新：decks 列表 + 当前展开套牌的卡牌（原先串行）
+        const refreshCards = expandedDeck === addCardsOpen
+          ? fetch(`/api/cards?deckId=${encodeURIComponent(addCardsOpen)}`)
+              .then((r) => r.json())
+              .then((d) => {
+                if (d.success && d.cards) {
+                  setCards((prev) => ({ ...prev, [addCardsOpen]: d.cards }));
+                }
+              })
+              .catch(() => {})
+          : Promise.resolve();
         await Promise.all([revalidate(), refreshCards]);
       } else {
         showToast(data.error, "error");
@@ -454,7 +509,7 @@ export default function DecksClient({
     } finally {
       setAddCardsLoading(false);
     }
-  }, [addCardsOpen, addCardsText, revalidate, showToast]);
+  }, [addCardsOpen, addCardsText, expandedDeck, revalidate, showToast]);
 
   // ─── 加载卡牌所有印刷版本 ──────────────────────────────
 
@@ -491,7 +546,8 @@ export default function DecksClient({
 
     // 独立模式下（只有 1 张），检查套牌中是否有同款卡牌副本
     if (ids.length === 1) {
-      const deckCards = cardsRef.current;
+      const deckId = card.deck_id;
+      const deckCards = cardsRef.current[deckId];
       if (deckCards) {
         const duplicates = deckCards.filter(
           (c) => c.card_name === card.card_name && c.id !== card.id
@@ -542,23 +598,28 @@ export default function DecksClient({
 
         const deckId = switchCard?.deck_id;
         if (deckId) {
-          const idSet = new Set(allIds);
-          const updatedCards = cardsRef.current
-            .map((c) =>
-              idSet.has(c.id)
-                ? {
-                    ...c,
-                    set_code: data.newSetCode,
-                    collector_number: data.newCollectorNumber,
-                    artist_names: data.newArtistNames,
-                    image_url: data.newImageUrl,
-                  }
-                : c
-            )
-            .sort((a, b) =>
-              (a.artist_names[0] || "").localeCompare(b.artist_names[0] || "")
-            );
-          mutateCards(deckId, updatedCards);
+          setCards((prev) => {
+            const updated = { ...prev };
+            if (updated[deckId]) {
+              const idSet = new Set(allIds);
+              updated[deckId] = updated[deckId].map((c) =>
+                idSet.has(c.id)
+                  ? {
+                      ...c,
+                      set_code: data.newSetCode,
+                      collector_number: data.newCollectorNumber,
+                      artist_names: data.newArtistNames,
+                      image_url: data.newImageUrl,
+                    }
+                  : c
+              );
+              // 切换版本后画家可能变化，重新按 artist_names 字母序排序
+              updated[deckId] = [...updated[deckId]].sort((a, b) =>
+                (a.artist_names[0] || "").localeCompare(b.artist_names[0] || "")
+              );
+            }
+            return updated;
+          });
         }
         setSwitchCard(null);
         setSwitchCardAllIds([]);
@@ -590,8 +651,13 @@ export default function DecksClient({
 
       const deckId = switchCard?.deck_id;
       if (deckId) {
-        const nextCards = cardsRef.current.filter((c) => c.id !== cardId);
-        mutateCards(deckId, nextCards);
+        setCards((prev) => {
+          const updated = { ...prev };
+          if (updated[deckId]) {
+            updated[deckId] = updated[deckId].filter((c) => c.id !== cardId);
+          }
+          return updated;
+        });
       }
 
       setSwitchCard(null);
@@ -741,11 +807,10 @@ export default function DecksClient({
               deck={deck}
               stats={deckStats[deck.id]}
               isExpanded={expandedDeck === deck.id}
-              cards={expandedDeck === deck.id ? swrCards : undefined}
+              cards={cards[deck.id]}
               cardsLoading={cardsLoading}
               displayMode={displayMode}
               deckLayout={deckLayout}
-              pendingStatusIds={pendingStatusIds}
               onToggle={toggleDeck}
               onAddCards={openAddCards}
               onDelete={deleteDeck}
@@ -821,7 +886,6 @@ interface DeckListItemProps {
   cardsLoading: boolean;
   displayMode: "individual" | "grouped";
   deckLayout: "default" | "compact" | "list";
-  pendingStatusIds: Set<string>;
   onToggle: (deckId: string) => void;
   onAddCards: (deckId: string) => void;
   onDelete: (deckId: string, deckName: string) => void;
@@ -830,7 +894,7 @@ interface DeckListItemProps {
 }
 
 export const DeckListItem = memo(function DeckListItem({
-  deck, stats, isExpanded, cards, cardsLoading, displayMode, deckLayout, pendingStatusIds,
+  deck, stats, isExpanded, cards, cardsLoading, displayMode, deckLayout,
   onToggle, onAddCards, onDelete, onToggleStatus, onLoadPrintings,
 }: DeckListItemProps) {
   // 分组 + 合并计算成本高（数百张卡牌），只在数据变化时重算
@@ -937,17 +1001,14 @@ export const DeckListItem = memo(function DeckListItem({
                             3: { label: "心动", bg: "bg-pink-50 dark:bg-pink-950", text: "text-pink-600 dark:text-pink-400", dot: "bg-pink-500" },
                           };
                           const cfg = statusConfig[s] || statusConfig[0];
-                          const isGroupPending = (group.ids.length > 0 ? group.ids : [group.card.id]).some((id) => pendingStatusIds.has(id));
                           return (
                             <div
                               key={group.ids[0]}
-                              className={"flex items-center gap-3 px-3 py-1.5 transition-colors group/list " + (isGroupPending ? "opacity-60 cursor-not-allowed " : "hover:bg-accent/50 cursor-pointer ") + (idx !== displayCards.length - 1 ? "border-b border-border/40" : "")}
+                              className={"flex items-center gap-3 px-3 py-1.5 hover:bg-accent/50 transition-colors cursor-pointer group/list " + (idx !== displayCards.length - 1 ? "border-b border-border/40" : "")}
                               onClick={() => {
                                 const ids = group.ids.length > 0 ? group.ids : [group.card.id];
-                                if (ids.some((id) => pendingStatusIds.has(id))) return;
                                 onToggleStatus(ids, s, deck.id);
                               }}
-                              aria-disabled={isGroupPending}
                             >
                               <span className={"inline-flex items-center gap-1.5 shrink-0 px-1.5 py-0.5 rounded text-xs font-medium " + cfg.bg + " " + cfg.text}>
                                 <span className={"w-1.5 h-1.5 rounded-full " + cfg.dot} />
@@ -977,7 +1038,7 @@ export const DeckListItem = memo(function DeckListItem({
                       <Palette className={"h-4 w-4 text-foreground shrink-0 " + (deckLayout === "compact" ? "hidden sm:block" : "")} />{artist} ({artistCards.length})
                     </h4>
                     <div className={deckLayout === "compact" ? "grid grid-cols-2 sm:grid-cols-4 gap-1 sm:gap-1.5 lg:gap-2" : "grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 sm:gap-3 lg:gap-4"}>
-                      {displayCards.map((group, idx) => (
+                      {displayCards.map((group) => (
                         <CardThumbnail
                           key={group.ids[0]}
                           card={group.card}
@@ -985,8 +1046,6 @@ export const DeckListItem = memo(function DeckListItem({
                           allIds={group.ids}
                           deckId={deck.id}
                           deckLayout={deckLayout}
-                          pendingStatusIds={pendingStatusIds}
-                          priority={idx < 6}
                           onToggleStatus={onToggleStatus}
                           onLoadPrintings={onLoadPrintings}
                         />
@@ -1013,14 +1072,11 @@ interface CardThumbnailProps {
   /** 合并模式下所有卡牌 ID，用于批量切换状态 */
   allIds?: string[];
   deckLayout?: "default" | "compact" | "list";
-  pendingStatusIds: Set<string>;
-  /** 是否优先加载首屏图片 */
-  priority?: boolean;
   onToggleStatus: (cardIds: string | string[], currentStatus: number, deckId: string) => void;
   onLoadPrintings: (card: CardEntry, allIds?: string[]) => void;
 }
 
-const CardThumbnail = memo(function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, pendingStatusIds, priority = false, onToggleStatus, onLoadPrintings }: CardThumbnailProps) {
+const CardThumbnail = memo(function CardThumbnail({ card, deckId, count = 1, allIds, deckLayout, onToggleStatus, onLoadPrintings }: CardThumbnailProps) {
   const status = card.status ?? (card.is_signed ? 2 : 0);
   const statusLabels: Record<number, string> = {
     0: "未签（点击切换为送签中）",
@@ -1034,33 +1090,25 @@ const CardThumbnail = memo(function CardThumbnail({ card, deckId, count = 1, all
   const isCompact = deckLayout === "compact";
 
   /** 点击切换状态：合并模式下一次批量请求切换所有同款卡牌 */
-  const isPending = (allIds && allIds.length > 0 ? allIds : [card.id]).some((id) => pendingStatusIds.has(id));
   function handleToggle() {
-    if (isPending) return;
     const ids = allIds && allIds.length > 0 ? allIds : [card.id];
     onToggleStatus(ids, status, deckId);
   }
 
   return (
     <div className={isCompact ? "group relative w-full" : "group relative w-full"}>
-      {isPending && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/60 rounded-lg">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        </div>
-      )}
       <div
         onClick={handleToggle}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleToggle(); } }}
         role="button"
-        tabIndex={isPending ? -1 : 0}
-        className={"relative rounded-lg overflow-hidden border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " + (isPending ? "cursor-not-allowed opacity-60 " : "cursor-pointer hover:scale-105 ") + (hasOverlay ? (status === 3 ? "border-pink-400" : status === 1 ? "border-blue-400" : "border-green-500") : "border-border hover:shadow-md")}
+        tabIndex={0}
+        className={"relative rounded-lg overflow-hidden border cursor-pointer transition-all hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " + (hasOverlay ? (status === 3 ? "border-pink-400" : status === 1 ? "border-blue-400" : "border-green-500") : "border-border hover:shadow-md")}
         title={statusLabels[status]}
-        aria-label={`${card.card_name}，${statusLabels[status]}${isPending ? "，更新中" : ""}`}
-        aria-disabled={isPending}
+        aria-label={`${card.card_name}，${statusLabels[status]}`}
       >
         <div className={hasOverlay ? "opacity-75" : ""}>
           {card.image_url ? (
-            <CardImage src={card.image_url} alt={card.card_name} className="w-full" priority={priority} />
+            <CardImage src={card.image_url} alt={card.card_name} className="w-full" />
           ) : (
             <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
               {card.card_name}

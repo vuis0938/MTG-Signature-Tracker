@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 export default async function MatchPage() {
   // 服务端预取套牌 + 活动数据，消除首屏加载
   const token = (await cookies()).get("auth_token")?.value;
-  const userName = await verifyToken(token);
+  const userName = verifyToken(token);
 
   if (!userName) {
     return <MatchClient fallbackDecks={[]} fallbackStats={{}} fallbackEvents={[]} />;

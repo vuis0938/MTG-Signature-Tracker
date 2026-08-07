@@ -5,7 +5,7 @@ import { requireAdmin, logAdminAction } from "@/lib/admin";
 
 // GET: 缓存统计 + 搜索
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = requireAdmin(request);
   if (auth.error) return auth.error;
 
   try {
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
 
 // DELETE: 删除单条缓存或全部清空
 export async function DELETE(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = requireAdmin(request);
   if (auth.error) return auth.error;
   const adminName = auth.userName;
 

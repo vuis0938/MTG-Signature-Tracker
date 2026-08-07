@@ -13,14 +13,14 @@ const STATUS_TEXT: Record<number, string> = {
 
 export async function GET(request: NextRequest) {
   // 鉴权
-  const userName = await getUserFromRequest(request);
+  const userName = getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
   // 限流：导出操作较重，限制 5 次/分钟
   const ip = getClientIP(request);
-  const limit = await rateLimit(`export-data:${ip}`, 5, 60 * 1000);
+  const limit = rateLimit(`export-data:${ip}`, 5, 60 * 1000);
   if (!limit.allowed) {
     return NextResponse.json({ error: "操作过于频繁，请稍后再试" }, { status: 429 });
   }

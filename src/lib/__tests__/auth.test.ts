@@ -8,37 +8,7 @@ import {
   verifyToken,
   getUserFromRequest,
   isAdmin,
-  revokeTokens,
 } from "../auth";
-
-// 测试中固定 token_version，避免每次查询结果不同
-const TEST_TOKEN_VERSION = "testtokenversion123456";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockSupabaseClient: any = {
-  from: vi.fn(() => mockSupabaseClient),
-  select: vi.fn(() => mockSupabaseClient),
-  eq: vi.fn(() => mockSupabaseClient),
-  single: vi.fn(() =>
-    Promise.resolve({ data: { token_version: TEST_TOKEN_VERSION }, error: null })
-  ),
-  update: vi.fn(() => mockSupabaseClient),
-};
-
-vi.mock("@/lib/supabase", () => ({
-  getSupabase: vi.fn(() => mockSupabaseClient),
-}));
-
-beforeEach(() => {
-  vi.unstubAllEnvs();
-  vi.stubEnv("TOKEN_SECRET", "test-secret-must-be-at-least-32-characters-long");
-  vi.stubEnv("NODE_ENV", "test");
-  vi.clearAllMocks();
-});
-
-afterEach(() => {
-  vi.unstubAllEnvs();
-});
 
 // ═════════════════════════════════════════════════════════════
 // hashPassword
@@ -138,44 +108,37 @@ describe("needsHashUpgrade", () => {
 // ═════════════════════════════════════════════════════════════
 
 describe("createToken", () => {
-  it("返回 payload.signature 格式", async () => {
-    const token = await createToken("alice");
-    expect(token).toBeTruthy();
-    const parts = token!.split(".");
+  it("返回 payload.signature 格式", () => {
+    const token = createToken("alice");
+    expect(token).toContain(".");
+    const parts = token.split(".");
     expect(parts).toHaveLength(2);
     expect(parts[0]).toBeTruthy();
     expect(parts[1]).toBeTruthy();
   });
 
-  it("payload 包含用户名、过期时间和 token_version", async () => {
-    const token = await createToken("alice");
-    expect(token).toBeTruthy();
-    const payload = token!.split(".")[0];
+  it("payload 包含用户名和过期时间", () => {
+    const token = createToken("alice");
+    const payload = token.split(".")[0];
     const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf-8"));
     expect(decoded.u).toBe("alice");
     expect(typeof decoded.e).toBe("number");
     expect(decoded.e).toBeGreaterThan(Date.now());
-    expect(decoded.v).toBe(TEST_TOKEN_VERSION);
   });
 
-  it("不同用户名生成不同 token", async () => {
-    expect(await createToken("alice")).not.toBe(await createToken("bob"));
+  it("不同用户名生成不同 token", () => {
+    expect(createToken("alice")).not.toBe(createToken("bob"));
   });
 
-  it("支持中文用户名", async () => {
-    const token = await createToken("张三");
-    const decoded = await verifyToken(token);
+  it("支持中文用户名", () => {
+    const token = createToken("张三");
+    const decoded = verifyToken(token);
     expect(decoded).toBe("张三");
   });
 
-  it("支持特殊字符用户名", async () => {
-    const token = await createToken("user.name+tag@example.com");
-    expect(await verifyToken(token)).toBe("user.name+tag@example.com");
-  });
-
-  it("用户不存在时返回 null", async () => {
-    mockSupabaseClient.single.mockResolvedValueOnce({ data: null, error: { code: "PGRST116" } });
-    expect(await createToken("nonexistent")).toBeNull();
+  it("支持特殊字符用户名", () => {
+    const token = createToken("user.name+tag@example.com");
+    expect(verifyToken(token)).toBe("user.name+tag@example.com");
   });
 });
 
@@ -184,77 +147,65 @@ describe("createToken", () => {
 // ═════════════════════════════════════════════════════════════
 
 describe("verifyToken", () => {
-  it("有效 token 返回用户名", async () => {
-    const token = await createToken("alice");
-    expect(await verifyToken(token)).toBe("alice");
+  it("有效 token 返回用户名", () => {
+    const token = createToken("alice");
+    expect(verifyToken(token)).toBe("alice");
   });
 
-  it("undefined 返回 null", async () => {
-    expect(await verifyToken(undefined)).toBeNull();
+  it("undefined 返回 null", () => {
+    expect(verifyToken(undefined)).toBeNull();
   });
 
-  it("null 返回 null", async () => {
-    expect(await verifyToken(null)).toBeNull();
+  it("null 返回 null", () => {
+    expect(verifyToken(null)).toBeNull();
   });
 
-  it("空字符串返回 null", async () => {
-    expect(await verifyToken("")).toBeNull();
+  it("空字符串返回 null", () => {
+    expect(verifyToken("")).toBeNull();
   });
 
-  it("格式错误（无分隔符）返回 null", async () => {
-    expect(await verifyToken("justpayload")).toBeNull();
+  it("格式错误（无分隔符）返回 null", () => {
+    expect(verifyToken("justpayload")).toBeNull();
   });
 
-  it("格式错误（三段）返回 null", async () => {
-    expect(await verifyToken("a.b.c")).toBeNull();
+  it("格式错误（三段）返回 null", () => {
+    expect(verifyToken("a.b.c")).toBeNull();
   });
 
-  it("篡改签名返回 null", async () => {
-    const token = await createToken("alice");
-    const [payload] = token!.split(".");
+  it("篡改签名返回 null", () => {
+    const token = createToken("alice");
+    const [payload] = token.split(".");
     const forged = `${payload}.invalidSignatureValue`;
-    expect(await verifyToken(forged)).toBeNull();
+    expect(verifyToken(forged)).toBeNull();
   });
 
-  it("篡改 payload 返回 null（签名不匹配）", async () => {
-    const token = await createToken("alice");
-    const [, signature] = token!.split(".");
-    const forgedPayload = Buffer.from(JSON.stringify({ u: "bob", e: Date.now() + 1000000, v: TEST_TOKEN_VERSION })).toString("base64url");
+  it("篡改 payload 返回 null（签名不匹配）", () => {
+    const token = createToken("alice");
+    const [, signature] = token.split(".");
+    const forgedPayload = Buffer.from(JSON.stringify({ u: "bob", e: Date.now() + 1000000 })).toString("base64url");
     const forged = `${forgedPayload}.${signature}`;
-    expect(await verifyToken(forged)).toBeNull();
+    expect(verifyToken(forged)).toBeNull();
   });
 
-  it("完全伪造的 token 返回 null", async () => {
-    expect(await verifyToken("fakepayload.fakesignature")).toBeNull();
+  it("完全伪造的 token 返回 null", () => {
+    expect(verifyToken("fakepayload.fakesignature")).toBeNull();
   });
 
-  it("过期 token 返回 null", async () => {
-    const token = await createToken("alice");
+  it("过期 token 返回 null", () => {
+    const token = createToken("alice");
     // 解码 payload，修改过期时间为过去，重新编码
-    const [payloadStr] = token!.split(".");
+    const [payloadStr] = token.split(".");
     const payload = JSON.parse(Buffer.from(payloadStr, "base64url").toString("utf-8"));
     payload.e = Date.now() - 1000; // 已过期
     // 由于签名会不匹配，需要直接测试 verifyToken 逻辑
     // 创建一个带有效签名但过期时间在过去的 token
     const expiredPayloadStr = Buffer.from(JSON.stringify(payload)).toString("base64url");
-    // 测试环境已通过 beforeEach stub TOKEN_SECRET
-    const secret = process.env.TOKEN_SECRET;
-    if (!secret) throw new Error("TOKEN_SECRET 未设置");
-    const expiredSignature = createHmac("sha256", secret)
+    // TOKEN_SECRET 在开发环境有默认值
+    const expiredSignature = createHmac("sha256", "mtg-dev-secret-change-in-production")
       .update(expiredPayloadStr)
       .digest("base64url");
     const expiredToken = `${expiredPayloadStr}.${expiredSignature}`;
-    expect(await verifyToken(expiredToken)).toBeNull();
-  });
-
-  it("token_version 不匹配返回 null（token 被撤销）", async () => {
-    const token = await createToken("alice");
-    // 模拟数据库中的 token_version 已变更
-    mockSupabaseClient.single.mockResolvedValueOnce({
-      data: { token_version: "new-version-after-revoke" },
-      error: null,
-    });
-    expect(await verifyToken(token)).toBeNull();
+    expect(verifyToken(expiredToken)).toBeNull();
   });
 });
 
@@ -274,42 +225,21 @@ describe("getUserFromRequest", () => {
     };
   }
 
-  it("有效 token 返回用户名", async () => {
-    const token = await createToken("alice");
-    expect(token).toBeTruthy();
-    expect(await getUserFromRequest(makeRequest(token!))).toBe("alice");
+  it("有效 token 返回用户名", () => {
+    const token = createToken("alice");
+    expect(getUserFromRequest(makeRequest(token))).toBe("alice");
   });
 
-  it("无 auth_token cookie 返回 null", async () => {
-    expect(await getUserFromRequest(makeRequest(undefined))).toBeNull();
+  it("无 auth_token cookie 返回 null", () => {
+    expect(getUserFromRequest(makeRequest(undefined))).toBeNull();
   });
 
-  it("伪造 token 返回 null", async () => {
-    expect(await getUserFromRequest(makeRequest("fake.token"))).toBeNull();
+  it("伪造 token 返回 null", () => {
+    expect(getUserFromRequest(makeRequest("fake.token"))).toBeNull();
   });
 
-  it("空 token 返回 null", async () => {
-    expect(await getUserFromRequest(makeRequest(""))).toBeNull();
-  });
-});
-
-// ═════════════════════════════════════════════════════════════
-// revokeTokens
-// ═════════════════════════════════════════════════════════════
-
-describe("revokeTokens", () => {
-  it("成功更新 token_version 返回 true", async () => {
-    mockSupabaseClient.update.mockReturnValueOnce({
-      eq: vi.fn(() => Promise.resolve({ error: null })),
-    });
-    expect(await revokeTokens("alice")).toBe(true);
-  });
-
-  it("更新失败返回 false", async () => {
-    mockSupabaseClient.update.mockReturnValueOnce({
-      eq: vi.fn(() => Promise.resolve({ error: { message: "db error" } })),
-    });
-    expect(await revokeTokens("alice")).toBe(false);
+  it("空 token 返回 null", () => {
+    expect(getUserFromRequest(makeRequest(""))).toBeNull();
   });
 });
 

@@ -32,14 +32,12 @@ export function CardImage({
   className,
   sizes = DEFAULT_SIZES,
   size = "normal",
-  priority = false,
 }: {
   src: string;
   alt: string;
   className?: string;
   sizes?: string;
   size?: "normal" | "small";
-  priority?: boolean;
 }) {
   const [errored, setErrored] = useState(false);
 
@@ -54,7 +52,7 @@ export function CardImage({
         src={imageSrc}
         alt={alt}
         className={className}
-        loading={priority ? "eager" : "lazy"}
+        loading="lazy"
       />
     );
   }
@@ -69,8 +67,7 @@ export function CardImage({
         fill
         sizes={sizes}
         className="object-cover"
-        priority={priority}
-        loading={priority ? undefined : "lazy"}
+        loading="lazy"
         placeholder="blur"
         blurDataURL={BLUR_PLACEHOLDER}
         onError={() => setErrored(true)}

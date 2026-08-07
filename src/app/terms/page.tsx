@@ -2,31 +2,14 @@ import type { Metadata } from "next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BackButton } from "@/components/back-button";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.mtgkit.top";
-
 export const metadata: Metadata = {
   title: "用户协议",
   description: "使用 MTG 签绘管家服务前，请仔细阅读本用户协议。",
-  alternates: {
-    canonical: "/terms",
-  },
 };
 
 export default function TermsPage() {
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "WebPage",
-    name: "用户协议",
-    url: `${siteUrl}/terms`,
-    description: "使用 MTG 签绘管家服务前，请仔细阅读本用户协议。",
-  };
-
   return (
     <div className="container max-w-3xl mx-auto px-4 py-8">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">用户协议</CardTitle>

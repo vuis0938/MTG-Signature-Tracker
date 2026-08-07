@@ -17,14 +17,14 @@ export async function POST(request: NextRequest) {
   const t0 = Date.now();
 
   // 鉴权：从签名 token 中提取用户名
-  const userName = await getUserFromRequest(request);
+  const userName = getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
   // 限流：防止 Scryfall API 滥用
   const ip = getClientIP(request);
-  const limit = await rateLimit(`import-deck:${ip}`, 10, 10 * 60 * 1000);
+  const limit = rateLimit(`import-deck:${ip}`, 10, 10 * 60 * 1000);
   if (!limit.allowed) {
     return NextResponse.json({ error: "操作过于频繁，请稍后再试" }, { status: 429 });
   }

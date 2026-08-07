@@ -10,13 +10,10 @@ import { getSupabase } from "@/lib/supabase";
  * 验证请求是否来自管理员
  * 返回 { userName } 或 { error } — 调用方负责处理
  */
-export async function requireAdmin(
-  request: NextRequest
-): Promise<
+export function requireAdmin(request: NextRequest):
   | { userName: string; error: null }
-  | { userName: null; error: NextResponse }
-> {
-  const userName = await getUserFromRequest(request);
+  | { userName: null; error: NextResponse } {
+  const userName = getUserFromRequest(request);
   if (!userName) {
     return { userName: null, error: NextResponse.json({ error: "未登录" }, { status: 401 }) };
   }

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { verifyToken, isAdmin } from "@/lib/auth";
+import { isAdmin } from "@/lib/auth";
 import { AdminNav } from "@/components/admin-nav";
 
 export const metadata: Metadata = {
@@ -19,8 +19,7 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const cookieStore = await cookies();
-  const token = cookieStore.get("auth_token")?.value;
-  const userName = await verifyToken(token);
+  const userName = cookieStore.get("user_name")?.value;
 
   if (!userName || !isAdmin(userName)) {
     redirect("/decks");

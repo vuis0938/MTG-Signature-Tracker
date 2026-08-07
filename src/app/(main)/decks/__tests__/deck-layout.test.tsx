@@ -40,7 +40,6 @@ function renderDeckListItem(layout: "default" | "compact" | "list") {
       cardsLoading={false}
       displayMode="individual"
       deckLayout={layout}
-      pendingStatusIds={new Set()}
       onToggle={noop}
       onAddCards={noop}
       onDelete={noop}

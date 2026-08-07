@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { requireAdmin, logAdminAction } from "@/lib/admin";
-import { hashPassword, isAdmin, revokeTokens } from "@/lib/auth";
+import { hashPassword, isAdmin } from "@/lib/auth";
 import { randomBytes } from "crypto";
 
 // GET: 用户列表（含统计信息）
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = requireAdmin(request);
   if (auth.error) return auth.error;
 
   try {
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
 
 // PATCH: 删除用户/重置密码
 export async function PATCH(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = requireAdmin(request);
   if (auth.error) return auth.error;
   const adminName = auth.userName;
 
@@ -200,9 +200,6 @@ export async function PATCH(request: NextRequest) {
       if (updateError) {
         return NextResponse.json({ error: "重置密码失败" }, { status: 500 });
       }
-
-      // 管理员重置密码后撤销该用户所有旧 token
-      await revokeTokens(body.username);
 
       await logAdminAction(adminName, "user_reset_password", body.username);
       return NextResponse.json({

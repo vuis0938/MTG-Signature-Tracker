@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default async function DecksPage() {
   // 服务端预取：从 cookie 获取用户，直接查数据库
   const token = (await cookies()).get("auth_token")?.value;
-  const userName = await verifyToken(token);
+  const userName = verifyToken(token);
 
   if (!userName) {
     return <DecksClient fallbackDecks={[]} fallbackStats={{}} fallbackCards={{}} />;

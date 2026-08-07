@@ -5,7 +5,7 @@ import { requireAdmin } from "@/lib/admin";
 
 // GET: 用户详情（套牌列表 + 卡牌统计 + 签绘状态分布）
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request);
+  const auth = requireAdmin(request);
   if (auth.error) return auth.error;
 
   try {

@@ -107,12 +107,22 @@ export function getCardsKey(deckId: string) {
 }
 
 /**
- * 写入指定套牌的卡牌缓存（不触发请求）
- * 用于 decks 页和 match 页改状态、添加/删除/切换版本后即时同步 UI
+ * 乐观更新指定套牌的卡牌缓存（不触发请求）
+ * 用于 decks 页和 match 页改状态后即时同步 UI
  */
-export function mutateCards(deckId: string, cards: CardEntry[]) {
+export function mutateCards(
+  deckId: string,
+  updater: (cards: CardEntry[]) => CardEntry[]
+) {
   const key = getCardsKey(deckId);
-  return mutate(key, { success: true, cards }, false);
+  return mutate(
+    key,
+    (current: CardsResponse | undefined) => {
+      if (!current) return current;
+      return { ...current, cards: updater(current.cards) };
+    },
+    false
+  );
 }
 
 // ─── Events 相关 hooks ─────────────────────────────────────
@@ -166,21 +176,14 @@ export function useAnnouncements(fallbackData?: AnnouncementsResponse) {
 
 // ─── 手动刷新工具 ──────────────────────────────────────────
 
-export const DECKS_KEY = "/api/decks";
-
-/** 写入套牌列表缓存（不触发请求） */
-export function mutateDecks(data: DecksResponse, shouldRevalidate = false) {
-  return mutate(DECKS_KEY, data, shouldRevalidate);
-}
-
 /** 刷新套牌缓存（导入/删除后调用） */
 export function refreshDecks() {
-  return mutate(DECKS_KEY);
+  return mutate("/api/decks");
 }
 
 /** 刷新指定套牌的卡牌缓存 */
 export function refreshCards(deckId: string) {
-  return mutate(getCardsKey(deckId));
+  return mutate(`/api/cards?deckId=${encodeURIComponent(deckId)}`);
 }
 
 /** 刷新活动缓存 */

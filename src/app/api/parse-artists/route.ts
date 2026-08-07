@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
 import { loadArtistAliases, resolveAliases } from "@/lib/artist-aliases";
-import { createTimeoutSignal } from "@/lib/timeout-signal";
 
 // ─── LLM 清洗（DeepSeek 优先，Anthropic 备选） ─────────────
 
@@ -61,20 +60,6 @@ async function parseWithLLM(rawText: string): Promise<{ artists: string[]; model
   throw new Error("未配置 LLM API Key");
 }
 
-/** 带超时保护的 fetch 封装（兼容旧版运行时） */
-async function fetchWithTimeout(
-  url: string,
-  init: RequestInit,
-  ms: number
-): Promise<Response> {
-  const { signal, clear } = createTimeoutSignal(ms);
-  try {
-    return await fetch(url, { ...init, signal });
-  } finally {
-    clear();
-  }
-}
-
 /** DeepSeek / OpenAI 兼容格式 */
 async function callOpenAICompatible(
   baseUrl: string,
@@ -82,24 +67,21 @@ async function callOpenAICompatible(
   model: string,
   rawText: string
 ): Promise<string[]> {
-  const res = await fetchWithTimeout(
-    `${baseUrl}/chat/completions`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 1024,
-        messages: [
-          { role: "user", content: `${PROMPT}\n\n原文：\n---\n${rawText}\n---` },
-        ],
-      }),
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
     },
-    15000
-  );
+    body: JSON.stringify({
+      model,
+      max_tokens: 1024,
+      messages: [
+        { role: "user", content: `${PROMPT}\n\n原文：\n---\n${rawText}\n---` },
+      ],
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
 
   if (!res.ok) {
     const errText = await res.text();
@@ -121,23 +103,20 @@ async function callOpenAICompatible(
 
 /** Anthropic Messages API */
 async function callAnthropic(rawText: string): Promise<string[]> {
-  const res = await fetchWithTimeout(
-    "https://api.anthropic.com/v1/messages",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_KEY!,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-3-5-haiku-latest",
-        max_tokens: 1024,
-        messages: [{ role: "user", content: `${PROMPT}\n\n原文：\n---\n${rawText}\n---` }],
-      }),
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": ANTHROPIC_KEY!,
+      "anthropic-version": "2023-06-01",
     },
-    15000
-  );
+    body: JSON.stringify({
+      model: "claude-3-5-haiku-latest",
+      max_tokens: 1024,
+      messages: [{ role: "user", content: `${PROMPT}\n\n原文：\n---\n${rawText}\n---` }],
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
 
   if (!res.ok) throw new Error(`Anthropic API 错误 (HTTP ${res.status})`);
 
@@ -229,14 +208,14 @@ export function parseWithRegex(rawText: string): string[] {
 
 export async function POST(request: NextRequest) {
   // 鉴权
-  const userName = await getUserFromRequest(request);
+  const userName = getUserFromRequest(request);
   if (!userName) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
   // 限流：防止 LLM API 费用滥用
   const ip = getClientIP(request);
-  const limit = await rateLimit(`parse-artists:${ip}`, 10, 10 * 60 * 1000);
+  const limit = rateLimit(`parse-artists:${ip}`, 10, 10 * 60 * 1000);
   if (!limit.allowed) {
     return NextResponse.json({ error: "操作过于频繁，请稍后再试" }, { status: 429 });
   }
