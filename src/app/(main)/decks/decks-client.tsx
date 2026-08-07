@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef, useEffect, memo, type ReactNode } from "react";
+import { useState, useCallback, useMemo, useEffect, memo, type ReactNode } from "react";
 import { useToast } from "@/lib/toast-context";
 import { useLatestRef } from "@/lib/use-latest-ref";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import { useDisplayMode } from "@/lib/display-mode";
 import { CardImage } from "@/components/card-image";
-import { useDecks, useCards, mutateCards, type DecksResponse } from "@/lib/swr-hooks";
+import { useDecks, useCards, mutateCards } from "@/lib/swr-hooks";
 import { useDeckLayout } from "@/lib/deck-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
