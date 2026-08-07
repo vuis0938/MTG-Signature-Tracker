@@ -5,7 +5,6 @@ import { verifyToken, isAdmin } from "@/lib/auth-edge";
 // 不需要鉴权的路由（精确匹配）
 const PUBLIC_PATHS = [
   "/",
-  "/login",
   "/privacy",
   "/terms",
   "/robots.txt",

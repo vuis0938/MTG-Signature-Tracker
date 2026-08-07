@@ -67,7 +67,7 @@ export default function SettingsPage() {
     try {
       const res = await fetch("/api/logout", { method: "POST" });
       if (res.ok) {
-        router.push("/login");
+        router.push("/");
         router.refresh();
       }
     } catch {

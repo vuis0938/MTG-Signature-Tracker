@@ -15,16 +15,24 @@ import { LandingForm } from "./landing-form";
 
 export const metadata: Metadata = {
   description:
-    "万智牌签绘收藏管理工具 — 导入套牌，匹配活动画家，追踪签绘进度。",
+    "万智牌签绘管理工具 — 导入套牌，匹配活动画家，追踪签绘进度。",
 };
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ mode?: string }>;
+}) {
   // 已登录用户直接进入主站
   const cookieStore = await cookies();
   const token = cookieStore.get("auth_token")?.value;
   if (verifyToken(token)) {
     redirect("/decks");
   }
+
+  const { mode } = await searchParams;
+  const validMode =
+    mode === "register" || mode === "forgot" ? mode : "login";
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-background px-4">
@@ -34,10 +42,10 @@ export default async function Home() {
             <Palette className="h-6 w-6 text-primary" />
             MTG 签绘管家
           </CardTitle>
-          <CardDescription>万智牌签绘收藏管理工具</CardDescription>
+          <CardDescription>万智牌签绘管理工具</CardDescription>
         </CardHeader>
         <CardContent>
-          <LandingForm />
+          <LandingForm initialMode={validMode} />
           <div className="mt-6 pt-4 border-t text-center text-xs text-muted-foreground">
             登录或注册即表示您同意
             <Link href="/terms" className="underline hover:text-foreground mx-1">

@@ -21,7 +21,6 @@ describe("sitemap.ts", () => {
     const urls = result.map((item) => item.url);
 
     expect(urls).toContain("https://www.mtgkit.top/");
-    expect(urls).toContain("https://www.mtgkit.top/login");
     expect(urls).toContain("https://www.mtgkit.top/privacy");
     expect(urls).toContain("https://www.mtgkit.top/terms");
   });
@@ -34,6 +33,7 @@ describe("sitemap.ts", () => {
     expect(paths).not.toContain("/match");
     expect(paths).not.toContain("/events");
     expect(paths).not.toContain("/settings");
+    expect(paths).not.toContain("/login");
   });
 
   it("支持通过 NEXT_PUBLIC_SITE_URL 覆盖域名", () => {

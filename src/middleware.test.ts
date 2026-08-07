@@ -38,8 +38,8 @@ describe("middleware", () => {
     vi.clearAllMocks();
   });
 
-  it("公开路径 /login 直接放行", async () => {
-    await middleware(makeRequest("/login"));
+  it("公开路径 / 直接放行", async () => {
+    await middleware(makeRequest("/"));
     expect(nextMock).toHaveBeenCalledTimes(1);
     expect(redirectMock).not.toHaveBeenCalled();
   });
@@ -66,12 +66,12 @@ describe("middleware", () => {
     expect(redirectMock).not.toHaveBeenCalled();
   });
 
-  it("未登录访问 /decks 重定向到 /login", async () => {
+  it("未登录访问 /decks 重定向到 /", async () => {
     vi.mocked(verifyToken).mockResolvedValue(null);
     await middleware(makeRequest("/decks"));
     expect(redirectMock).toHaveBeenCalledTimes(1);
     const url = redirectMock.mock.calls[0][0] as URL;
-    expect(url.href).toBe("http://localhost/login");
+    expect(url.href).toBe("http://localhost/");
     expect(nextMock).not.toHaveBeenCalled();
   });
 
