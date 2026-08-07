@@ -14,7 +14,7 @@ import type { Deck, DeckStats, CardEntry, CalendarEvent } from "@/types";
 // ─── 通用 fetcher ──────────────────────────────────────────
 
 async function fetcher<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
     const error = new Error("请求失败") as Error & { status?: number };
     error.status = res.status;

@@ -167,10 +167,6 @@ export default function DecksClient({
   const [switchPrintingLoading, setSwitchPrintingLoading] = useState<string | null>(null);
   const [deletingCard, setDeletingCard] = useState<string | null>(null);
 
-  // toggleStatus 操作锁：记录正在请求中的卡牌 ID，防止快速连点产生并发 PATCH
-  const [pendingToggleIds, setPendingToggleIds] = useState<Set<string>>(new Set());
-  const pendingToggleIdsRef = useLatestRef(pendingToggleIds);
-
   // 批量修改确认弹窗（独立模式下，卡牌有副本时弹出）
   const [batchConfirmCard, setBatchConfirmCard] = useState<{
     card: CardEntry;
@@ -330,17 +326,6 @@ export default function DecksClient({
     const cardIds = Array.isArray(cardIdOrIds) ? cardIdOrIds : [cardIdOrIds];
     if (cardIds.length === 0) return;
     const idSet = new Set(cardIds);
-
-    // 操作锁：如果已有任一卡牌正在切换中，跳过本次请求防止并发 PATCH
-    const hasPending = cardIds.some((id) => pendingToggleIdsRef.current.has(id));
-    if (hasPending) return;
-
-    // 标记这些卡牌为"切换中"
-    setPendingToggleIds((prev) => {
-      const next = new Set(prev);
-      for (const id of cardIds) next.add(id);
-      return next;
-    });
     const newStatus = getNextDeckStatus(currentStatus);
 
     // 记录旧卡牌数据，用于回滚时恢复全部字段（含 event_name/event_date）
@@ -414,6 +399,9 @@ export default function DecksClient({
     }
 
     // 2. 后台写入数据库（单请求批量），失败则回滚 UI
+    // 无操作锁：用户可快速连点，每次点击都立即更新 UI 并发 PATCH。
+    // 回滚前检查卡牌当前状态是否仍为本次设置的 newStatus，
+    // 如果不同说明用户又点了（状态已变），跳过回滚避免覆盖更新的状态。
     fetch("/api/cards", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -428,6 +416,13 @@ export default function DecksClient({
       .then((res) => res.json())
       .then((data) => {
         if (!data.success) {
+          // 检查卡牌当前状态是否仍为本次设置的 newStatus
+          // 如果不同，说明用户又点了，跳过回滚
+          const stillSame = (cardsRef.current[deckId] || []).some(
+            (c) => idSet.has(c.id) && c.status === newStatus
+          );
+          if (!stillSame) return;
+
           // 回滚到旧状态（恢复全部字段）
           setCards((prev) => {
             const updated = { ...prev };
@@ -454,6 +449,12 @@ export default function DecksClient({
         }
       })
       .catch(() => {
+        // 检查卡牌当前状态是否仍为本次设置的 newStatus
+        const stillSame = (cardsRef.current[deckId] || []).some(
+          (c) => idSet.has(c.id) && c.status === newStatus
+        );
+        if (!stillSame) return;
+
         // 网络异常，回滚（恢复全部字段）
         setCards((prev) => {
           const updated = { ...prev };
@@ -477,16 +478,8 @@ export default function DecksClient({
           revalidateRef.current({ success: true, decks: newDecks, stats: newStats }, false);
         }
         showToast("网络错误，状态已恢复", "error");
-      })
-      .finally(() => {
-        // 释放操作锁，允许这些卡牌再次切换
-        setPendingToggleIds((prev) => {
-          const next = new Set(prev);
-          for (const id of cardIds) next.delete(id);
-          return next;
-        });
       });
-  }, [showToast, cardsRef, decksRef, deckStatsRef, revalidateRef, pendingToggleIdsRef]);
+  }, [showToast, cardsRef, decksRef, deckStatsRef, revalidateRef]);
 
   // ─── 添加卡牌到套牌 ──────────────────────────────────
 

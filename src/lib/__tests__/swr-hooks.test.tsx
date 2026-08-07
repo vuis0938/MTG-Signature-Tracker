@@ -65,7 +65,7 @@ describe("useDecks", () => {
       await result.current.revalidate();
     });
 
-    expect(global.fetch).toHaveBeenCalledWith("/api/decks");
+    expect(global.fetch).toHaveBeenCalledWith("/api/decks", { cache: "no-store" });
     expect(result.current.decks).toEqual([]);
     expect(result.current.stats).toEqual({});
   });
