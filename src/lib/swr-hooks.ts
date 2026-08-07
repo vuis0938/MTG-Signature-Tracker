@@ -182,19 +182,18 @@ export function refreshDecks() {
 }
 
 /**
- * 强制刷新套牌缓存 — 绕过 dedupingInterval 限制
+ * 强制获取最新套牌数据 — 绕过 dedupingInterval 限制
  *
  * SWR 的 dedupingInterval 会拦截 5 秒内的重复请求，
  * 导致导入/删除后 revalidate() 不发实际请求、拿不到新数据。
- * 此函数直接 fetch 拿到最新数据后写入 SWR 缓存（不触发额外请求）。
+ * 此函数直接 fetch 拿到最新数据，返回给调用方，
+ * 调用方用 useSWR 的 bound mutate（revalidate）写入本地状态。
  */
-export async function refreshDecksForce(): Promise<DecksResponse | undefined> {
+export async function fetchDecksFresh(): Promise<DecksResponse | undefined> {
   try {
     const res = await fetch("/api/decks", { cache: "no-store" });
     if (!res.ok) return undefined;
-    const data: DecksResponse = await res.json();
-    mutate("/api/decks", data, { revalidate: false });
-    return data;
+    return await res.json();
   } catch {
     return undefined;
   }

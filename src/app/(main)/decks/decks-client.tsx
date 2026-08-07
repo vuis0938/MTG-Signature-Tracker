@@ -6,7 +6,7 @@ import { useLatestRef } from "@/lib/use-latest-ref";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import { useDisplayMode } from "@/lib/display-mode";
 import { CardImage } from "@/components/card-image";
-import { useDecks, useCards, mutateCards, refreshDecksForce } from "@/lib/swr-hooks";
+import { useDecks, useCards, mutateCards, fetchDecksFresh } from "@/lib/swr-hooks";
 import { useDeckLayout } from "@/lib/deck-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -199,8 +199,11 @@ export default function DecksClient({
       return;
     }
 
-    // 删除后强制刷新 SWR 缓存（直接 fetch 最新数据写入缓存，绕过 dedup）
-    refreshDecksForce();
+    // 删除后强制获取最新数据并写入 SWR 本地状态（绕过 dedup）
+    const freshData = await fetchDecksFresh();
+    if (freshData) {
+      revalidateRef.current(freshData, false);
+    }
     setCards((prev) => {
       const next = { ...prev };
       delete next[deckId];
@@ -208,7 +211,7 @@ export default function DecksClient({
     });
     if (expandedDeckRef.current === deckId) setExpandedDeck(null);
     showToast("套牌已删除", "success");
-  }, [showToast, expandedDeckRef]);
+  }, [showToast, expandedDeckRef, revalidateRef]);
 
   /** 打开"添加卡牌"弹窗（稳定引用，供 memo 子组件使用） */
   const openAddCards = useCallback((deckId: string) => {
@@ -263,7 +266,11 @@ export default function DecksClient({
         setDeckName("");
         setDeckText("");
         setShowImport(false);
-        await refreshDecksForce();
+        // 用直接 fetch 绕过 SWR dedup，拿到最新数据后用 bound mutate 写入本地状态
+        const freshData = await fetchDecksFresh();
+        if (freshData) {
+          revalidateRef.current(freshData, false);
+        }
       } else {
         showToast(data.error, "error");
       }
@@ -272,7 +279,7 @@ export default function DecksClient({
     } finally {
       setImporting(false);
     }
-  }, [deckName, deckText, showToast]);
+  }, [deckName, deckText, showToast, revalidateRef]);
 
   // ─── 手动重试单张卡牌 ──────────────────────────────────
 
