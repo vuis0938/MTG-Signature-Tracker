@@ -42,7 +42,7 @@ export default function ErrorPage({
               <RefreshCcw className="h-4 w-4 mr-2" />
               重试
             </Button>
-            <Link href="/decks" className="w-full">
+            <Link href="/" className="w-full">
               <Button variant="outline" className="w-full">
                 <Home className="h-4 w-4 mr-2" />
                 返回首页

@@ -15,7 +15,7 @@ export default function NotFoundPage() {
           <p className="text-sm text-muted-foreground">
             您访问的页面可能已被删除、移动，或者从未存在过。
           </p>
-          <Link href="/decks" className="w-full">
+          <Link href="/" className="w-full">
             <Button className="w-full">
               <Home className="h-4 w-4 mr-2" />
               返回首页
