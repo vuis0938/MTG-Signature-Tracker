@@ -5,7 +5,7 @@ import { Home } from "lucide-react";
 
 export default function NotFoundPage() {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-background px-4">
+    <div className="flex min-h-screen min-h-dvh items-center justify-center bg-background px-4">
       <Card className="w-full max-w-sm text-center">
         <CardHeader>
           <CardTitle className="text-4xl font-bold">404</CardTitle>
