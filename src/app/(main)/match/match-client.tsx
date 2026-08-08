@@ -1103,7 +1103,7 @@ export default function MatchClient({
                         ) : (
                           <Square className="h-4 w-4 text-muted-foreground shrink-0" />
                         )}
-                        <span className="truncate">
+                        <span className="whitespace-normal leading-relaxed">
                           {new Date(e.startDate).toLocaleDateString("zh-CN")} | {e.name} ({e.city}) — {e.artists.length} 位画家
                         </span>
                       </button>
