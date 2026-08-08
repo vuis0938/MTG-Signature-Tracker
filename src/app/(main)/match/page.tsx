@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
 import { getDecksWithStats } from "@/lib/data";
 import { getEvents } from "@/lib/events-data";
+import { SWRFallbackProvider } from "@/components/swr-fallback-provider";
 import MatchClient from "./match-client";
 import type { Deck, CalendarEvent } from "@/types";
 
@@ -29,11 +30,22 @@ export default async function MatchPage() {
     getEvents(),
   ]);
 
+  const typedDecks = decks as Deck[];
+  const typedEvents = events as CalendarEvent[];
+
+  // 构建全局缓存 fallback：decks 列表 + 活动
+  const fallback: Record<string, unknown> = {
+    "/api/decks": { success: true, decks: typedDecks, stats },
+    "/api/events": { success: true, events: typedEvents },
+  };
+
   return (
-    <MatchClient
-      fallbackDecks={decks as Deck[]}
-      fallbackStats={stats}
-      fallbackEvents={events as CalendarEvent[]}
-    />
+    <SWRFallbackProvider fallback={fallback}>
+      <MatchClient
+        fallbackDecks={typedDecks}
+        fallbackStats={stats}
+        fallbackEvents={typedEvents}
+      />
+    </SWRFallbackProvider>
   );
 }

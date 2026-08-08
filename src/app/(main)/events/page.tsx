@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
 import { getEvents } from "@/lib/events-data";
+import { SWRFallbackProvider } from "@/components/swr-fallback-provider";
 import EventsClient from "./events-client";
 import type { CalendarEvent } from "@/types";
 
@@ -29,5 +30,13 @@ export default async function EventsPage() {
     // 所有数据源均失败时不缓存空结果，SWR 客户端会重新尝试
   }
 
-  return <EventsClient fallbackEvents={events} />;
+  const fallback: Record<string, unknown> = {
+    "/api/events": { success: true, events },
+  };
+
+  return (
+    <SWRFallbackProvider fallback={fallback}>
+      <EventsClient fallbackEvents={events} />
+    </SWRFallbackProvider>
+  );
 }

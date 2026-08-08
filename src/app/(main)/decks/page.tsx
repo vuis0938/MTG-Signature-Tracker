@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
 import { getDecksWithCards } from "@/lib/data";
+import { getCardsKey } from "@/lib/swr-keys";
+import { SWRFallbackProvider } from "@/components/swr-fallback-provider";
 import DecksClient from "./decks-client";
 import type { CardEntry, Deck } from "@/types";
 
@@ -24,11 +26,27 @@ export default async function DecksPage() {
 
   const { decks, stats, cardsByDeck } = await getDecksWithCards(userName);
 
+  const typedDecks = decks as Deck[];
+  const typedCards = cardsByDeck as Record<string, CardEntry[]>;
+
+  // 构建全局缓存 fallback：decks 列表 + 每个套牌的卡牌
+  const fallback: Record<string, unknown> = {
+    "/api/decks": { success: true, decks: typedDecks, stats },
+  };
+  for (const deck of typedDecks) {
+    fallback[getCardsKey(deck.id)] = {
+      success: true,
+      cards: typedCards[deck.id] || [],
+    };
+  }
+
   return (
-    <DecksClient
-      fallbackDecks={decks as Deck[]}
-      fallbackStats={stats}
-      fallbackCards={cardsByDeck as Record<string, CardEntry[]>}
-    />
+    <SWRFallbackProvider fallback={fallback}>
+      <DecksClient
+        fallbackDecks={typedDecks}
+        fallbackStats={stats}
+        fallbackCards={typedCards}
+      />
+    </SWRFallbackProvider>
   );
 }

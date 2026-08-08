@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NavBar } from "@/components/nav-bar";
 import { AnnouncementBanner } from "@/components/announcement-banner";
+import { SWRFallbackProvider } from "@/components/swr-fallback-provider";
 import { getAnnouncements } from "@/lib/data";
 
 export default async function MainLayout({
@@ -15,16 +16,23 @@ export default async function MainLayout({
   // 预取公告数据作为 SSR fallback（带 5 分钟服务端缓存，不阻塞渲染）
   const announcements = await getAnnouncements();
 
+  // 公告在 layout 层注入全局缓存，所有 (main) 子页面共享
+  const fallback: Record<string, unknown> = {
+    "/api/announcements": { success: true, announcements },
+  };
+
   return (
-    <div className="flex min-h-screen flex-col">
-      <NavBar isAdmin={isAdmin} />
-      {/* pb-16 for mobile bottom nav bar */}
-      <main className="flex-1 container max-w-6xl mx-auto px-4 md:px-6 lg:px-8 py-6 pb-20 md:pb-6">
-        <div className="mb-4">
-          <AnnouncementBanner fallbackAnnouncements={announcements} />
-        </div>
-        {children}
-      </main>
-    </div>
+    <SWRFallbackProvider fallback={fallback}>
+      <div className="flex min-h-screen flex-col">
+        <NavBar isAdmin={isAdmin} />
+        {/* pb-16 for mobile bottom nav bar */}
+        <main className="flex-1 container max-w-6xl mx-auto px-4 md:px-6 lg:px-8 py-6 pb-20 md:pb-6">
+          <div className="mb-4">
+            <AnnouncementBanner fallbackAnnouncements={announcements} />
+          </div>
+          {children}
+        </main>
+      </div>
+    </SWRFallbackProvider>
   );
 }
