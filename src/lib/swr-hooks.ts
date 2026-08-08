@@ -191,7 +191,8 @@ export function refreshDecks() {
  */
 export async function fetchDecksFresh(): Promise<DecksResponse | undefined> {
   try {
-    const res = await fetch("/api/decks", { cache: "no-store" });
+    // _t 参数彻底绕过浏览器 HTTP 缓存和 Next.js 路由缓存
+    const res = await fetch(`/api/decks?_t=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) return undefined;
     return await res.json();
   } catch {
