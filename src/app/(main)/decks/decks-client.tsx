@@ -6,7 +6,7 @@ import { useLatestRef } from "@/lib/use-latest-ref";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import { useDisplayMode } from "@/lib/display-mode";
 import { CardImage } from "@/components/card-image";
-import { useDecks, useCards, mutateCards } from "@/lib/swr-hooks";
+import { useDecks, useCards, mutateCards, fetchDecksFresh } from "@/lib/swr-hooks";
 import { useDeckLayout } from "@/lib/deck-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -199,8 +199,11 @@ export default function DecksClient({
       return;
     }
 
-    // 删除后触发 SWR 重新拉取最新数据
-    revalidateRef.current();
+    // 删除后直接 fetch 最新数据，绕过 SWR dedupingInterval 限制
+    const freshData = await fetchDecksFresh();
+    if (freshData) {
+      revalidateRef.current(freshData, false);
+    }
     setCards((prev) => {
       const next = { ...prev };
       delete next[deckId];
@@ -263,8 +266,11 @@ export default function DecksClient({
         setDeckName("");
         setDeckText("");
         setShowImport(false);
-        // 触发 SWR 重新拉取最新套牌列表
-        revalidateRef.current();
+        // 导入后直接 fetch 最新数据，绕过 SWR dedupingInterval 限制
+        const freshData = await fetchDecksFresh();
+        if (freshData) {
+          revalidateRef.current(freshData, false);
+        }
       } else {
         showToast(data.error, "error");
       }
