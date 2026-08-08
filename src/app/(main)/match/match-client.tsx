@@ -27,6 +27,38 @@ import type { Deck, DeckStats, CardEntry, FuzzyCardEntry, ArtistCard, CalendarEv
 import { normalizeArtists, buildNormalizedMap, findMatchingArtist, isSamePrinting, getNextMatchStatus, matchAgainstArtists } from "@/lib/match-utils";
 import type { FuzzyApiResponse } from "@/lib/match-utils";
 
+// ─── 防 UC 缓存工具 ────────────────────────────────────────
+
+/**
+ * 防 UC 浏览器云端加速/省流模式拦截响应的请求封装
+ *
+ * UC 浏览器的"云端加速"会缓存请求的响应，导致返回缓存的 HTML 而非 JSON。
+ * 策略：URL 追加随机参数（绕过缓存键）+ 标准防缓存头 + 标识头
+ */
+function apiPost(path: string, body: unknown, method: "POST" | "PATCH" = "POST"): Promise<Response> {
+  const sep = path.includes("?") ? "&" : "?";
+  const url = `${path}${sep}_t=${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  return fetch(url, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Requested-With": "XMLHttpRequest",
+      "Pragma": "no-cache",
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+}
+
+/**
+ * 检测响应是否被 UC 等浏览器的省流/云端加速拦截篡改
+ * 正常 API 返回 JSON（Content-Type: application/json），被拦截后可能返回 HTML
+ */
+function isHtmlResponse(res: Response, text: string): boolean {
+  const contentType = res.headers.get("content-type") || "";
+  return !contentType.includes("application/json") || text.trim().startsWith("<");
+}
+
 // ─── 页面组件 ──────────────────────────────────────────────
 
 interface MatchClientProps {
@@ -123,17 +155,15 @@ export default function MatchClient({
   /** 查询多个套牌的所有卡牌 */
   async function fetchCardsByDeckIds(deckIds: string[]): Promise<CardEntry[]> {
     try {
-      const res = await fetch("/api/cards/batch", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Requested-With": "XMLHttpRequest",
-          "Pragma": "no-cache",
-        },
-        body: JSON.stringify({ deckIds }),
-        cache: "no-store",
-      });
-      const data = await res.json();
+      const res = await apiPost("/api/cards/batch", { deckIds });
+      const text = await res.text();
+
+      if (isHtmlResponse(res, text)) {
+        setMatchError("浏览器省流模式干扰了匹配，请关闭 UC 极速/云端加速后重试");
+        return [];
+      }
+
+      const data = JSON.parse(text);
       if (data.success && data.cards) {
         return data.cards as CardEntry[];
       }
@@ -225,17 +255,17 @@ export default function MatchClient({
     setParsing(true);
     setParseProgress("正在解析名单...");
     try {
-      const res = await fetch("/api/parse-artists", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Requested-With": "XMLHttpRequest",
-          "Pragma": "no-cache",
-        },
-        body: JSON.stringify({ text: rawText }),
-        cache: "no-store",
-      });
-      const data = await res.json();
+      const res = await apiPost("/api/parse-artists", { text: rawText });
+      const text = await res.text();
+
+      if (isHtmlResponse(res, text)) {
+        setMatchError("浏览器省流模式干扰了解析，请关闭 UC 极速/云端加速后重试");
+        setParsing(false);
+        setParseProgress("");
+        return;
+      }
+
+      const data = JSON.parse(text);
       if (data.success) {
         setParsedArtists(data.artists);
         setParseMethod(data.method);
@@ -342,22 +372,13 @@ export default function MatchClient({
     });
 
     // 3. 后台写入数据库（单请求批量），失败则回滚 UI
-    fetch("/api/cards", {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Requested-With": "XMLHttpRequest",
-        "Pragma": "no-cache",
-      },
-      body: JSON.stringify({
-        cardIds,
-        status: newStatus,
-        is_signed: newStatus === 2,
-        event_name: newStatus === 3 ? (oldEventName || (currentEvent || null)) : null,
-        event_date: newStatus === 3 ? (oldEventDate || (currentEventDate || null)) : null,
-      }),
-      cache: "no-store",
-    })
+    apiPost("/api/cards", {
+      cardIds,
+      status: newStatus,
+      is_signed: newStatus === 2,
+      event_name: newStatus === 3 ? (oldEventName || (currentEvent || null)) : null,
+      event_date: newStatus === 3 ? (oldEventDate || (currentEventDate || null)) : null,
+    }, "PATCH")
       .then((res) => res.json())
       .then((data) => {
         if (!data.success) {
@@ -594,17 +615,15 @@ export default function MatchClient({
   /** 调用模糊匹配 API */
   async function callFuzzyApi(deckIds: string[]): Promise<FuzzyApiResponse> {
     try {
-      const fuzzyRes = await fetch("/api/fuzzy-match", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Requested-With": "XMLHttpRequest",
-          "Pragma": "no-cache",
-        },
-        body: JSON.stringify({ deckIds }),
-        cache: "no-store",
-      });
-      if (fuzzyRes.ok) return await fuzzyRes.json();
+      const fuzzyRes = await apiPost("/api/fuzzy-match", { deckIds });
+      const text = await fuzzyRes.text();
+
+      if (isHtmlResponse(fuzzyRes, text)) {
+        setMatchError("浏览器省流模式干扰了模糊匹配，请关闭 UC 极速/云端加速后重试");
+        return { success: false };
+      }
+
+      if (fuzzyRes.ok) return JSON.parse(text);
       console.error(`[模糊匹配] API 返回错误状态: ${fuzzyRes.status}`);
       setMatchError("模糊匹配暂时不可用，已显示精确匹配结果");
     } catch (err: unknown) {
