@@ -1096,7 +1096,7 @@ export default function MatchClient({
                       <button
                         key={e.id}
                         type="button"
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-accent/50 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-primary/5 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
                         onClick={() => toggleEvent(e.id)}
                       >
                         {isSelected ? (
