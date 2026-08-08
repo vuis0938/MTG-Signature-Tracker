@@ -125,8 +125,13 @@ export default function MatchClient({
     try {
       const res = await fetch("/api/cards/batch", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "Pragma": "no-cache",
+        },
         body: JSON.stringify({ deckIds }),
+        cache: "no-store",
       });
       const data = await res.json();
       if (data.success && data.cards) {
@@ -222,8 +227,13 @@ export default function MatchClient({
     try {
       const res = await fetch("/api/parse-artists", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "Pragma": "no-cache",
+        },
         body: JSON.stringify({ text: rawText }),
+        cache: "no-store",
       });
       const data = await res.json();
       if (data.success) {
@@ -334,7 +344,11 @@ export default function MatchClient({
     // 3. 后台写入数据库（单请求批量），失败则回滚 UI
     fetch("/api/cards", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "Pragma": "no-cache",
+      },
       body: JSON.stringify({
         cardIds,
         status: newStatus,
@@ -342,6 +356,7 @@ export default function MatchClient({
         event_name: newStatus === 3 ? (oldEventName || (currentEvent || null)) : null,
         event_date: newStatus === 3 ? (oldEventDate || (currentEventDate || null)) : null,
       }),
+      cache: "no-store",
     })
       .then((res) => res.json())
       .then((data) => {
@@ -581,8 +596,13 @@ export default function MatchClient({
     try {
       const fuzzyRes = await fetch("/api/fuzzy-match", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "Pragma": "no-cache",
+        },
         body: JSON.stringify({ deckIds }),
+        cache: "no-store",
       });
       if (fuzzyRes.ok) return await fuzzyRes.json();
       console.error(`[模糊匹配] API 返回错误状态: ${fuzzyRes.status}`);
