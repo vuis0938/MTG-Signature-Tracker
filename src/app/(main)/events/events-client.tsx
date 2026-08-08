@@ -18,6 +18,7 @@ import {
 import { Calendar, MapPin, Users, Loader2, Package, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEvents } from "@/lib/swr-hooks";
+import { useToast } from "@/lib/toast-context";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import type { ArtistCard, CalendarEvent } from "@/types";
 
@@ -55,6 +56,7 @@ export default function EventsClient({ fallbackEvents }: EventsClientProps = {})
       ? { success: true, events: fallbackEvents }
       : undefined;
   const { events, isLoading: loading } = useEvents(fallbackData);
+  const { toast: showToast } = useToast();
   const [lastUpdated, setLastUpdated] = useState<string>("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -125,6 +127,7 @@ export default function EventsClient({ fallbackEvents }: EventsClientProps = {})
       }
     } catch {
       setArtistCards([]);
+      showToast("加载画家卡牌失败，请稍后再试", "error");
     } finally {
       setArtistCardsLoading(false);
     }
