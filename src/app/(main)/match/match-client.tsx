@@ -24,7 +24,7 @@ import ArtistGalleryDialog from "@/components/artist-gallery-dialog";
 // ─── 类型定义 ──────────────────────────────────────────────
 
 import type { Deck, DeckStats, CardEntry, FuzzyCardEntry, ArtistCard, CalendarEvent } from "@/types";
-import { normalizeArtists, buildNormalizedMap, findMatchingArtist, isSamePrinting, getNextMatchStatus, matchAgainstArtists } from "@/lib/match-utils";
+import { normalizeArtists, buildNormalizedMap, findMatchingArtist, isSamePrinting, getNextMatchStatus, matchAgainstArtists, safeNormalize } from "@/lib/match-utils";
 import type { FuzzyApiResponse } from "@/lib/match-utils";
 
 // ─── 防 UC 缓存工具 ────────────────────────────────────────
@@ -723,7 +723,7 @@ export default function MatchClient({
     // 预构建规范化键名映射
     const expandedNormKeys = new Map<string, string>();
     for (const ek of expandedArtistCards.keys()) {
-      const nk = ek.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const nk = safeNormalize(ek.toLowerCase().trim());
       if (!expandedNormKeys.has(nk)) expandedNormKeys.set(nk, ek);
     }
 
@@ -732,7 +732,7 @@ export default function MatchClient({
       if (exactCards.length === 0) continue;
       const displayArtist = normalizeArtists(exactCards[0].artist_names)[0] || key;
 
-      const normalizedDisplay = displayArtist.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const normalizedDisplay = safeNormalize(displayArtist.toLowerCase().trim());
       const existingKey = expandedNormKeys.get(normalizedDisplay) || null;
 
       if (!existingKey) {

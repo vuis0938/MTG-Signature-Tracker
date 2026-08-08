@@ -36,11 +36,66 @@ export function normalizeArtists(raw: unknown): string[] {
 
 // ─── 变音符号规范化 ──────────────────────────────────────
 
+/**
+ * 安全地规范化 Unicode 字符串（NFD 分解变音符号）。
+ *
+ * 部分浏览器（如 UC）的 JavaScript 引擎 ICU 实现不完整，
+ * 调用 normalize("NFD") 会抛出 "Internal error. Icu error."。
+ * 此函数捕获异常后降级为手动移除常见变音符号。
+ */
+export function safeNormalize(str: string): string {
+  try {
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  } catch {
+    // UC 浏览器 ICU 崩溃时的降级方案：手动移除常见拉丁变音字符
+    return str
+      .replace(/[àáâãäå]/g, "a")
+      .replace(/[ÀÁÂÃÄÅ]/g, "A")
+      .replace(/[èéêë]/g, "e")
+      .replace(/[ÈÉÊË]/g, "E")
+      .replace(/[ìíîï]/g, "i")
+      .replace(/[ÌÍÎÏ]/g, "I")
+      .replace(/[òóôõö]/g, "o")
+      .replace(/[ÒÓÔÕÖ]/g, "O")
+      .replace(/[ùúûü]/g, "u")
+      .replace(/[ÙÚÛÜ]/g, "U")
+      .replace(/[ýÿ]/g, "y")
+      .replace(/[ÝŸ]/g, "Y")
+      .replace(/ñ/g, "n")
+      .replace(/Ñ/g, "N")
+      .replace(/[ç]/g, "c")
+      .replace(/[Ç]/g, "C")
+      .replace(/[š]/g, "s")
+      .replace(/[Š]/g, "S")
+      .replace(/[ž]/g, "z")
+      .replace(/[Ž]/g, "Z")
+      .replace(/[ćč]/g, "c")
+      .replace(/[ĆČ]/g, "C")
+      .replace(/[đ]/g, "d")
+      .replace(/[Đ]/g, "D")
+      .replace(/[ł]/g, "l")
+      .replace(/[Ł]/g, "L")
+      .replace(/[ń]/g, "n")
+      .replace(/[Ń]/g, "N")
+      .replace(/[ś]/g, "s")
+      .replace(/[Ś]/g, "S")
+      .replace(/[ź]/g, "z")
+      .replace(/[Ź]/g, "Z")
+      .replace(/[æ]/g, "ae")
+      .replace(/[Æ]/g, "AE")
+      .replace(/[œ]/g, "oe")
+      .replace(/[Œ]/g, "OE")
+      .replace(/[ø]/g, "o")
+      .replace(/[Ø]/g, "O")
+      .replace(/[ß]/g, "ss");
+  }
+}
+
 /** 构建 NFD 规范化 key → 原始 key 映射 */
 export function buildNormalizedMap(dbKeys: string[]): Map<string, string> {
   const map = new Map<string, string>();
   for (const dbKey of dbKeys) {
-    const normalized = dbKey.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const normalized = safeNormalize(dbKey);
     if (!map.has(normalized)) {
       map.set(normalized, dbKey);
     }
@@ -83,7 +138,7 @@ export function findMatchingArtist(
 
   // 规则 3：变音符号规范化
   const map = normalizedMap ?? buildNormalizedMap(dbKeys);
-  const normalizedKey = key.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const normalizedKey = safeNormalize(key);
   return map.get(normalizedKey) || null;
 }
 
