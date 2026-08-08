@@ -17,7 +17,7 @@ import { useLatestRef } from "@/lib/use-latest-ref";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import { useDecks, useEvents, mutateCards } from "@/lib/swr-hooks";
 import {
-  Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Sparkle, Palette, Package, Heart, Check, MoreHorizontal, Lightbulb,
+  Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Sparkle, Palette, Package, Heart, Check, MoreHorizontal, Lightbulb, ChevronDown, X,
 } from "lucide-react";
 import ArtistGalleryDialog from "@/components/artist-gallery-dialog";
 
@@ -108,6 +108,8 @@ export default function MatchClient({
   const [unmatched, setUnmatched] = useState<string[]>([]);
   const [currentEvent, setCurrentEvent] = useState("");
   const [currentEventDate, setCurrentEventDate] = useState("");
+  const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
+  const [eventsOpen, setEventsOpen] = useState(false);
 
   // 画家卡牌弹窗
   const [artistDialog, setArtistDialog] = useState<string | null>(null);
@@ -239,15 +241,47 @@ export default function MatchClient({
     return null;
   }
 
-  function selectEvent(eventId: string) {
-    const event = events.find((e) => e.id === eventId);
-    if (!event) return;
-    setRawText(event.artists.join("\n"));
-    setParsedArtists(event.artists);
-    setParseMethod("活动日历");
-    setCurrentEvent(event.name);
-    setCurrentEventDate(new Date(event.startDate).toLocaleDateString("zh-CN"));
-    resetMatchState();
+  /** 合并所有已选活动的画家名单（去重） */
+  function getMergedArtists(eventIds: Set<string>, eventList: CalendarEvent[]): string[] {
+    const artistSet = new Set<string>();
+    for (const id of eventIds) {
+      const event = eventList.find((e) => e.id === id);
+      if (event) {
+        for (const a of event.artists) artistSet.add(a);
+      }
+    }
+    return [...artistSet];
+  }
+
+  function toggleEvent(eventId: string) {
+    setSelectedEvents((prev) => {
+      const next = new Set(prev);
+      if (next.has(eventId)) {
+        next.delete(eventId);
+      } else {
+        next.add(eventId);
+      }
+
+      if (next.size === 0) {
+        setRawText("");
+        setParsedArtists([]);
+        setParseMethod("");
+        setCurrentEvent("");
+        setCurrentEventDate("");
+        resetMatchState();
+        return next;
+      }
+
+      const merged = getMergedArtists(next, events);
+      const selectedList = [...next].map((id) => events.find((e) => e.id === id)).filter(Boolean) as CalendarEvent[];
+      setRawText(merged.join("\n"));
+      setParsedArtists(merged);
+      setParseMethod("活动日历");
+      setCurrentEvent(selectedList.map((e) => e.name).join("、"));
+      setCurrentEventDate(selectedList.map((e) => new Date(e.startDate).toLocaleDateString("zh-CN")).join("、"));
+      resetMatchState();
+      return next;
+    });
   }
 
   const handleArtistClick = useCallback(async (artist: string) => {
@@ -294,17 +328,19 @@ export default function MatchClient({
         setParseMethod(data.method);
         resetMatchState();
 
-        // 检测解析的画家名单是否与已有活动高度重合
+        // 检测解析的画家名单是否与已有活动高度重合，自动勾选匹配的活动
         setParseProgress("正在匹配活动...");
         const matchedEvent = detectMatchingEvent(data.artists, events);
         if (matchedEvent) {
           setCurrentEvent(matchedEvent.name);
           setCurrentEventDate(new Date(matchedEvent.startDate).toLocaleDateString("zh-CN"));
+          setSelectedEvents(new Set([matchedEvent.id]));
           showToast(`检测到名单与活动「${matchedEvent.name}」高度重合，已自动关联`, "success");
         } else {
           // 未匹配到活动，清空之前的活动关联
           setCurrentEvent("");
           setCurrentEventDate("");
+          setSelectedEvents(new Set());
         }
       }
     } catch (err: unknown) {
@@ -794,17 +830,22 @@ export default function MatchClient({
 
     // 活动信息
     if (eventName) {
-      const fullEvent = currentEvents.find((e) => e.name === eventName);
+      const eventNames = eventName.split("、");
       text += `活动：${eventName}\n`;
-      if (fullEvent?.city) text += `地点：${fullEvent.city}\n`;
-      if (fullEvent) {
-        const start = new Date(fullEvent.startDate).toLocaleDateString("zh-CN");
-        if (fullEvent.endDate) {
-          const end = new Date(fullEvent.endDate).toLocaleDateString("zh-CN");
-          text += `日期：${start} ~ ${end}\n`;
-        } else {
-          text += `日期：${start}\n`;
-        }
+      // 多活动时汇总城市和日期
+      const matchedEvents = currentEvents.filter((e) => eventNames.includes(e.name));
+      if (matchedEvents.length > 0) {
+        const cities = [...new Set(matchedEvents.map((e) => e.city).filter(Boolean))];
+        if (cities.length > 0) text += `地点：${cities.join("、")}\n`;
+        const dateRanges = matchedEvents.map((e) => {
+          const start = new Date(e.startDate).toLocaleDateString("zh-CN");
+          if (e.endDate) {
+            const end = new Date(e.endDate).toLocaleDateString("zh-CN");
+            return `${start} ~ ${end}`;
+          }
+          return start;
+        });
+        if (dateRanges.length > 0) text += `日期：${dateRanges.join("；")}\n`;
       } else if (eventDate) {
         text += `日期：${eventDate}\n`;
       }
@@ -1025,23 +1066,78 @@ export default function MatchClient({
       <Card>
         <CardHeader>
           <CardTitle>1. 填入画家名单</CardTitle>
-          <CardDescription>粘贴画家名单，或从下方活动日历中一键选取</CardDescription>
+          <CardDescription>粘贴画家名单，或从下方活动日历中多选活动</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <select
-            className="w-full px-3 py-2 rounded-lg border bg-background text-sm appearance-none whitespace-normal overflow-hidden bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23666%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-[length:12px] bg-[right_8px_center] bg-no-repeat pr-8"
-            defaultValue=""
-            onChange={(e) => { if (e.target.value) selectEvent(e.target.value); }}
-          >
-            <option value="" disabled>
-              选择活动自动填充画家名单...
-            </option>
-            {events.map((e) => (
-              <option key={e.id} value={e.id}>
-                {new Date(e.startDate).toLocaleDateString("zh-CN")} | {e.name} ({e.city}) — {e.artists.length} 位画家
-              </option>
-            ))}
-          </select>
+          {/* 多选活动下拉 */}
+          <div className="relative">
+            <button
+              type="button"
+              className="w-full flex items-center justify-between px-3 py-2 rounded-lg border bg-background text-sm hover:bg-accent/50 transition-colors"
+              onClick={() => setEventsOpen(!eventsOpen)}
+            >
+              <span className={selectedEvents.size > 0 ? "text-foreground" : "text-muted-foreground"}>
+                {selectedEvents.size > 0
+                  ? `已选 ${selectedEvents.size} 个活动（${parsedArtists.length} 位画家）`
+                  : "选择活动自动填充画家名单（可多选）..."}
+              </span>
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${eventsOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {eventsOpen && (
+              <div className="absolute z-10 mt-1 w-full bg-background border rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                {events.length === 0 ? (
+                  <div className="px-3 py-4 text-sm text-muted-foreground text-center">暂无活动</div>
+                ) : (
+                  events.map((e) => {
+                    const isSelected = selectedEvents.has(e.id);
+                    return (
+                      <button
+                        key={e.id}
+                        type="button"
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-accent/50 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
+                        onClick={() => toggleEvent(e.id)}
+                      >
+                        {isSelected ? (
+                          <CheckSquare className="h-4 w-4 text-primary shrink-0" />
+                        ) : (
+                          <Square className="h-4 w-4 text-muted-foreground shrink-0" />
+                        )}
+                        <span className="truncate">
+                          {new Date(e.startDate).toLocaleDateString("zh-CN")} | {e.name} ({e.city}) — {e.artists.length} 位画家
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 已选活动标签 */}
+          {selectedEvents.size > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {[...selectedEvents].map((id) => {
+                const event = events.find((e) => e.id === id);
+                if (!event) return null;
+                return (
+                  <span
+                    key={id}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs"
+                  >
+                    {event.name}
+                    <button
+                      type="button"
+                      onClick={() => toggleEvent(id)}
+                      className="hover:bg-primary/20 rounded-sm p-0.5"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
 
           <Textarea
             placeholder={"粘贴活动画家名单，支持多种格式，例如：\n1. John Avon  $6/$12\n2. Rebecca Guay  $6/$12\n\n"}
