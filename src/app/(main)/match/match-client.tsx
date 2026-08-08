@@ -32,27 +32,21 @@ import type { FuzzyApiResponse } from "@/lib/match-utils";
 /**
  * 防 UC 浏览器云端加速/省流模式拦截响应的请求封装
  *
- * UC 浏览器的"云端加速"会缓存请求的响应，导致返回缓存的 HTML 而非 JSON。
- * 策略：URL 追加随机参数（绕过缓存键）+ 标准防缓存头 + 标识头
+ * UC 浏览器的"云端加速"会缓存 POST 请求的响应，返回缓存的 HTML 而非 JSON。
+ * 策略：URL 追加随机参数（绕过缓存键），不依赖可能被代理忽略的 HTTP 头。
  */
 function apiPost(path: string, body: unknown, method: "POST" | "PATCH" = "POST"): Promise<Response> {
   const sep = path.includes("?") ? "&" : "?";
   const url = `${path}${sep}_t=${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   return fetch(url, {
     method,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Requested-With": "XMLHttpRequest",
-      "Pragma": "no-cache",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-    cache: "no-store",
   });
 }
 
 /**
  * 检测响应是否被 UC 等浏览器的省流/云端加速拦截篡改
- * 正常 API 返回 JSON（Content-Type: application/json），被拦截后可能返回 HTML
  */
 function isHtmlResponse(res: Response, text: string): boolean {
   const contentType = res.headers.get("content-type") || "";
@@ -130,6 +124,25 @@ export default function MatchClient({
     preloadDialogChunks();
   }, []);
 
+  // 全局错误捕获：兜底未在 try/catch 中捕获的错误，显示到页面
+  useEffect(() => {
+    function onError(e: ErrorEvent) {
+      console.error("[全局错误]", e.message, e.error);
+      setMatchError(`未捕获错误: ${e.message}`);
+    }
+    function onRejection(e: PromiseRejectionEvent) {
+      const msg = e.reason instanceof Error ? e.reason.message : String(e.reason);
+      console.error("[未处理的 Promise 拒绝]", msg, e.reason);
+      setMatchError(`异步错误: ${msg}`);
+    }
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+    };
+  }, []);
+
   // Ref 锁定最新状态，避免闭包陷阱（useLatestRef 在 effect 中同步，避免 render 阶段写 ref）
   const selectedDecksRef = useLatestRef(selectedDecks);
   const parsedArtistsRef = useLatestRef(parsedArtists);
@@ -163,13 +176,23 @@ export default function MatchClient({
         return [];
       }
 
+      if (!res.ok) {
+        setMatchError(`服务器返回错误 (${res.status})，请重试`);
+        return [];
+      }
+
       const data = JSON.parse(text);
       if (data.success && data.cards) {
         return data.cards as CardEntry[];
       }
+      if (data.error) {
+        setMatchError(String(data.error));
+      }
       return [];
     } catch (err: unknown) {
-      console.error(`[查询] 套牌查询异常:`, err);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[查询] 套牌查询异常:`, msg);
+      setMatchError(`网络请求失败: ${msg}`);
       return [];
     }
   }
@@ -284,9 +307,11 @@ export default function MatchClient({
           setCurrentEventDate("");
         }
       }
-    } catch {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[解析] 异常:", msg);
       setParseMethod("");
-      setMatchError("解析失败，请检查名单格式后重试");
+      setMatchError(`解析失败: ${msg}`);
     } finally {
       setParsing(false);
       setParseProgress("");
@@ -489,11 +514,12 @@ export default function MatchClient({
         await handleExactMatch(deckIds);
       }
     } catch (err: unknown) {
-      console.error("[匹配] 异常:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[匹配] 异常:", msg, err);
       setMatched(new Map());
       setFuzzyMatched(new Map());
       setUnmatched([...currentParsedArtists]);
-      setMatchError("匹配过程出错，请重试");
+      setMatchError(`匹配出错: ${msg}`);
     } finally {
       setMatching(false);
       matchingRef.current = false;
