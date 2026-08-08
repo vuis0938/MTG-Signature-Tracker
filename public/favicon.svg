@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <text x="16" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#2563EB" filter="url(#shadow)">M</text>
+</svg>
