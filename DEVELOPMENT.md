@@ -46,18 +46,6 @@ dev 上开发 → git push → Vercel 预览环境验证 → 确认无误 → �
 
 `src/lib/match-utils.ts` 中的 `safeNormalize` 函数存在是因为 UC 浏览器 ICU 实现不完整，调用 `String.normalize("NFD")` 会直接抛异常。**绝对不要**改用原生 `normalize`，否则 UC 用户匹配功能会崩溃。
 
-### 2. 数据库查询目前使用两步查询，未用 join
+### 2. Edge Runtime 和 Node Runtime 的认证函数不能混用
 
-`cards` 和 `decks` 表之间可能没有外键约束（迁移 `005_add_foreign_keys.sql` 需要在 Supabase Dashboard 手动执行，不确定是否已跑）。因此代码统一使用两步查询：先查 cards 拿 deck_id，再查 decks 验证 user_name。如果确认迁移已执行，可以改用 PostgREST join 语法简化代码。
-
-### 3. `import { supabase }` 和 `getSupabase()` 等价
-
-两者都使用 Service Role Key（绕过 RLS），都带 15 秒超时。`supabase` 是 Proxy，所有属性访问自动转发到 `getSupabase()`。11 个 API 路由都在用 `import { supabase }`，这是主流用法。无需强制统一。
-
-### 4. Edge Runtime 和 Node Runtime 的认证函数不同
-
-`src/lib/auth.ts` 用 Node `crypto`，用于 API 路由。`src/lib/auth-edge.ts` 用 Web Crypto API，用于 middleware。两者 token 格式完全一致，但不能混用。
-
-### 5. 测试中 mock 浏览器 API 记得恢复
-
-如果测试中 mock 了 `String.prototype.normalize` 等全局对象，必须在 `afterEach` 中恢复原值，否则会影响后续测试。参考 `safe-normalize.test.ts` 的做法。
+`src/lib/auth.ts` 用 Node `crypto`，用于 API 路由。`src/lib/auth-edge.ts` 用 Web Crypto API，用于 middleware。两者 token 格式完全一致，但混用会导致运行时崩溃。
