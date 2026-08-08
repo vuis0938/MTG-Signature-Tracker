@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
 import { getDecksWithCards } from "@/lib/data";
-import { getSupabase } from "@/lib/supabase";
 import DecksClient from "./decks-client";
 import type { CardEntry, Deck } from "@/types";
 
@@ -24,24 +23,6 @@ export default async function DecksPage() {
   }
 
   const { decks, stats, cardsByDeck } = await getDecksWithCards(userName);
-
-  // 补充 updated_at：getDecksWithCards 的 select 未包含此字段，
-  // 但套牌列表需要它来显示"上次更新"时间（不修改 data.ts 的 SQL 避免部署兼容性问题）
-  if (decks.length > 0) {
-    const supabase = getSupabase();
-    const deckIds = decks.map((d) => d.id);
-    const { data: updatedAts } = await supabase
-      .from("decks")
-      .select("id, updated_at")
-      .in("id", deckIds);
-
-    if (updatedAts) {
-      const map = new Map(updatedAts.map((d) => [d.id, d.updated_at]));
-      for (const deck of decks) {
-        (deck as Deck).updated_at = map.get(deck.id);
-      }
-    }
-  }
 
   return (
     <DecksClient
