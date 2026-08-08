@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect, memo, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { useToast } from "@/lib/toast-context";
 import { useLatestRef } from "@/lib/use-latest-ref";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import { useDisplayMode } from "@/lib/display-mode";
 import { CardImage } from "@/components/card-image";
-import { useDecks, useCards, mutateCards, fetchDecksFresh } from "@/lib/swr-hooks";
+import { useDecks, useCards, mutateCards } from "@/lib/swr-hooks";
 import { useDeckLayout } from "@/lib/deck-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -103,6 +104,7 @@ export default function DecksClient({
   const { toast: showToast } = useToast();
   const { mode: displayMode } = useDisplayMode();
   const { layout: deckLayout } = useDeckLayout();
+  const router = useRouter();
 
   // 导入失败卡牌的手动重试
   const [failedCards, setFailedCards] = useState<
@@ -199,19 +201,10 @@ export default function DecksClient({
       return;
     }
 
-    // 删除后直接 fetch 最新数据，绕过 SWR dedupingInterval 限制
-    const freshData = await fetchDecksFresh();
-    if (freshData) {
-      revalidateRef.current(freshData, false);
-    }
-    setCards((prev) => {
-      const next = { ...prev };
-      delete next[deckId];
-      return next;
-    });
-    if (expandedDeckRef.current === deckId) setExpandedDeck(null);
+    // 删除后强制刷新页面，从服务端获取最新数据
+    router.refresh();
     showToast("套牌已删除", "success");
-  }, [showToast, expandedDeckRef, revalidateRef]);
+  }, [showToast, router]);
 
   /** 打开"添加卡牌"弹窗（稳定引用，供 memo 子组件使用） */
   const openAddCards = useCallback((deckId: string) => {
@@ -266,11 +259,8 @@ export default function DecksClient({
         setDeckName("");
         setDeckText("");
         setShowImport(false);
-        // 导入后直接 fetch 最新数据，绕过 SWR dedupingInterval 限制
-        const freshData = await fetchDecksFresh();
-        if (freshData) {
-          revalidateRef.current(freshData, false);
-        }
+        // 导入后强制刷新页面，从服务端获取最新数据
+        router.refresh();
       } else {
         showToast(data.error, "error");
       }
@@ -279,7 +269,7 @@ export default function DecksClient({
     } finally {
       setImporting(false);
     }
-  }, [deckName, deckText, showToast, revalidateRef]);
+  }, [deckName, deckText, showToast, router]);
 
   // ─── 手动重试单张卡牌 ──────────────────────────────────
 
