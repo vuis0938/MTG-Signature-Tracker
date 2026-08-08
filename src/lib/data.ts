@@ -27,7 +27,7 @@ export async function getDecksWithStats(
 
   const { data: decks, error } = await supabase
     .from("decks")
-    .select("id, name, source, created_at")
+    .select("id, name, source, created_at, updated_at")
     .eq("user_name", userName)
     .order("created_at", { ascending: false });
 
@@ -91,7 +91,7 @@ export async function getDecksWithCards(
 
   const { data: decks, error } = await supabase
     .from("decks")
-    .select("id, name, source, created_at")
+    .select("id, name, source, created_at, updated_at")
     .eq("user_name", userName)
     .order("created_at", { ascending: false });
 
