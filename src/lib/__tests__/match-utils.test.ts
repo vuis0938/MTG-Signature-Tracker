@@ -7,6 +7,7 @@ import {
   getNextDeckStatus,
   getNextMatchStatus,
   matchAgainstArtists,
+  buildEventNameForStatus,
 } from "../match-utils";
 
 // ═════════════════════════════════════════════════════════════
@@ -405,5 +406,53 @@ describe("getNextMatchStatus", () => {
 
   it("未知状态回退到 0", () => {
     expect(getNextMatchStatus(99)).toBe(0);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// buildEventNameForStatus — 多选活动心动标注逻辑
+// ═════════════════════════════════════════════════════════════
+
+describe("buildEventNameForStatus", () => {
+  describe("非心动状态 → 始终返回 null", () => {
+    it("未签(0) + 单选活动 → null", () => {
+      expect(buildEventNameForStatus(0, false, null, "GP北京")).toBeNull();
+    });
+
+    it("送签中(1) + 单选活动 → null", () => {
+      expect(buildEventNameForStatus(1, false, null, "GP北京")).toBeNull();
+    });
+
+    it("已签(2) + 单选活动 → null", () => {
+      expect(buildEventNameForStatus(2, false, null, "GP北京")).toBeNull();
+    });
+
+    it("未签(0) + 多选活动 → null", () => {
+      expect(buildEventNameForStatus(0, true, null, "GP北京、上海GP")).toBeNull();
+    });
+  });
+
+  describe("心动状态 + 多选活动 → 不写活动名", () => {
+    it("心动(3) + 多选 + 无旧活动名 → null", () => {
+      expect(buildEventNameForStatus(3, true, null, "GP北京、上海GP")).toBeNull();
+    });
+
+    it("心动(3) + 多选 + 有旧活动名 → null（多选优先）", () => {
+      expect(buildEventNameForStatus(3, true, "旧活动名", "GP北京、上海GP")).toBeNull();
+    });
+  });
+
+  describe("心动状态 + 单选活动 → 正常写活动名", () => {
+    it("心动(3) + 单选 + 无旧活动名 → 用当前活动名", () => {
+      expect(buildEventNameForStatus(3, false, null, "GP北京")).toBe("GP北京");
+    });
+
+    it("心动(3) + 单选 + 有旧活动名 → 保留旧活动名", () => {
+      expect(buildEventNameForStatus(3, false, "旧活动", "GP北京")).toBe("旧活动");
+    });
+
+    it("心动(3) + 单选 + 无任何活动名 → null", () => {
+      expect(buildEventNameForStatus(3, false, null, null)).toBeNull();
+    });
   });
 });

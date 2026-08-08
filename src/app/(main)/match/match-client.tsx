@@ -24,7 +24,7 @@ import ArtistGalleryDialog from "@/components/artist-gallery-dialog";
 // ─── 类型定义 ──────────────────────────────────────────────
 
 import type { Deck, DeckStats, CardEntry, FuzzyCardEntry, ArtistCard, CalendarEvent } from "@/types";
-import { normalizeArtists, buildNormalizedMap, findMatchingArtist, isSamePrinting, getNextMatchStatus, matchAgainstArtists, safeNormalize } from "@/lib/match-utils";
+import { normalizeArtists, buildNormalizedMap, findMatchingArtist, isSamePrinting, getNextMatchStatus, matchAgainstArtists, safeNormalize, buildEventNameForStatus } from "@/lib/match-utils";
 import type { FuzzyApiResponse } from "@/lib/match-utils";
 
 // ─── 防 UC 缓存工具 ────────────────────────────────────────
@@ -398,8 +398,8 @@ export default function MatchClient({
     const updatePayload = {
       status: newStatus,
       is_signed: newStatus === 2,
-      event_name: newStatus === 3 && !isMultiEvent ? (oldEventName || (currentEvent || null)) : null,
-      event_date: newStatus === 3 && !isMultiEvent ? (oldEventDate || (currentEventDate || null)) : null,
+      event_name: buildEventNameForStatus(newStatus, isMultiEvent, oldEventName, currentEvent),
+      event_date: buildEventNameForStatus(newStatus, isMultiEvent, oldEventDate, currentEventDate),
     };
 
     // 2. 乐观更新：立即更新 UI，用户零延迟感知
@@ -438,8 +438,8 @@ export default function MatchClient({
       cardIds,
       status: newStatus,
       is_signed: newStatus === 2,
-      event_name: newStatus === 3 && !isMultiEvent ? (oldEventName || (currentEvent || null)) : null,
-      event_date: newStatus === 3 && !isMultiEvent ? (oldEventDate || (currentEventDate || null)) : null,
+      event_name: buildEventNameForStatus(newStatus, isMultiEvent, oldEventName, currentEvent),
+      event_date: buildEventNameForStatus(newStatus, isMultiEvent, oldEventDate, currentEventDate),
     }, "PATCH")
       .then((res) => res.json())
       .then((data) => {

@@ -176,6 +176,25 @@ export function getNextMatchStatus(current: number): number {
   return MATCH_STATUS_CYCLE[current] ?? 0;
 }
 
+/**
+ * 构建写入数据库的 event_name 字段值。
+ *
+ * 规则：
+ * - 非心动状态（status !== 3）→ 不写活动名，返回 null
+ * - 心动状态 + 多选活动 → 不写活动名（拼接后易超 200 字符限制），返回 null
+ * - 心动状态 + 单选活动 → 优先保留卡牌原有活动名，无则用当前活动名
+ */
+export function buildEventNameForStatus(
+  newStatus: number,
+  isMultiEvent: boolean,
+  oldEventName: string | null,
+  currentEvent: string | null,
+): string | null {
+  if (newStatus !== 3) return null;
+  if (isMultiEvent) return null;
+  return oldEventName || (currentEvent || null);
+}
+
 // ─── 模糊匹配兜底 ────────────────────────────────────────
 
 /**
