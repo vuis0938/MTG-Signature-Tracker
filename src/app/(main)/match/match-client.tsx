@@ -1069,20 +1069,50 @@ export default function MatchClient({
           <CardDescription>粘贴画家名单，或从下方活动日历中多选活动</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* 多选活动下拉 */}
+          {/* 多选活动下拉 — 芯片容器式 */}
           <div className="relative">
-            <button
-              type="button"
-              className="w-full flex items-center justify-between px-3 py-2 rounded-lg border bg-background text-sm hover:bg-accent/50 transition-colors"
+            <div
+              role="button"
+              tabIndex={0}
+              className="w-full flex items-start gap-2 px-3 py-2 min-h-[42px] rounded-lg border bg-background text-sm cursor-pointer hover:bg-accent/50 transition-colors"
               onClick={() => setEventsOpen(!eventsOpen)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setEventsOpen(!eventsOpen);
+                }
+              }}
             >
-              <span className={selectedEvents.size > 0 ? "text-foreground" : "text-muted-foreground"}>
-                {selectedEvents.size > 0
-                  ? `已选 ${selectedEvents.size} 个活动（${parsedArtists.length} 位画家）`
-                  : "选择活动自动填充画家名单（可多选）..."}
-              </span>
-              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${eventsOpen ? "rotate-180" : ""}`} />
-            </button>
+              <div className="flex-1 flex flex-wrap gap-1.5 items-center min-w-0">
+                {selectedEvents.size === 0 ? (
+                  <span className="text-muted-foreground py-0.5">选择活动自动填充画家名单（可多选）</span>
+                ) : (
+                  [...selectedEvents].map((id) => {
+                    const event = events.find((e) => e.id === id);
+                    if (!event) return null;
+                    return (
+                      <span
+                        key={id}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs"
+                      >
+                        {event.name}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleEvent(id);
+                          }}
+                          className="hover:bg-primary/20 rounded-sm p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    );
+                  })
+                )}
+              </div>
+              <ChevronDown className={`h-4 w-4 mt-0.5 text-muted-foreground shrink-0 transition-transform ${eventsOpen ? "rotate-180" : ""}`} />
+            </div>
 
             {eventsOpen && (
               <div className="absolute z-10 mt-1 w-full bg-background border rounded-lg shadow-lg max-h-64 overflow-y-auto">
@@ -1113,31 +1143,6 @@ export default function MatchClient({
               </div>
             )}
           </div>
-
-          {/* 已选活动标签 */}
-          {selectedEvents.size > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {[...selectedEvents].map((id) => {
-                const event = events.find((e) => e.id === id);
-                if (!event) return null;
-                return (
-                  <span
-                    key={id}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs"
-                  >
-                    {event.name}
-                    <button
-                      type="button"
-                      onClick={() => toggleEvent(id)}
-                      className="hover:bg-primary/20 rounded-sm p-0.5"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                );
-              })}
-            </div>
-          )}
 
           <Textarea
             placeholder={"粘贴活动画家名单，支持多种格式，例如：\n1. John Avon  $6/$12\n2. Rebecca Guay  $6/$12\n\n"}
