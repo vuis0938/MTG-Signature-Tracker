@@ -393,12 +393,13 @@ export default function MatchClient({
     }
 
     const newStatus = getNextMatchStatus(currentStatus);
+    // 多选活动时心动标注不写活动名（拼接后易超 200 字符限制）
+    const isMultiEvent = selectedEvents.size > 1;
     const updatePayload = {
       status: newStatus,
       is_signed: newStatus === 2,
-      // 切到心动态时保留卡牌原有活动信息，无则用页面级活动
-      event_name: newStatus === 3 ? (oldEventName || (currentEvent || null)) : null,
-      event_date: newStatus === 3 ? (oldEventDate || (currentEventDate || null)) : null,
+      event_name: newStatus === 3 && !isMultiEvent ? (oldEventName || (currentEvent || null)) : null,
+      event_date: newStatus === 3 && !isMultiEvent ? (oldEventDate || (currentEventDate || null)) : null,
     };
 
     // 2. 乐观更新：立即更新 UI，用户零延迟感知
@@ -437,8 +438,8 @@ export default function MatchClient({
       cardIds,
       status: newStatus,
       is_signed: newStatus === 2,
-      event_name: newStatus === 3 ? (oldEventName || (currentEvent || null)) : null,
-      event_date: newStatus === 3 ? (oldEventDate || (currentEventDate || null)) : null,
+      event_name: newStatus === 3 && !isMultiEvent ? (oldEventName || (currentEvent || null)) : null,
+      event_date: newStatus === 3 && !isMultiEvent ? (oldEventDate || (currentEventDate || null)) : null,
     }, "PATCH")
       .then((res) => res.json())
       .then((data) => {
