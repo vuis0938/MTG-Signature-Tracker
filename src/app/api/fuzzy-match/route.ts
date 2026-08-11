@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { fetchAllPrintings, delay, RateLimiter } from "@/lib/scryfall-client";
+import { fetchAllPrintings, RateLimiter } from "@/lib/scryfall-client";
 import { getUserFromRequest } from "@/lib/auth";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
 import type { Printing } from "@/types";
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     const completeNames = new Set<string>(); // 记录完整拉取的卡牌名
     if (missedNames.length > 0) {
       const CONCURRENCY = 6;
-      const rateLimiter = new RateLimiter(5); // 5 req/s，远低于 Scryfall 10 req/s 上限
+      const rateLimiter = new RateLimiter(10);
       for (let i = 0; i < missedNames.length; i += CONCURRENCY) {
         const batch = missedNames.slice(i, i + CONCURRENCY);
         const batchResults = await Promise.all(
@@ -105,7 +105,6 @@ export async function POST(request: NextRequest) {
           })
         );
         scryfallResults.push(...batchResults);
-        if (i + CONCURRENCY < missedNames.length) await delay(150);
       }
     }
 

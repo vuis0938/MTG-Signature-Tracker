@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { fetchAllPrintings, delay, RateLimiter } from "@/lib/scryfall-client";
+import { fetchAllPrintings, RateLimiter } from "@/lib/scryfall-client";
 
 /**
  * 预热卡牌印刷版本缓存
@@ -52,7 +52,7 @@ export async function warmCardPrintingsCache(cardNames: string[]): Promise<{
   }
 
   const CONCURRENCY = 6;
-  const rateLimiter = new RateLimiter(5); // 5 req/s，远低于 Scryfall 10 req/s 上限
+  const rateLimiter = new RateLimiter(10);
   const rowsToInsert: Array<{
     card_name: string;
     printings: unknown[];
@@ -84,8 +84,6 @@ export async function warmCardPrintingsCache(cardNames: string[]): Promise<{
         });
       }
     }
-
-    if (i + CONCURRENCY < toFetch.length) await delay(150);
   }
 
   // ── 批量插入（替代逐条 insert） ──
