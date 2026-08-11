@@ -85,7 +85,6 @@ export function extractImageUrl(card: ScryfallCard): string | null {
 
 export const SCRYFALL_UA = "MTG-Signature-Tracker/1.0";
 export const SCRYFALL_BASE_URL = "https://api.scryfall.com";
-const MIN_DELAY_MS = 100;
 const MAX_RETRIES = 2; // 初始 + 2 次重试 = 3 次机会
 const FETCH_TIMEOUT_MS = 15_000; // 单次请求超时 15 秒
 
@@ -550,9 +549,8 @@ export async function fetchAllPrintings(
   let complete = true;
 
   while (pageUrl) {
-    // 每页请求前获取限速令牌
+    // 每页请求前获取限速令牌（限速器已控制速率，无需额外 delay）
     if (rateLimiter) await rateLimiter.acquire();
-    await delay(MIN_DELAY_MS);
 
     let pageAttempt = 0;
     let pageSuccess = false;
