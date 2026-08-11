@@ -1238,7 +1238,7 @@ export default function MatchClient({
           {fuzzyMode && (
             <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
               <Sparkles className="h-3 w-3 inline mr-1" />
-              模糊匹配会搜索每张卡牌的<strong>所有印刷版本</strong>，扩大匹配范围，匹配时间较长<br />
+              模糊匹配会搜索每张卡牌的<strong>所有印刷版本</strong>，匹配范围扩大，匹配时间较长<br />
               例如：套牌中有异画版「脑力激荡」，开启后将匹配<strong>所有画过该牌的画家</strong>
             </p>
           )}
