@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { fetchAllPrintings, delay } from "@/lib/scryfall-client";
+import { fetchAllPrintings, delay, RateLimiter } from "@/lib/scryfall-client";
 import { getUserFromRequest } from "@/lib/auth";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
 import type { Printing } from "@/types";
@@ -87,13 +87,16 @@ export async function POST(request: NextRequest) {
 
     // ── 第二步：缓存未命中的走 Scryfall 实时查询 ──
     const scryfallResults: FuzzyCardResult[] = [];
+    const completeNames = new Set<string>(); // 记录完整拉取的卡牌名
     if (missedNames.length > 0) {
       const CONCURRENCY = 6;
+      const rateLimiter = new RateLimiter(5); // 5 req/s，远低于 Scryfall 10 req/s 上限
       for (let i = 0; i < missedNames.length; i += CONCURRENCY) {
         const batch = missedNames.slice(i, i + CONCURRENCY);
         const batchResults = await Promise.all(
           batch.map(async (name) => {
-            const printings = await fetchAllPrintings(name);
+            const { printings, complete } = await fetchAllPrintings(name, rateLimiter);
+            if (complete) completeNames.add(name);
             return {
               card_name: name,
               printings,
@@ -106,18 +109,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── 第三步：将从 Scryfall 查到的结果写入缓存 ──
+    // ── 第三步：只将完整拉取的结果写入缓存，防止不完整数据污染 ──
     if (scryfallResults.length > 0) {
-      const rows = scryfallResults.map((r) => ({
-        card_name: r.card_name,
-        printings: r.printings,
-        all_artists: r.allArtists,
-      }));
-      supabase.from("card_printings").upsert(rows, { onConflict: "card_name" }).then(
-        ({ error }) => {
-          if (error) console.warn("[FuzzyMatch] 写缓存失败:", error.message);
-        }
-      );
+      const completeResults = scryfallResults.filter((r) => completeNames.has(r.card_name));
+      if (completeResults.length > 0) {
+        const rows = completeResults.map((r) => ({
+          card_name: r.card_name,
+          printings: r.printings,
+          all_artists: r.allArtists,
+        }));
+        supabase.from("card_printings").upsert(rows, { onConflict: "card_name" }).then(
+          ({ error }) => {
+            if (error) console.warn("[FuzzyMatch] 写缓存失败:", error.message);
+          }
+        );
+      }
     }
 
     // ── 第四步：合并结果 ──

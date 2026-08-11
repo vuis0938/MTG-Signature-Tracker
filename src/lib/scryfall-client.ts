@@ -529,73 +529,111 @@ function matchesCardName(card: Record<string, unknown>, target: string): boolean
 }
 
 /**
- * 获取卡牌的所有印刷版本（分页 + 重试）
- * 用于模糊匹配缓存、补全缓存、切换印刷版本
+ * 获取卡牌的所有印刷版本（分页 + 页面级重试 + 限速器）
+ *
+ * 用于模糊匹配缓存、补全缓存、切换印刷版本。
+ *
+ * 与项目中其他 Scryfall 查询函数一致，接受可选的 RateLimiter 参数。
+ * 429 和网络错误只重试当前页（continue），不丢弃已获取的数据。
+ *
+ * @param cardName 卡牌名称
+ * @param rateLimiter 可选限速器，传入后每页请求前获取令牌，429 时暂停整个限速器
+ * @returns { printings, complete } — complete 为 false 表示中途有页面重试耗尽
  */
 export async function fetchAllPrintings(
   cardName: string,
-  attempt = 0
-): Promise<Printing[]> {
+  rateLimiter?: RateLimiter,
+): Promise<{ printings: Printing[]; complete: boolean }> {
   const printings: Printing[] = [];
   const target = cardName.trim();
   let pageUrl = `${SCRYFALL_BASE_URL}/cards/search?q=!"${encodeURIComponent(target)}"+unique:prints&order=released`;
+  let complete = true;
 
   while (pageUrl) {
+    // 每页请求前获取限速令牌
+    if (rateLimiter) await rateLimiter.acquire();
     await delay(MIN_DELAY_MS);
-    try {
-      const res = await fetchWithTimeout(pageUrl, {
-        headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
-      });
 
-      if (res.status === 404) break;
+    let pageAttempt = 0;
+    let pageSuccess = false;
 
-      if (res.status === 429 && attempt < MAX_RETRIES) {
-        const wait = Math.min(2000 * (attempt + 1), 4000);
-        console.warn(`[Scryfall] ${cardName} 429, ${wait}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
-        await delay(wait);
-        return fetchAllPrintings(cardName, attempt + 1);
-      }
+    // 页面级重试：只重试当前页，不丢弃已获取数据
+    while (pageAttempt <= MAX_RETRIES) {
+      try {
+        const res = await fetchWithTimeout(pageUrl, {
+          headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
+        });
 
-      if (!res.ok) {
-        console.warn(`[Scryfall] ${cardName} HTTP ${res.status}`);
+        if (res.status === 404) {
+          pageSuccess = true;
+          pageUrl = null; // 终止外层 while
+          break;
+        }
+
+        if (res.status === 429 && pageAttempt < MAX_RETRIES) {
+          const retryAfter = parseInt(res.headers.get("Retry-After") || "5", 10) || 5;
+          const waitMs = retryAfter * 1000 + jitter(500);
+          console.warn(`[Scryfall] ${cardName} 429, 暂停 ${retryAfter}s (页重试 ${pageAttempt + 1}/${MAX_RETRIES})`);
+          if (rateLimiter) rateLimiter.pause(waitMs);
+          await delay(waitMs);
+          pageAttempt++;
+          continue;
+        }
+
+        if (!res.ok) {
+          console.warn(`[Scryfall] ${cardName} HTTP ${res.status}`);
+          pageSuccess = true;
+          pageUrl = null;
+          break;
+        }
+
+        const data = await res.json();
+        for (const card of data.data || []) {
+          // 过滤双面卡/裂片卡：只有名称精确匹配的才加入
+          if (!matchesCardName(card, target)) continue;
+
+          const artist =
+            card.artist ||
+            card.card_faces?.[0]?.artist ||
+            "Unknown";
+          const imageUrl =
+            card.image_uris?.normal ||
+            card.image_uris?.small ||
+            card.card_faces?.[0]?.image_uris?.normal ||
+            card.card_faces?.[0]?.image_uris?.small ||
+            null;
+
+          printings.push({
+            artist,
+            set: card.set,
+            set_name: card.set_name,
+            collector_number: card.collector_number,
+            image_url: imageUrl,
+            released_at: card.released_at,
+          });
+        }
+
+        pageUrl = data.has_more ? data.next_page : null;
+        pageSuccess = true;
+        break;
+      } catch {
+        if (pageAttempt < MAX_RETRIES) {
+          const wait = 1000 * (pageAttempt + 1) + jitter(500);
+          console.warn(`[Scryfall] ${cardName} 网络错误, ${Math.round(wait)}ms 后页重试 (${pageAttempt + 1}/${MAX_RETRIES})`);
+          await delay(wait);
+          pageAttempt++;
+          continue;
+        }
+        console.error(`[Scryfall] ${cardName} 网络错误，页重试耗尽`);
         break;
       }
+    }
 
-      const data = await res.json();
-      for (const card of data.data || []) {
-        // 过滤双面卡/裂片卡：只有名称精确匹配的才加入
-        if (!matchesCardName(card, target)) continue;
-
-        const artist =
-          card.artist ||
-          card.card_faces?.[0]?.artist ||
-          "Unknown";
-        const imageUrl =
-          card.image_uris?.normal ||
-          card.image_uris?.small ||
-          card.card_faces?.[0]?.image_uris?.normal ||
-          card.card_faces?.[0]?.image_uris?.small ||
-          null;
-
-        printings.push({
-          artist,
-          set: card.set,
-          set_name: card.set_name,
-          collector_number: card.collector_number,
-          image_url: imageUrl,
-          released_at: card.released_at,
-        });
-      }
-
-      pageUrl = data.has_more ? data.next_page : null;
-    } catch {
-      if (attempt < MAX_RETRIES) {
-        await delay(1000 * (attempt + 1));
-        return fetchAllPrintings(cardName, attempt + 1);
-      }
+    if (!pageSuccess) {
+      complete = false;
       break;
     }
   }
 
-  return printings;
+  return { printings, complete };
 }
