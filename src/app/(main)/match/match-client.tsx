@@ -46,11 +46,28 @@ function apiPost(path: string, body: unknown, method: "POST" | "PATCH" = "POST")
 }
 
 /**
- * 检测响应是否被 UC 等浏览器的省流/云端加速拦截篡改
+ * 检测异常响应并返回具体原因。
+ * 返回 null 表示正常 JSON，返回 string 表示错误原因。
+ *
+ * 之前把所有 HTML 响应都归因于"UC 浏览器省流模式"，
+ * 但 Vercel 函数超时（504）或被 kill（502）也会返回 HTML 页面，
+ * 导致 Chrome 用户看到莫名其妙的"请关闭 UC"提示。
  */
-function isHtmlResponse(res: Response, text: string): boolean {
+function detectResponseError(res: Response, text: string): string | null {
   const contentType = res.headers.get("content-type") || "";
-  return !contentType.includes("application/json") || text.trim().startsWith("<");
+  const isHtml = !contentType.includes("application/json") || text.trim().startsWith("<");
+  if (!isHtml) return null;
+
+  // Vercel Serverless Function 超时（默认 10s Hobby / 60s Pro）
+  if (res.status === 504) {
+    return "服务器处理超时，请减少套牌数量或稍后重试";
+  }
+  // Vercel 网关错误 / 函数崩溃
+  if (res.status === 502 || res.status === 503) {
+    return "服务器暂时不可用，请稍后重试";
+  }
+  // 其他 HTML 响应（可能是 UC 浏览器省流模式，也可能是其他代理）
+  return "响应格式异常，如果您使用 UC 浏览器，请关闭极速/云端加速模式后重试";
 }
 
 // ─── 页面组件 ──────────────────────────────────────────────
@@ -173,8 +190,9 @@ export default function MatchClient({
       const res = await apiPost("/api/cards/batch", { deckIds });
       const text = await res.text();
 
-      if (isHtmlResponse(res, text)) {
-        setMatchError("浏览器省流模式干扰了匹配，请关闭 UC 极速/云端加速后重试");
+      const htmlError = detectResponseError(res, text);
+      if (htmlError) {
+        setMatchError(htmlError);
         return [];
       }
 
@@ -315,8 +333,10 @@ export default function MatchClient({
       const res = await apiPost("/api/parse-artists", { text: rawText });
       const text = await res.text();
 
-      if (isHtmlResponse(res, text)) {
-        setMatchError("浏览器省流模式干扰了解析，请关闭 UC 极速/云端加速后重试");
+      const htmlError = detectResponseError(res, text);
+
+      if (htmlError) {
+        setMatchError(htmlError);
         setParsing(false);
         setParseProgress("");
         return;
@@ -681,8 +701,9 @@ export default function MatchClient({
       const fuzzyRes = await apiPost("/api/fuzzy-match", { deckIds });
       const text = await fuzzyRes.text();
 
-      if (isHtmlResponse(fuzzyRes, text)) {
-        setMatchError("浏览器省流模式干扰了模糊匹配，请关闭 UC 极速/云端加速后重试");
+      const htmlError = detectResponseError(fuzzyRes, text);
+      if (htmlError) {
+        setMatchError(htmlError);
         return { success: false };
       }
 
