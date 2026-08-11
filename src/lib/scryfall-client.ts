@@ -560,7 +560,7 @@ export async function fetchAllPrintings(
     // 页面级重试：只重试当前页，不丢弃已获取数据
     while (pageAttempt <= MAX_RETRIES) {
       try {
-        const res = await fetchWithTimeout(pageUrl, {
+        const res = await fetchWithTimeout(pageUrl!, {
           headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
         });
 
