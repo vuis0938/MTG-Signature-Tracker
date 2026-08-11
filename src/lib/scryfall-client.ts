@@ -546,7 +546,7 @@ export async function fetchAllPrintings(
 ): Promise<{ printings: Printing[]; complete: boolean }> {
   const printings: Printing[] = [];
   const target = cardName.trim();
-  let pageUrl = `${SCRYFALL_BASE_URL}/cards/search?q=!"${encodeURIComponent(target)}"+unique:prints&order=released`;
+  let pageUrl: string | null = `${SCRYFALL_BASE_URL}/cards/search?q=!"${encodeURIComponent(target)}"+unique:prints&order=released`;
   let complete = true;
 
   while (pageUrl) {
