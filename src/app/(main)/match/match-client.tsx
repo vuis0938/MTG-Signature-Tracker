@@ -703,6 +703,48 @@ export default function MatchClient({
     setMatched(new Map());
     setFuzzyMatched(newFuzzyMatched);
     setUnmatched(newUnmatched);
+
+    // ── Phase 2：后台加载完整印刷版本（"其他版本"卡图等）──
+    // Phase 1 只返回画家名，2-3 秒出匹配结果。
+    // 用户看到结果后，后台拉取完整印刷版本，补充"其他版本"展示。
+    if (fuzzyData.success && fuzzyData.cardMap) {
+      const needsPrintings = Object.values(fuzzyData.cardMap).some(
+        (info) => !info.printings || info.printings.length === 0
+      );
+      if (needsPrintings) {
+        loadFullPrintingsPhase2(deckIds, cards);
+      }
+    }
+  }
+
+  /** Phase 2：后台加载完整印刷版本，更新匹配结果 */
+  async function loadFullPrintingsPhase2(deckIds: string[], cards: CardEntry[]) {
+    try {
+      // 1. 后台预热缓存（拉取完整 printings 写入 card_printings 表）
+      await apiPost("/api/cache-printings", { deckIds });
+
+      // 2. 重新调用模糊匹配 API（此时缓存已就绪，秒出完整数据）
+      const fuzzyRes = await apiPost("/api/fuzzy-match", { deckIds });
+      const text = await fuzzyRes.text();
+      if (!fuzzyRes.ok) return;
+      const fuzzyData = JSON.parse(text) as FuzzyApiResponse;
+      if (!fuzzyData.success || !fuzzyData.cardMap) return;
+
+      // 3. 重新构建完整匹配结果（含"其他版本"卡图）
+      const currentParsedArtists = parsedArtistsRef.current;
+      const { artistCards, exactMatchedKeys, artistDbKeys, artistNormalizedMap } =
+        buildExactBaseline(cards, currentParsedArtists);
+      const expandedArtistCards = buildExpandedArtistCards(cards, fuzzyData);
+      mergeExactIntoExpanded(artistCards, exactMatchedKeys, expandedArtistCards);
+      const { newFuzzyMatched } = matchAgainstArtists(
+        currentParsedArtists, expandedArtistCards, exactMatchedKeys,
+        artistDbKeys, artistNormalizedMap, artistCards
+      );
+
+      setFuzzyMatched(newFuzzyMatched);
+    } catch (err) {
+      console.warn("[Phase 2] 印刷版本加载失败:", err);
+    }
   }
 
   // ─── 模糊匹配子步骤 ────────────────────────────────────
@@ -753,7 +795,11 @@ export default function MatchClient({
     return { success: false };
   }
 
-  /** 从 API 返回数据构建扩展画家→卡牌映射 */
+  /** 从 API 返回数据构建扩展画家→卡牌映射
+   *
+   * 支持两种模式：
+   * - Phase 1（printings 为空）：仅用 allArtists + 套牌卡牌，快速出匹配结果
+   * - Phase 2（printings 完整）：含所有印刷版本，展示"其他版本" */
   function buildExpandedArtistCards(
     cards: CardEntry[],
     fuzzyData: FuzzyApiResponse
@@ -777,31 +823,80 @@ export default function MatchClient({
 
     for (const [cardName, info] of Object.entries(cardMap)) {
       const deckCards = cardsByName.get(cardName) || [];
+      const hasPrintings = info.printings && info.printings.length > 0;
 
-      for (const printing of info.printings) {
-        const artist = printing.artist;
-        const existing = expanded.get(artist) || [];
+      if (hasPrintings) {
+        // ── Phase 2（完整印刷版本）：沿用原有逻辑 ──
+        for (const printing of info.printings) {
+          const artist = printing.artist;
+          const existing = expanded.get(artist) || [];
 
-        // 只有印刷版本完全匹配（同系列+同编号）才关联套牌卡牌
-        const matchedDeckCard = deckCards.find(
-          (dc) => dc.set_code.toLowerCase() === printing.set.toLowerCase() &&
-                  String(dc.collector_number) === String(printing.collector_number)
-        );
+          const matchedDeckCard = deckCards.find(
+            (dc) => dc.set_code.toLowerCase() === printing.set.toLowerCase() &&
+                    String(dc.collector_number) === String(printing.collector_number)
+          );
 
-        const entry: FuzzyCardEntry = {
-          card_name: cardName,
-          set_code: printing.set,
-          set_name: printing.set_name,
-          collector_number: printing.collector_number,
-          image_url: printing.image_url,
-          artist,
-          deckCard: matchedDeckCard ? { ...matchedDeckCard, artist_names: [artist] } : undefined,
-        };
+          const entry: FuzzyCardEntry = {
+            card_name: cardName,
+            set_code: printing.set,
+            set_name: printing.set_name,
+            collector_number: printing.collector_number,
+            image_url: printing.image_url,
+            artist,
+            deckCard: matchedDeckCard ? { ...matchedDeckCard, artist_names: [artist] } : undefined,
+          };
 
-        if (!existing.some((e) => isSamePrinting(e, entry))) {
-          existing.push(entry);
+          if (!existing.some((e) => isSamePrinting(e, entry))) {
+            existing.push(entry);
+          }
+          expanded.set(artist, existing);
         }
-        expanded.set(artist, existing);
+      } else {
+        // ── Phase 1（仅画家名）：用 allArtists + 套牌卡牌快速构建 ──
+        for (const artist of info.allArtists) {
+          const existing = expanded.get(artist) || [];
+
+          // 找套牌中该画家绘制的该卡牌
+          const matchingDeckCards = deckCards.filter((dc) => {
+            const dcArtists = normalizeArtists(dc.artist_names);
+            return dcArtists.some(
+              (a) => a.toLowerCase().trim() === artist.toLowerCase().trim()
+            );
+          });
+
+          if (matchingDeckCards.length > 0) {
+            for (const dc of matchingDeckCards) {
+              const entry: FuzzyCardEntry = {
+                card_name: cardName,
+                set_code: dc.set_code,
+                set_name: "",
+                collector_number: dc.collector_number,
+                image_url: dc.image_url,
+                artist,
+                deckCard: { ...dc, artist_names: [artist] },
+              };
+              if (!existing.some((e) => isSamePrinting(e, entry))) {
+                existing.push(entry);
+              }
+            }
+          } else {
+            // 该画家画过此卡但用户套牌中没有 → 标记为"其他版本"
+            const entry: FuzzyCardEntry = {
+              card_name: cardName,
+              set_code: "",
+              set_name: "",
+              collector_number: "",
+              image_url: null,
+              artist,
+              deckCard: undefined,
+            };
+            if (!existing.some((e) => isSamePrinting(e, entry))) {
+              existing.push(entry);
+            }
+          }
+
+          expanded.set(artist, existing);
+        }
       }
     }
 
