@@ -135,6 +135,11 @@ export default function MatchClient({
 
   const [hasRun, setHasRun] = useState(false);
 
+  // 缓存预热：后台拉取卡牌数据，让用户点击匹配时秒出
+  const [preheating, setPreheating] = useState(false);
+  const [preheatProgress, setPreheatProgress] = useState("");
+  const preheatedRef = useRef(false);
+
   // Toast
   const { toast: showToast } = useToast();
 
@@ -142,6 +147,37 @@ export default function MatchClient({
   useEffect(() => {
     preloadDialogChunks();
   }, []);
+
+  // 页面加载后后台预热卡牌缓存
+  // 利用用户选套牌、选活动的 5-30 秒间隙，在后台拉取 Scryfall 数据
+  useEffect(() => {
+    if (decks.length === 0 || preheatedRef.current) return;
+    preheatedRef.current = true;
+
+    const deckIds = decks.map((d) => d.id);
+    setPreheating(true);
+    setPreheatProgress("正在准备卡牌数据...");
+
+    apiPost("/api/cache-printings", { deckIds })
+      .then(async (res) => {
+        const text = await res.text();
+        const htmlErr = detectResponseError(res, text);
+        if (htmlErr) {
+          console.warn("[预热] 缓存预热失败:", htmlErr);
+          setPreheatProgress("");
+        } else if (res.ok) {
+          const data = JSON.parse(text);
+          setPreheatProgress(`已准备 ${data.cached}/${data.total} 张卡牌数据`);
+          // 3 秒后自动隐藏进度提示
+          setTimeout(() => setPreheatProgress(""), 3000);
+        }
+      })
+      .catch((err) => {
+        console.warn("[预热] 缓存预热异常:", err);
+        setPreheatProgress("");
+      })
+      .finally(() => setPreheating(false));
+  }, [decks]);
 
   // 全局错误捕获：兜底未在 try/catch 中捕获的错误，显示到页面
   useEffect(() => {
@@ -1186,6 +1222,12 @@ export default function MatchClient({
             {!parsing && parseMethod && (
               <span className="text-xs text-muted-foreground">
                 已解析 {parsedArtists.length} 位画家 ({parseMethod})
+              </span>
+            )}
+            {preheatProgress && (
+              <span className="text-xs text-blue-500 flex items-center gap-1">
+                {preheating && <Loader2 className="h-3 w-3 animate-spin" />}
+                {preheatProgress}
               </span>
             )}
           </div>

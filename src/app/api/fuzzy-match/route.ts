@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { fetchAllPrintings, RateLimiter } from "@/lib/scryfall-client";
+import { fetchAllPrintings, RateLimiter, fetchScryfallBulkDataVersion } from "@/lib/scryfall-client";
+import { warmCardPrintingsCache } from "@/lib/cache-printings";
 import { getUserFromRequest } from "@/lib/auth";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
 import type { Printing } from "@/types";
@@ -10,6 +11,9 @@ interface FuzzyCardResult {
   printings: Printing[];
   allArtists: string[];
 }
+
+// 版本号检查节流：1 小时内不重复查 Scryfall
+const VERSION_CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 小时
 
 export async function POST(request: NextRequest) {
   // 鉴权
@@ -65,7 +69,48 @@ export async function POST(request: NextRequest) {
 
     const uniqueNames = [...new Set(cards.map((c) => c.card_name))];
 
-    // ── 第一步：从缓存表批量读取 ──
+    // ── 检查 Scryfall 数据版本号，判断缓存是否可靠 ──
+    let forceRefresh = false;
+    const { data: metaRows } = await supabase
+      .from("scryfall_meta")
+      .select("value, updated_at")
+      .eq("key", "bulk_data_version")
+      .single();
+
+    const storedVersion: string | null = metaRows?.value?.updated_at ?? null;
+    const lastChecked = metaRows?.updated_at ? new Date(metaRows.updated_at).getTime() : 0;
+    const shouldCheckVersion = Date.now() - lastChecked > VERSION_CHECK_INTERVAL_MS;
+
+    if (shouldCheckVersion) {
+      const currentVersion = await fetchScryfallBulkDataVersion();
+      if (currentVersion && currentVersion !== storedVersion) {
+        // 数据版本号变了 → 缓存可能过期，需要刷新
+        forceRefresh = true;
+        console.log(`[FuzzyMatch] Scryfall 数据版本变化: ${storedVersion} → ${currentVersion}`);
+      }
+
+      // 更新本地存储的版本号（无论是否变化，都更新检查时间）
+      supabase
+        .from("scryfall_meta")
+        .upsert(
+          {
+            key: "bulk_data_version",
+            value: { updated_at: currentVersion ?? storedVersion },
+          },
+          { onConflict: "key" }
+        )
+        .then(({ error }) => {
+          if (error) console.warn("[FuzzyMatch] 更新版本号失败:", error.message);
+        });
+    }
+
+    // ── 第一步：预热/刷新缓存 ──
+    if (forceRefresh) {
+      // 数据版本变了，强制刷新本次查询涉及的所有卡牌
+      await warmCardPrintingsCache(uniqueNames, { forceRefresh: true });
+    }
+
+    // ── 第二步：从缓存表批量读取 ──
     const { data: cachedRows } = await supabase
       .from("card_printings")
       .select("card_name, printings, all_artists")
@@ -77,7 +122,7 @@ export async function POST(request: NextRequest) {
         cachedMap.set(row.card_name, {
           card_name: row.card_name,
           printings: row.printings as Printing[],
-          allArtists: row.all_artists as string[],
+          allArtists: row.allArtists as string[],
         });
       }
     }
@@ -85,9 +130,9 @@ export async function POST(request: NextRequest) {
     const cachedNames = new Set(cachedMap.keys());
     const missedNames = uniqueNames.filter((n) => !cachedNames.has(n));
 
-    // ── 第二步：缓存未命中的走 Scryfall 实时查询 ──
+    // ── 第三步：缓存未命中的走 Scryfall 实时查询 ──
     const scryfallResults: FuzzyCardResult[] = [];
-    const completeNames = new Set<string>(); // 记录完整拉取的卡牌名
+    const completeNames = new Set<string>();
     if (missedNames.length > 0) {
       const CONCURRENCY = 6;
       const rateLimiter = new RateLimiter(10);
@@ -108,7 +153,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── 第三步：只将完整拉取的结果写入缓存，防止不完整数据污染 ──
+    // ── 第四步：写入缓存 ──
     if (scryfallResults.length > 0) {
       const completeResults = scryfallResults.filter((r) => completeNames.has(r.card_name));
       if (completeResults.length > 0) {
@@ -125,7 +170,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── 第四步：合并结果 ──
+    // ── 第五步：合并结果 ──
     const cardMap: Record<string, FuzzyCardResult> = {};
     for (const r of cachedMap.values()) {
       cardMap[r.card_name] = r;

@@ -635,3 +635,28 @@ export async function fetchAllPrintings(
 
   return { printings, complete };
 }
+
+// ─── Bulk-data 版本号 ────────────────────────────────────
+
+/**
+ * 获取 Scryfall bulk-data 的当前数据版本号。
+ *
+ * 返回 default_cards.updated_at 时间戳。
+ * 这是 Scryfall 官方的"数据版本号"——只要它没变，
+ * 世界上没有任何卡牌数据发生变化（新系列、SLD、勘误等）。
+ *
+ * 用于判断 card_printings 缓存是否绝对可靠。
+ * 调用频率：~50ms，每天最多一次（配合 1 小时节流）。
+ */
+export async function fetchScryfallBulkDataVersion(): Promise<string | null> {
+  try {
+    const res = await fetchWithTimeout(`${SCRYFALL_BASE_URL}/bulk-data/default_cards`, {
+      headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.updated_at || null;
+  } catch {
+    return null;
+  }
+}
