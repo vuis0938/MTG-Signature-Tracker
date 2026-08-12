@@ -415,15 +415,22 @@ export async function batchSearch(
 
   const results: (ScryfallCard | null)[] = new Array(ids.length).fill(null);
 
-  for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-    const batch = batches[batchIndex];
-    if (rateLimiter) {
-      await rateLimiter.acquire();
-    }
+  // 并行执行所有批次（配合 RateLimiter 控制速率）
+  const batchResults = await Promise.all(
+    batches.map(async (batch, batchIndex) => {
+      if (rateLimiter) {
+        await rateLimiter.acquire();
+      }
+      return {
+        batchIndex,
+        results: await executeBatch(batch, batchIndex, BATCH_SIZE, ids, rateLimiter, 0),
+      };
+    })
+  );
 
-    const batchResults = await executeBatch(batch, batchIndex, BATCH_SIZE, ids, rateLimiter, 0);
-    for (let i = 0; i < batchResults.length; i++) {
-      results[batchIndex * BATCH_SIZE + i] = batchResults[i];
+  for (const { batchIndex, results: batchResult } of batchResults) {
+    for (let i = 0; i < batchResult.length; i++) {
+      results[batchIndex * BATCH_SIZE + i] = batchResult[i];
     }
   }
 

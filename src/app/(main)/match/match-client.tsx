@@ -635,8 +635,8 @@ export default function MatchClient({
 
     const newMatched = new Map<string, CardEntry[]>();
     const newUnmatched: string[] = [];
-    const dbKeys = [...artistToCards.keys()];
-    const normalizedMap = buildNormalizedMap(dbKeys);
+    const dbKeys = new Set(artistToCards.keys());
+    const normalizedMap = buildNormalizedMap([...dbKeys]);
 
     for (const parsedArtist of currentParsedArtists) {
       const matchedKey = findMatchingArtist(parsedArtist, dbKeys, normalizedMap);
@@ -753,8 +753,8 @@ export default function MatchClient({
     }
 
     const exactMatchedKeys = new Set<string>();
-    const artistDbKeys = [...artistCards.keys()];
-    const artistNormalizedMap = buildNormalizedMap(artistDbKeys);
+    const artistDbKeys = new Set(artistCards.keys());
+    const artistNormalizedMap = buildNormalizedMap([...artistDbKeys]);
     for (const artist of parsedArtists) {
       const matchedKey = findMatchingArtist(artist, artistDbKeys, artistNormalizedMap);
       if (matchedKey) exactMatchedKeys.add(matchedKey);
@@ -816,14 +816,18 @@ export default function MatchClient({
       const hasPrintings = info.printings && info.printings.length > 0;
 
       if (hasPrintings) {
-        // ── Phase 2（完整印刷版本）：沿用原有逻辑 ──
+        // ── Phase 2（完整印刷版本）：预建套牌卡索引，O(1) 查找 ──
+        const deckCardIndex = new Map<string, CardEntry>();
+        for (const dc of deckCards) {
+          deckCardIndex.set(`${dc.set_code.toLowerCase()}|${dc.collector_number}`, dc);
+        }
+
         for (const printing of info.printings) {
           const artist = printing.artist;
           const existing = expanded.get(artist) || [];
 
-          const matchedDeckCard = deckCards.find(
-            (dc) => dc.set_code.toLowerCase() === printing.set.toLowerCase() &&
-                    String(dc.collector_number) === String(printing.collector_number)
+          const matchedDeckCard = deckCardIndex.get(
+            `${printing.set.toLowerCase()}|${printing.collector_number}`
           );
 
           const entry: FuzzyCardEntry = {
@@ -842,17 +846,21 @@ export default function MatchClient({
           expanded.set(artist, existing);
         }
       } else {
-        // ── Phase 1（仅画家名）：用 allArtists + 套牌卡牌快速构建 ──
+        // ── Phase 1（仅画家名）：预建画家索引，O(1) 查找 ──
+        const artistIndex = new Map<string, CardEntry[]>();
+        for (const dc of deckCards) {
+          const dcArtists = normalizeArtists(dc.artist_names);
+          for (const a of dcArtists) {
+            const key = a.toLowerCase().trim();
+            const list = artistIndex.get(key) || [];
+            list.push(dc);
+            artistIndex.set(key, list);
+          }
+        }
+
         for (const artist of info.allArtists) {
           const existing = expanded.get(artist) || [];
-
-          // 找套牌中该画家绘制的该卡牌
-          const matchingDeckCards = deckCards.filter((dc) => {
-            const dcArtists = normalizeArtists(dc.artist_names);
-            return dcArtists.some(
-              (a) => a.toLowerCase().trim() === artist.toLowerCase().trim()
-            );
-          });
+          const matchingDeckCards = artistIndex.get(artist.toLowerCase().trim()) || [];
 
           if (matchingDeckCards.length > 0) {
             for (const dc of matchingDeckCards) {

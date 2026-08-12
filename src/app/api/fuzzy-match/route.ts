@@ -40,12 +40,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "套牌数量过多（最多 50 个）" }, { status: 400 });
     }
 
-    // 验证所有套牌属于当前用户
-    const { data: ownedDecks } = await supabase
-      .from("decks")
-      .select("id")
-      .in("id", deckIds)
-      .eq("user_name", userName);
+    // 验证所有套牌属于当前用户 + 检查 Scryfall 版本号（并行，互不依赖）
+    const [deckResult, metaResult] = await Promise.all([
+      supabase
+        .from("decks")
+        .select("id")
+        .in("id", deckIds)
+        .eq("user_name", userName),
+      supabase
+        .from("scryfall_meta")
+        .select("value, updated_at")
+        .eq("key", "bulk_data_version")
+        .single(),
+    ]);
+
+    const { data: ownedDecks } = deckResult;
+    const { data: metaRows } = metaResult;
 
     if (!ownedDecks || ownedDecks.length === 0) {
       return NextResponse.json({ error: "无权访问这些套牌" }, { status: 403 });
@@ -71,12 +81,6 @@ export async function POST(request: NextRequest) {
 
     // ── 检查 Scryfall 数据版本号，判断缓存是否可靠 ──
     let forceRefresh = false;
-    const { data: metaRows } = await supabase
-      .from("scryfall_meta")
-      .select("value, updated_at")
-      .eq("key", "bulk_data_version")
-      .single();
-
     const storedVersion: string | null = metaRows?.value?.updated_at ?? null;
     const lastChecked = metaRows?.updated_at ? new Date(metaRows.updated_at).getTime() : 0;
     const shouldCheckVersion = Date.now() - lastChecked > VERSION_CHECK_INTERVAL_MS;

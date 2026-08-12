@@ -42,17 +42,25 @@ export async function warmCardPrintingsCache(
     // 强制刷新：对所有卡牌重新拉取
     toFetch = uniqueNames;
   } else {
-    // ── 批量查询已缓存的卡牌（替代 N+1 逐条查询） ──
+    // ── 批量查询已缓存的卡牌（并行批次，替代串行逐批查询） ──
     const EXIST_BATCH = 100;
     const existingNames = new Set<string>();
 
+    const batches: string[][] = [];
     for (let i = 0; i < uniqueNames.length; i += EXIST_BATCH) {
-      const batch = uniqueNames.slice(i, i + EXIST_BATCH);
-      const { data: existing } = await supabase
-        .from("card_printings")
-        .select("card_name")
-        .in("card_name", batch);
+      batches.push(uniqueNames.slice(i, i + EXIST_BATCH));
+    }
 
+    const batchResults = await Promise.all(
+      batches.map((batch) =>
+        supabase
+          .from("card_printings")
+          .select("card_name")
+          .in("card_name", batch)
+      )
+    );
+
+    for (const { data: existing } of batchResults) {
       if (existing) {
         for (const row of existing) {
           existingNames.add(row.card_name);
@@ -114,13 +122,18 @@ export async function warmCardPrintingsCache(
 
       if (upsertError) {
         console.warn("[CachePrintings] 批量 upsert 失败，降级:", upsertError.message);
-        for (const row of rowsToInsert) {
-          const { error } = await supabase.from("card_printings").upsert(row, { onConflict: "card_name" });
-          if (error) {
-            console.warn(`[CachePrintings] 写入失败 ${row.card_name}:`, error.message);
-            failed.push(row.card_name);
+        const upsertResults = await Promise.all(
+          rowsToInsert.map(async (row) => {
+            const { error } = await supabase.from("card_printings").upsert(row, { onConflict: "card_name" });
+            return { name: row.card_name, ok: !error, errMsg: error?.message };
+          })
+        );
+        for (const r of upsertResults) {
+          if (r.ok) {
+            cached.push(r.name);
           } else {
-            cached.push(row.card_name);
+            console.warn(`[CachePrintings] 写入失败 ${r.name}:`, r.errMsg);
+            failed.push(r.name);
           }
         }
       } else {
@@ -135,15 +148,20 @@ export async function warmCardPrintingsCache(
         .insert(rowsToInsert);
 
       if (batchError) {
-        // 批量插入失败，降级为逐条插入
+        // 批量插入失败，降级为并行逐条插入
         console.warn("[CachePrintings] 批量插入失败，降级:", batchError.message);
-        for (const row of rowsToInsert) {
-          const { error } = await supabase.from("card_printings").insert(row);
-          if (error) {
-            console.warn(`[CachePrintings] 写入失败 ${row.card_name}:`, error.message);
-            failed.push(row.card_name);
+        const insertResults = await Promise.all(
+          rowsToInsert.map(async (row) => {
+            const { error } = await supabase.from("card_printings").insert(row);
+            return { name: row.card_name, ok: !error, errMsg: error?.message };
+          })
+        );
+        for (const r of insertResults) {
+          if (r.ok) {
+            cached.push(r.name);
           } else {
-            cached.push(row.card_name);
+            console.warn(`[CachePrintings] 写入失败 ${r.name}:`, r.errMsg);
+            failed.push(r.name);
           }
         }
       } else {
