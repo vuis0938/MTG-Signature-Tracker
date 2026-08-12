@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
         cachedMap.set(row.card_name, {
           card_name: row.card_name,
           printings: row.printings as Printing[],
-          allArtists: row.allArtists as string[],
+          allArtists: row.all_artists as string[],
         });
       }
     }
