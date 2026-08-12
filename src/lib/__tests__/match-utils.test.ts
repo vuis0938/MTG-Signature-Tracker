@@ -92,7 +92,7 @@ describe("matchAgainstArtists", () => {
       ["Alice", "Bob"],
       expanded,
       new Set(),
-      [], new Map(),
+      new Set(), new Map(),
       new Map()
     );
 
@@ -110,7 +110,7 @@ describe("matchAgainstArtists", () => {
       ["Alice", "Charlie"],
       expanded,
       new Set(),
-      [], new Map(),
+      new Set(), new Map(),
       new Map()
     );
 
@@ -120,8 +120,8 @@ describe("matchAgainstArtists", () => {
 
   it("兜底：精确匹配结果被合并到模糊匹配中", () => {
     const exactMatchedKeys = new Set(["dan scott"]);
-    const artistDbKeys = ["dan scott"];
-    const artistNormalizedMap = buildNormalizedMap(artistDbKeys);
+    const artistDbKeys = new Set(["dan scott"]);
+    const artistNormalizedMap = buildNormalizedMap([...artistDbKeys]);
 
     const card = makeCard("Sol Ring", "CMM", "345", "Dan Scott");
     const artistCards = new Map();
@@ -149,8 +149,8 @@ describe("matchAgainstArtists", () => {
 
   it("兜底不重复：画家已在模糊匹配中时不重复添加", () => {
     const exactMatchedKeys = new Set(["dan scott"]);
-    const artistDbKeys = ["dan scott"];
-    const artistNormalizedMap = buildNormalizedMap(artistDbKeys);
+    const artistDbKeys = new Set(["dan scott"]);
+    const artistNormalizedMap = buildNormalizedMap([...artistDbKeys]);
 
     const card = makeCard("Sol Ring", "CMM", "345", "Dan Scott");
     const artistCards = new Map();
@@ -179,7 +179,7 @@ describe("matchAgainstArtists", () => {
   it("空活动画家列表返回空结果", () => {
     const result = matchAgainstArtists(
       [],
-      new Map(), new Set(), [], new Map(), new Map()
+      new Map(), new Set(), new Set(), new Map(), new Map()
     );
     expect(result.newFuzzyMatched.size).toBe(0);
     expect(result.newUnmatched).toEqual([]);
@@ -222,50 +222,50 @@ describe("buildNormalizedMap", () => {
 describe("findMatchingArtist", () => {
   describe("规则 1：精确匹配（大小写不敏感）", () => {
     it("完全相同", () => {
-      expect(findMatchingArtist("Alice", ["alice", "bob"])).toBe("alice");
+      expect(findMatchingArtist("Alice", new Set(["alice", "bob"]))).toBe("alice");
     });
 
     it("大小写不同", () => {
-      expect(findMatchingArtist("ALICE", ["alice", "bob"])).toBe("alice");
+      expect(findMatchingArtist("ALICE", new Set(["alice", "bob"]))).toBe("alice");
     });
 
     it("首尾空格", () => {
-      expect(findMatchingArtist("  alice  ", ["alice", "bob"])).toBe("alice");
+      expect(findMatchingArtist("  alice  ", new Set(["alice", "bob"]))).toBe("alice");
     });
 
     it("无匹配返回 null", () => {
-      expect(findMatchingArtist("charlie", ["alice", "bob"])).toBeNull();
+      expect(findMatchingArtist("charlie", new Set(["alice", "bob"]))).toBeNull();
     });
   });
 
   describe("规则 2：首尾名匹配", () => {
     it("Dan Scott → Dan Murayama Scott", () => {
       expect(
-        findMatchingArtist("Dan Scott", ["dan murayama scott", "bob"])
+        findMatchingArtist("Dan Scott", new Set(["dan murayama scott", "bob"]))
       ).toBe("dan murayama scott");
     });
 
     it("Alice Zhang → Alice Xia Zhang", () => {
       expect(
-        findMatchingArtist("Alice Zhang", ["alice xia zhang", "bob"])
+        findMatchingArtist("Alice Zhang", new Set(["alice xia zhang", "bob"]))
       ).toBe("alice xia zhang");
     });
 
     it("首尾名相同但中间名不同", () => {
       expect(
-        findMatchingArtist("Victor Minguez", ["victor adame minguez"])
+        findMatchingArtist("Victor Minguez", new Set(["victor adame minguez"]))
       ).toBe("victor adame minguez");
     });
 
     it("只有两个词时精确匹配优先（规则1）", () => {
       expect(
-        findMatchingArtist("Dan Scott", ["dan scott", "dan murayama scott"])
+        findMatchingArtist("Dan Scott", new Set(["dan scott", "dan murayama scott"]))
       ).toBe("dan scott"); // 规则 1 优先
     });
 
     it("首词相同但尾词不同不匹配", () => {
       expect(
-        findMatchingArtist("Dan Smith", ["dan murayama scott"])
+        findMatchingArtist("Dan Smith", new Set(["dan murayama scott"]))
       ).toBeNull();
     });
   });
@@ -274,43 +274,43 @@ describe("findMatchingArtist", () => {
     it("Milivoj Ceran → Milivoj Ćeran", () => {
       // 实际调用中 dbKeys 已统一小写
       expect(
-        findMatchingArtist("Milivoj Ceran", ["milivoj ćeran"])
+        findMatchingArtist("Milivoj Ceran", new Set(["milivoj ćeran"]))
       ).toBe("milivoj ćeran");
     });
 
     it("Kasia Zielinska → Kasia 'Kafis' Zielińska", () => {
       // 仅变音符号差异（无中间名干扰）的匹配
       expect(
-        findMatchingArtist("Kasia Zielinska", ["kasia zielińska"])
+        findMatchingArtist("Kasia Zielinska", new Set(["kasia zielińska"]))
       ).toBe("kasia zielińska");
     });
 
     it("精确匹配已覆盖时不会触发变音规则", () => {
       // 精确匹配优先
       expect(
-        findMatchingArtist("alice", ["alice", "älicë"])
+        findMatchingArtist("alice", new Set(["alice", "älicë"]))
       ).toBe("alice");
     });
   });
 
   describe("边缘情况", () => {
     it("空画家名", () => {
-      expect(findMatchingArtist("", ["alice"])).toBeNull();
+      expect(findMatchingArtist("", new Set(["alice"]))).toBeNull();
     });
 
     it("空候选列表", () => {
-      expect(findMatchingArtist("alice", [])).toBeNull();
+      expect(findMatchingArtist("alice", new Set())).toBeNull();
     });
 
     it("单名画家精确匹配", () => {
-      expect(findMatchingArtist("daarken", ["daarken", "fesbra"])).toBe(
+      expect(findMatchingArtist("daarken", new Set(["daarken", "fesbra"]))).toBe(
         "daarken"
       );
     });
 
     it("单名画家无匹配不触发规则2", () => {
       // 单名无法触发首尾名匹配
-      expect(findMatchingArtist("daarken", ["alice"])).toBeNull();
+      expect(findMatchingArtist("daarken", new Set(["alice"]))).toBeNull();
     });
   });
 });

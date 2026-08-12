@@ -85,7 +85,6 @@ export function extractImageUrl(card: ScryfallCard): string | null {
 
 export const SCRYFALL_UA = "MTG-Signature-Tracker/1.0";
 export const SCRYFALL_BASE_URL = "https://api.scryfall.com";
-const MIN_DELAY_MS = 100;
 const MAX_RETRIES = 2; // 初始 + 2 次重试 = 3 次机会
 const FETCH_TIMEOUT_MS = 15_000; // 单次请求超时 15 秒
 
@@ -416,15 +415,22 @@ export async function batchSearch(
 
   const results: (ScryfallCard | null)[] = new Array(ids.length).fill(null);
 
-  for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-    const batch = batches[batchIndex];
-    if (rateLimiter) {
-      await rateLimiter.acquire();
-    }
+  // 并行执行所有批次（配合 RateLimiter 控制速率）
+  const batchResults = await Promise.all(
+    batches.map(async (batch, batchIndex) => {
+      if (rateLimiter) {
+        await rateLimiter.acquire();
+      }
+      return {
+        batchIndex,
+        results: await executeBatch(batch, batchIndex, BATCH_SIZE, ids, rateLimiter, 0),
+      };
+    })
+  );
 
-    const batchResults = await executeBatch(batch, batchIndex, BATCH_SIZE, ids, rateLimiter, 0);
-    for (let i = 0; i < batchResults.length; i++) {
-      results[batchIndex * BATCH_SIZE + i] = batchResults[i];
+  for (const { batchIndex, results: batchResult } of batchResults) {
+    for (let i = 0; i < batchResult.length; i++) {
+      results[batchIndex * BATCH_SIZE + i] = batchResult[i];
     }
   }
 
@@ -529,73 +535,208 @@ function matchesCardName(card: Record<string, unknown>, target: string): boolean
 }
 
 /**
- * 获取卡牌的所有印刷版本（分页 + 重试）
- * 用于模糊匹配缓存、补全缓存、切换印刷版本
+ * 获取卡牌的所有印刷版本（分页 + 页面级重试 + 限速器）
+ *
+ * 用于模糊匹配缓存、补全缓存、切换印刷版本。
+ *
+ * 与项目中其他 Scryfall 查询函数一致，接受可选的 RateLimiter 参数。
+ * 429 和网络错误只重试当前页（continue），不丢弃已获取的数据。
+ *
+ * @param cardName 卡牌名称
+ * @param rateLimiter 可选限速器，传入后每页请求前获取令牌，429 时暂停整个限速器
+ * @returns { printings, complete } — complete 为 false 表示中途有页面重试耗尽
  */
 export async function fetchAllPrintings(
   cardName: string,
-  attempt = 0
-): Promise<Printing[]> {
+  rateLimiter?: RateLimiter,
+): Promise<{ printings: Printing[]; complete: boolean }> {
   const printings: Printing[] = [];
   const target = cardName.trim();
-  let pageUrl = `${SCRYFALL_BASE_URL}/cards/search?q=!"${encodeURIComponent(target)}"+unique:prints&order=released`;
+  let pageUrl: string | null = `${SCRYFALL_BASE_URL}/cards/search?q=!"${encodeURIComponent(target)}"+unique:prints&order=released`;
+  let complete = true;
 
   while (pageUrl) {
-    await delay(MIN_DELAY_MS);
-    try {
-      const res = await fetchWithTimeout(pageUrl, {
-        headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
-      });
+    // 每页请求前获取限速令牌（限速器已控制速率，无需额外 delay）
+    if (rateLimiter) await rateLimiter.acquire();
 
-      if (res.status === 404) break;
+    let pageAttempt = 0;
+    let pageSuccess = false;
 
-      if (res.status === 429 && attempt < MAX_RETRIES) {
-        const wait = Math.min(2000 * (attempt + 1), 4000);
-        console.warn(`[Scryfall] ${cardName} 429, ${wait}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
-        await delay(wait);
-        return fetchAllPrintings(cardName, attempt + 1);
-      }
+    // 页面级重试：只重试当前页，不丢弃已获取数据
+    while (pageAttempt <= MAX_RETRIES) {
+      try {
+        const res = await fetchWithTimeout(pageUrl!, {
+          headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
+        });
 
-      if (!res.ok) {
-        console.warn(`[Scryfall] ${cardName} HTTP ${res.status}`);
+        if (res.status === 404) {
+          pageSuccess = true;
+          pageUrl = null; // 终止外层 while
+          break;
+        }
+
+        if (res.status === 429 && pageAttempt < MAX_RETRIES) {
+          const retryAfter = parseInt(res.headers.get("Retry-After") || "5", 10) || 5;
+          const waitMs = retryAfter * 1000 + jitter(500);
+          console.warn(`[Scryfall] ${cardName} 429, 暂停 ${retryAfter}s (页重试 ${pageAttempt + 1}/${MAX_RETRIES})`);
+          if (rateLimiter) rateLimiter.pause(waitMs);
+          await delay(waitMs);
+          pageAttempt++;
+          continue;
+        }
+
+        if (!res.ok) {
+          console.warn(`[Scryfall] ${cardName} HTTP ${res.status}`);
+          pageSuccess = true;
+          pageUrl = null;
+          break;
+        }
+
+        const data = await res.json();
+        for (const card of data.data || []) {
+          // 过滤双面卡/裂片卡：只有名称精确匹配的才加入
+          if (!matchesCardName(card, target)) continue;
+
+          const artist =
+            card.artist ||
+            card.card_faces?.[0]?.artist ||
+            "Unknown";
+          const imageUrl =
+            card.image_uris?.normal ||
+            card.image_uris?.small ||
+            card.card_faces?.[0]?.image_uris?.normal ||
+            card.card_faces?.[0]?.image_uris?.small ||
+            null;
+
+          printings.push({
+            artist,
+            set: card.set,
+            set_name: card.set_name,
+            collector_number: card.collector_number,
+            image_url: imageUrl,
+            released_at: card.released_at,
+          });
+        }
+
+        pageUrl = data.has_more ? data.next_page : null;
+        pageSuccess = true;
+        break;
+      } catch {
+        if (pageAttempt < MAX_RETRIES) {
+          const wait = 1000 * (pageAttempt + 1) + jitter(500);
+          console.warn(`[Scryfall] ${cardName} 网络错误, ${Math.round(wait)}ms 后页重试 (${pageAttempt + 1}/${MAX_RETRIES})`);
+          await delay(wait);
+          pageAttempt++;
+          continue;
+        }
+        console.error(`[Scryfall] ${cardName} 网络错误，页重试耗尽`);
         break;
       }
+    }
 
-      const data = await res.json();
-      for (const card of data.data || []) {
-        // 过滤双面卡/裂片卡：只有名称精确匹配的才加入
-        if (!matchesCardName(card, target)) continue;
-
-        const artist =
-          card.artist ||
-          card.card_faces?.[0]?.artist ||
-          "Unknown";
-        const imageUrl =
-          card.image_uris?.normal ||
-          card.image_uris?.small ||
-          card.card_faces?.[0]?.image_uris?.normal ||
-          card.card_faces?.[0]?.image_uris?.small ||
-          null;
-
-        printings.push({
-          artist,
-          set: card.set,
-          set_name: card.set_name,
-          collector_number: card.collector_number,
-          image_url: imageUrl,
-          released_at: card.released_at,
-        });
-      }
-
-      pageUrl = data.has_more ? data.next_page : null;
-    } catch {
-      if (attempt < MAX_RETRIES) {
-        await delay(1000 * (attempt + 1));
-        return fetchAllPrintings(cardName, attempt + 1);
-      }
+    if (!pageSuccess) {
+      complete = false;
       break;
     }
   }
 
-  return printings;
+  return { printings, complete };
+}
+
+// ─── 轻量画家查询（仅首页，不翻页） ──────────────────────
+
+/**
+ * 获取卡牌的所有画家名（仅查首页，不翻页）。
+ *
+ * 与 fetchAllPrintings 的区别：
+ * - fetchAllPrintings：翻页拉取所有印刷版本的全部字段（set/编号/图片/日期）→ 慢
+ * - fetchCardArtists：只拉首页，只提取画家名 → 快 5-10 倍
+ *
+ * Scryfall 搜索首页最多返回 175 条结果，对于 99.9% 的卡牌已覆盖所有画家。
+ * 用于模糊匹配 Phase 1：快速返回 allArtists 让匹配立刻出结果，
+ * 印刷版本详情（image_url/set 等）在 Phase 2 按需加载。
+ */
+export async function fetchCardArtists(
+  cardName: string,
+  rateLimiter?: RateLimiter,
+): Promise<{ artists: string[]; complete: boolean }> {
+  const target = cardName.trim();
+  if (rateLimiter) await rateLimiter.acquire();
+
+  let attempt = 0;
+  while (attempt <= MAX_RETRIES) {
+    try {
+      const res = await fetchWithTimeout(
+        `${SCRYFALL_BASE_URL}/cards/search?q=!"${encodeURIComponent(target)}"+unique:prints&order=released`,
+        { headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" } },
+      );
+
+      if (res.status === 404) {
+        return { artists: [], complete: true };
+      }
+
+      if (res.status === 429 && attempt < MAX_RETRIES) {
+        const retryAfter = parseInt(res.headers.get("Retry-After") || "5", 10) || 5;
+        const waitMs = retryAfter * 1000 + jitter(500);
+        console.warn(`[Scryfall] fetchCardArtists "${cardName}" 429, 暂停 ${retryAfter}s (${attempt + 1}/${MAX_RETRIES})`);
+        if (rateLimiter) rateLimiter.pause(waitMs);
+        await delay(waitMs);
+        attempt++;
+        continue;
+      }
+
+      if (!res.ok) {
+        console.warn(`[Scryfall] fetchCardArtists "${cardName}" HTTP ${res.status}`);
+        return { artists: [], complete: false };
+      }
+
+      const data = await res.json();
+      const artistSet = new Set<string>();
+      for (const card of data.data || []) {
+        if (!matchesCardName(card, target)) continue;
+        for (const a of extractArtists(card)) {
+          artistSet.add(a);
+        }
+      }
+
+      return { artists: [...artistSet], complete: true };
+    } catch {
+      if (attempt < MAX_RETRIES) {
+        const wait = 1000 * (attempt + 1) + jitter(500);
+        console.warn(`[Scryfall] fetchCardArtists "${cardName}" 网络错误, ${Math.round(wait)}ms 后重试 (${attempt + 1}/${MAX_RETRIES})`);
+        await delay(wait);
+        attempt++;
+        continue;
+      }
+      console.error(`[Scryfall] fetchCardArtists "${cardName}" 重试耗尽`);
+      return { artists: [], complete: false };
+    }
+  }
+
+  return { artists: [], complete: false };
+}
+
+// ─── Bulk-data 版本号 ────────────────────────────────────
+
+/**
+ * 获取 Scryfall bulk-data 的当前数据版本号。
+ *
+ * 返回 default_cards.updated_at 时间戳。
+ * 这是 Scryfall 官方的"数据版本号"——只要它没变，
+ * 世界上没有任何卡牌数据发生变化（新系列、SLD、勘误等）。
+ *
+ * 用于判断 card_printings 缓存是否绝对可靠。
+ * 调用频率：~50ms，每天最多一次（配合 1 小时节流）。
+ */
+export async function fetchScryfallBulkDataVersion(): Promise<string | null> {
+  try {
+    const res = await fetchWithTimeout(`${SCRYFALL_BASE_URL}/bulk-data/default_cards`, {
+      headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.updated_at || null;
+  } catch {
+    return null;
+  }
 }

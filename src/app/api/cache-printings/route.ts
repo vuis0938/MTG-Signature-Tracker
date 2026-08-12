@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
 import { getUserFromRequest } from "@/lib/auth";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
 import { warmCardPrintingsCache } from "@/lib/cache-printings";
 
 /**
  * POST /api/cache-printings
- * 接收一组去重卡牌名，从 Scryfall 拉取所有印刷版本并写入 card_printings 表
+ *
+ * 接收 cardNames 或 deckIds，从 Scryfall 拉取所有印刷版本并写入 card_printings 表。
+ * 支持 deckIds 参数，自动展开为卡牌名后再预热。
  */
 export async function POST(request: NextRequest) {
   // 鉴权
@@ -23,7 +26,30 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { cardNames } = body as { cardNames?: string[] };
+    let { cardNames } = body as { cardNames?: string[]; deckIds?: string[] };
+    const { deckIds } = body as { cardNames?: string[]; deckIds?: string[] };
+
+    // 支持 deckIds：自动从数据库展开为卡牌名
+    if (!cardNames && deckIds && deckIds.length > 0) {
+      // 验证套牌属于当前用户
+      const { data: ownedDecks } = await supabase
+        .from("decks")
+        .select("id")
+        .in("id", deckIds)
+        .eq("user_name", userName);
+
+      if (!ownedDecks || ownedDecks.length === 0) {
+        return NextResponse.json({ error: "无权访问这些套牌" }, { status: 403 });
+      }
+
+      const validDeckIds = ownedDecks.map((d) => d.id);
+      const { data: cards } = await supabase
+        .from("cards")
+        .select("card_name")
+        .in("deck_id", validDeckIds);
+
+      cardNames = [...new Set((cards || []).map((c) => c.card_name))];
+    }
 
     if (!cardNames || cardNames.length === 0) {
       return NextResponse.json({ success: true, cached: 0 });

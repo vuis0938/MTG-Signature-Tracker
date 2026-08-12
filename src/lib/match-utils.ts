@@ -114,11 +114,11 @@ export function buildNormalizedMap(dbKeys: string[]): Map<string, string> {
  */
 export function findMatchingArtist(
   parsedArtist: string,
-  dbKeys: string[],
+  dbKeys: Set<string>,
   normalizedMap?: Map<string, string>
 ): string | null {
   const key = parsedArtist.toLowerCase().trim();
-  if (dbKeys.includes(key)) return key;
+  if (dbKeys.has(key)) return key;
 
   const words = key.split(/\s+/).filter(Boolean);
 
@@ -137,7 +137,7 @@ export function findMatchingArtist(
   }
 
   // 规则 3：变音符号规范化
-  const map = normalizedMap ?? buildNormalizedMap(dbKeys);
+  const map = normalizedMap ?? buildNormalizedMap([...dbKeys]);
   const normalizedKey = safeNormalize(key);
   return map.get(normalizedKey) || null;
 }
@@ -208,7 +208,7 @@ export function matchAgainstArtists(
   parsedArtists: string[],
   expandedArtistCards: Map<string, FuzzyCardEntry[]>,
   exactMatchedKeys: Set<string>,
-  artistDbKeys: string[],
+  artistDbKeys: Set<string>,
   artistNormalizedMap: Map<string, string>,
   artistCards: Map<string, CardEntry[]>
 ): { newFuzzyMatched: Map<string, FuzzyCardEntry[]>; newUnmatched: string[] } {
@@ -226,17 +226,17 @@ export function matchAgainstArtists(
   }
 
   const newFuzzyMatched = new Map<string, FuzzyCardEntry[]>();
-  const newUnmatched: string[] = [];
-  const expandedDbKeys = [...expandedKeyMap.keys()];
-  const expandedNormalizedMap = buildNormalizedMap(expandedDbKeys);
+  const unmatchedSet = new Set<string>();
+  const expandedKeySet = new Set(expandedKeyMap.keys());
+  const expandedNormalizedMap = buildNormalizedMap([...expandedKeySet]);
 
   // 2. 用三级匹配规则匹配活动画家
   for (const parsedArtist of parsedArtists) {
-    const matchedKey = findMatchingArtist(parsedArtist, expandedDbKeys, expandedNormalizedMap);
+    const matchedKey = findMatchingArtist(parsedArtist, expandedKeySet, expandedNormalizedMap);
     if (matchedKey) {
       newFuzzyMatched.set(parsedArtist, expandedKeyMap.get(matchedKey) || []);
     } else {
-      newUnmatched.push(parsedArtist);
+      unmatchedSet.add(parsedArtist);
     }
   }
 
@@ -255,9 +255,8 @@ export function matchAgainstArtists(
       collector_number: c.collector_number, image_url: c.image_url,
       artist: displayArtist, deckCard: c,
     })));
-    const idx = newUnmatched.indexOf(parsedArtist);
-    if (idx !== -1) newUnmatched.splice(idx, 1);
+    unmatchedSet.delete(parsedArtist);
   }
 
-  return { newFuzzyMatched, newUnmatched };
+  return { newFuzzyMatched, newUnmatched: [...unmatchedSet] };
 }
