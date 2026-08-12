@@ -26,7 +26,7 @@ dev 上开发 → git push → Vercel 预览环境验证 → 确认无误 → �
 
 ## 技术栈
 
-- Next.js 15 (App Router) + TypeScript
+- Next.js 16 (App Router) + TypeScript
 - Supabase (PostgreSQL + RLS)
 - shadcn/ui + Tailwind CSS
 - Vercel (部署)
