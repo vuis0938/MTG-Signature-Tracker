@@ -134,7 +134,6 @@ export async function POST(request: NextRequest) {
     // Phase 1 策略：不翻页、不拉取完整印刷版本，只取首页画家名列表。
     // 100 张卡从 10-20 秒降到 2-3 秒。完整印刷版本由客户端 Phase 2 按需加载。
     const scryfallResults: FuzzyCardResult[] = [];
-    const completeNames = new Set<string>();
     if (missedNames.length > 0) {
       const CONCURRENCY = 6;
       const rateLimiter = new RateLimiter(10);
@@ -142,8 +141,7 @@ export async function POST(request: NextRequest) {
         const batch = missedNames.slice(i, i + CONCURRENCY);
         const batchResults = await Promise.all(
           batch.map(async (name) => {
-            const { artists, complete } = await fetchCardArtists(name, rateLimiter);
-            if (complete) completeNames.add(name);
+            const { artists } = await fetchCardArtists(name, rateLimiter);
             return {
               card_name: name,
               printings: [], // Phase 1 不返回印刷版本，客户端 Phase 2 按需加载
