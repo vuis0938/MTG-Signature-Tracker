@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { fetchCardArtists, RateLimiter, fetchScryfallBulkDataVersion } from "@/lib/scryfall-client";
+import { fetchCardArtists, RateLimiter, fetchScryfallBulkDataVersion, shouldForceRefresh } from "@/lib/scryfall-client";
 import { warmCardPrintingsCache } from "@/lib/cache-printings";
 import { getUserFromRequest } from "@/lib/auth";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     if (shouldCheckVersion) {
       const currentVersion = await fetchScryfallBulkDataVersion();
-      if (currentVersion && storedVersion && currentVersion !== storedVersion) {
+      if (shouldForceRefresh(storedVersion, currentVersion)) {
         // 数据版本号变了 → 缓存可能过期，需要刷新
         forceRefresh = true;
         console.log(`[FuzzyMatch] Scryfall 数据版本变化: ${storedVersion} → ${currentVersion}`);

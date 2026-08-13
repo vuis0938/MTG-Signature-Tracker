@@ -740,3 +740,17 @@ export async function fetchScryfallBulkDataVersion(): Promise<string | null> {
     return null;
   }
 }
+
+/**
+ * 判断是否需要强制刷新印刷版本缓存。
+ *
+ * 只有「已存版本 → 不同的新版本」才视为版本变化、需要刷新；
+ * 首次（storedVersion 为 null）不视为变化——缓存本来就是空的，
+ * 无需在关键路径上触发全量预热（这正是导致模糊搜索 5 分钟超时的元凶之一）。
+ */
+export function shouldForceRefresh(
+  storedVersion: string | null,
+  currentVersion: string | null,
+): boolean {
+  return !!(currentVersion && storedVersion && currentVersion !== storedVersion);
+}
