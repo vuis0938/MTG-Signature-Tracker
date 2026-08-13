@@ -6,7 +6,7 @@
 ## 一、代码与分支
 
 - 线上生产：`main` @ `7dc1c9b`（Vercel 自动部署，域名 https://www.mtgkit.top，区域 hkg1）
-- 开发分支：`dev` @ `cb67fa6`（与 main 内容**完全一致**，dev 的 14 个提交被 squash 成 main 的 1 个提交）
+- 开发分支：`dev`（本轮已推进：交接修复、图片/middleware 修复、模糊匹配性能优化、缓存版本号机制等）
 - 废弃分支：`master`（main 的祖先，落后 75 提交，勿用）
 - 本地旧快照（7/25）已备份到 `backup/local-master-pre-sync`
 
@@ -15,7 +15,7 @@
 - Next.js **16.3.0**（App Router + Turbopack）—— DEVELOPMENT.md 写的「15」是错的
 - Tailwind CSS **v4**（`@tailwindcss/postcss` + `@import "tailwindcss"`）
 - Supabase（PostgreSQL + RLS，12 张表；服务端用 service_role key 绕过 RLS）
-- shadcn/ui + **SWR**（数据缓存）+ Vitest（**332 测试全绿**）
+- shadcn/ui + **SWR**（数据缓存）+ Vitest（**341 测试全绿**）
 - 名单解析：**DeepSeek**（`DEEPSEEK_API_KEY`），Anthropic 仅备选
 - 匹配引擎：**自研三级匹配**（精确 → 首尾名 → 变音规范化），**Fuse.js 已移除**
 - 卡牌数据：Scryfall（`/cards/collection` 批量接口 + RateLimiter 10 req/s）
@@ -43,17 +43,17 @@ SQL 文件位置：`supabase/migrations/001-009.sql`、`supabase-migration.sql`�
 - 自定义鉴权（**非** Supabase Auth）：PBKDF2-SHA256(60 万次) 密码哈希 + HMAC-SHA256 无状态 token（7 天）
 - Cookie：`auth_token`(httpOnly) / `user_name` / `is_admin`
 - 数据隔离靠 `decks.user_name = 当前用户`；服务端 service_role 绕过 RLS
-- `src/middleware.ts` 校验 token —— ⚠️ Next 16 已弃用 middleware 约定，需迁 `proxy`
+- `src/proxy.ts` 校验 token（已从 middleware 迁移到 proxy）
 
 ## 六、关键架构
 
-- 模糊匹配两阶段：Phase 1 快速出结果（仅画家名）→ Phase 2 按需加载印刷版本
-- 缓存：`card_printings` 表持久化 + `scryfall_meta` 记录 bulk-data 版本号；`card_printings` 当前为空（按需预热重建）
+- 模糊匹配两阶段：Phase 1 快速出结果（仅画家名）→ Phase 2 按需加载印刷版本（只预热匹配到的卡牌）
+- 缓存：`card_printings` 表持久化 + `scryfall_meta` 记录版本；缓存失效由 `CACHE_SCHEMA_VERSION`（改查询/字段 +1 自动清空重建）+ Scryfall bulk-data 版本双层驱动
+- Scryfall 印刷查询用 `unique:art`（按画作去重），不用 `unique:prints`（会拉入所有语言变体，基本地达 876 条导致超时）
 - UC 浏览器兼容：`safeNormalize` 捕获 ICU 崩溃；POST URL 加随机参数防云端加速缓存
 
 ## 七、已知待办 / 注意
 
-- middleware → proxy 迁移（有弃用警告）
 - `cards.signed_date`/`signed_event`、`users.id` 三个遗留死列，可日后清理
 - 9 条用户反馈在 `/admin/feedback` 待处理
 - 数据库变更只加不删不改名（向后兼容）
