@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     if (shouldCheckVersion) {
       const currentVersion = await fetchScryfallBulkDataVersion();
-      if (currentVersion && currentVersion !== storedVersion) {
+      if (currentVersion && storedVersion && currentVersion !== storedVersion) {
         // 数据版本号变了 → 缓存可能过期，需要刷新
         forceRefresh = true;
         console.log(`[FuzzyMatch] Scryfall 数据版本变化: ${storedVersion} → ${currentVersion}`);
@@ -100,6 +100,7 @@ export async function POST(request: NextRequest) {
           {
             key: "bulk_data_version",
             value: { updated_at: currentVersion ?? storedVersion },
+            updated_at: new Date().toISOString(),
           },
           { onConflict: "key" }
         )

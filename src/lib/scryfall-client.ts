@@ -552,7 +552,7 @@ export async function fetchAllPrintings(
 ): Promise<{ printings: Printing[]; complete: boolean }> {
   const printings: Printing[] = [];
   const target = cardName.trim();
-  let pageUrl: string | null = `${SCRYFALL_BASE_URL}/cards/search?q=!"${encodeURIComponent(target)}"+unique:prints&order=released`;
+  let pageUrl: string | null = `${SCRYFALL_BASE_URL}/cards/search?q=!"${encodeURIComponent(target)}"+unique:art&order=released`;
   let complete = true;
 
   while (pageUrl) {
@@ -667,7 +667,7 @@ export async function fetchCardArtists(
   while (attempt <= MAX_RETRIES) {
     try {
       const res = await fetchWithTimeout(
-        `${SCRYFALL_BASE_URL}/cards/search?q=!"${encodeURIComponent(target)}"+unique:prints&order=released`,
+        `${SCRYFALL_BASE_URL}/cards/search?q=!"${encodeURIComponent(target)}"+unique:art&order=released`,
         { headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" } },
       );
 

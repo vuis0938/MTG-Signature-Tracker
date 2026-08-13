@@ -702,16 +702,22 @@ export default function MatchClient({
         (info) => !info.printings || info.printings.length === 0
       );
       if (needsPrintings) {
-        loadFullPrintingsPhase2(deckIds, cards);
+        // 只预热「匹配到」的卡牌名，而非整副牌，减少 Scryfall 请求量
+        const matchedCardNames = [...new Set(
+          Array.from(newFuzzyMatched.values()).flat().map((e) => e.card_name)
+        )];
+        if (matchedCardNames.length > 0) {
+          loadFullPrintingsPhase2(deckIds, matchedCardNames, cards);
+        }
       }
     }
   }
 
   /** Phase 2：后台加载完整印刷版本，更新匹配结果 */
-  async function loadFullPrintingsPhase2(deckIds: string[], cards: CardEntry[]) {
+  async function loadFullPrintingsPhase2(deckIds: string[], matchedCardNames: string[], cards: CardEntry[]) {
     try {
-      // 1. 后台预热缓存（拉取完整 printings 写入 card_printings 表）
-      await apiPost("/api/cache-printings", { deckIds });
+      // 1. 后台预热缓存（只预热匹配到的卡牌名，拉取完整 printings 写入 card_printings 表）
+      await apiPost("/api/cache-printings", { cardNames: matchedCardNames });
 
       // 2. 重新调用模糊匹配 API（此时缓存已就绪，秒出完整数据）
       const fuzzyRes = await apiPost("/api/fuzzy-match", { deckIds });
