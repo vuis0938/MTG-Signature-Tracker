@@ -25,7 +25,7 @@ describe("sitemap.ts", () => {
     expect(urls).toContain("https://www.mtgkit.top/terms");
   });
 
-  it("不包含需登录的页面（会被 middleware 重定向）", () => {
+  it("不包含需登录的页面（会被 proxy 重定向）", () => {
     const result = sitemap();
     const paths = result.map((item) => new URL(item.url).pathname);
 
