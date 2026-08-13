@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { fetchCardArtists, RateLimiter, fetchScryfallBulkDataVersion, shouldForceRefresh } from "@/lib/scryfall-client";
+import { fetchCardArtists, RateLimiter, fetchScryfallBulkDataVersion, shouldForceRefresh, CACHE_SCHEMA_VERSION, shouldInvalidateCacheSchema } from "@/lib/scryfall-client";
 import { warmCardPrintingsCache } from "@/lib/cache-printings";
 import { getUserFromRequest } from "@/lib/auth";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
@@ -79,27 +79,48 @@ export async function POST(request: NextRequest) {
 
     const uniqueNames = [...new Set(cards.map((c) => c.card_name))];
 
-    // ── 检查 Scryfall 数据版本号，判断缓存是否可靠 ──
+    // ── 检查缓存格式版本 + Scryfall 数据版本，判断缓存是否可靠 ──
     let forceRefresh = false;
     const storedVersion: string | null = metaRows?.value?.updated_at ?? null;
+    const storedSchemaVersion: number | null | undefined = metaRows?.value?.schema_version;
     const lastChecked = metaRows?.updated_at ? new Date(metaRows.updated_at).getTime() : 0;
     const shouldCheckVersion = Date.now() - lastChecked > VERSION_CHECK_INTERVAL_MS;
 
+    let currentVersion: string | null = storedVersion;
+    let needMetaUpdate = false;
+
+    // 1. 缓存格式版本变了 → 清空旧格式缓存（改查询/字段后自动失效，无需手动 DELETE）
+    if (shouldInvalidateCacheSchema(storedSchemaVersion, CACHE_SCHEMA_VERSION)) {
+      await supabase.from("card_printings").delete().not("id", "is", null);
+      forceRefresh = true;
+      needMetaUpdate = true;
+      console.log(
+        `[FuzzyMatch] 缓存格式版本变化 ${storedSchemaVersion ?? 0} → ${CACHE_SCHEMA_VERSION}，已清空缓存`
+      );
+    }
+
+    // 2. Scryfall 数据版本检查（1 小时节流）
     if (shouldCheckVersion) {
-      const currentVersion = await fetchScryfallBulkDataVersion();
+      currentVersion = await fetchScryfallBulkDataVersion();
       if (shouldForceRefresh(storedVersion, currentVersion)) {
         // 数据版本号变了 → 缓存可能过期，需要刷新
         forceRefresh = true;
         console.log(`[FuzzyMatch] Scryfall 数据版本变化: ${storedVersion} → ${currentVersion}`);
       }
+      needMetaUpdate = true;
+    }
 
-      // 更新本地存储的版本号（无论是否变化，都更新检查时间）
+    // 3. 合并更新 meta（数据版本 + 缓存格式版本）
+    if (needMetaUpdate) {
       supabase
         .from("scryfall_meta")
         .upsert(
           {
             key: "bulk_data_version",
-            value: { updated_at: currentVersion ?? storedVersion },
+            value: {
+              updated_at: currentVersion ?? storedVersion,
+              schema_version: CACHE_SCHEMA_VERSION,
+            },
             updated_at: new Date().toISOString(),
           },
           { onConflict: "key" }
@@ -111,7 +132,7 @@ export async function POST(request: NextRequest) {
 
     // ── 第一步：预热/刷新缓存 ──
     if (forceRefresh) {
-      // 数据版本变了，强制刷新本次查询涉及的所有卡牌
+      // 版本或格式变了，强制刷新本次查询涉及的所有卡牌
       await warmCardPrintingsCache(uniqueNames, { forceRefresh: true });
     }
 

@@ -754,3 +754,23 @@ export function shouldForceRefresh(
 ): boolean {
   return !!(currentVersion && storedVersion && currentVersion !== storedVersion);
 }
+
+/**
+ * 印刷版本缓存的数据格式版本。
+ *
+ * 当 Scryfall 查询方式或缓存字段结构发生变化时，将本常量 +1，
+ * 代码会自动清空旧格式缓存并重建，避免手动 DELETE。
+ * 历史：1 = unique:prints（含多语言重复）；2 = unique:art（按画作去重）。
+ */
+export const CACHE_SCHEMA_VERSION = 2;
+
+/**
+ * 判断缓存格式版本是否已过期（需要清空重建）。
+ * storedSchemaVersion 为 null/undefined/0 表示从未写入过版本，视为过期。
+ */
+export function shouldInvalidateCacheSchema(
+  storedSchemaVersion: number | null | undefined,
+  currentSchemaVersion: number,
+): boolean {
+  return (storedSchemaVersion ?? 0) !== currentSchemaVersion;
+}

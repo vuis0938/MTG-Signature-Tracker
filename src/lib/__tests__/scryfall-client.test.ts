@@ -6,6 +6,8 @@ import {
   fetchCardArtists,
   fetchAllPrintings,
   shouldForceRefresh,
+  shouldInvalidateCacheSchema,
+  CACHE_SCHEMA_VERSION,
   RateLimiter,
   type ScryfallCard,
 } from "../scryfall-client";
@@ -241,6 +243,28 @@ describe("shouldForceRefresh", () => {
 
   it("当前版本获取失败（null）不触发刷新", () => {
     expect(shouldForceRefresh("2025-01-01", null)).toBe(false);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// shouldInvalidateCacheSchema（缓存格式版本判断）
+// ═════════════════════════════════════════════════════════════
+
+describe("shouldInvalidateCacheSchema", () => {
+  it("从未写入过版本（null / undefined / 0）视为过期", () => {
+    expect(shouldInvalidateCacheSchema(null, CACHE_SCHEMA_VERSION)).toBe(true);
+    expect(shouldInvalidateCacheSchema(undefined, CACHE_SCHEMA_VERSION)).toBe(true);
+    expect(shouldInvalidateCacheSchema(0, CACHE_SCHEMA_VERSION)).toBe(true);
+  });
+
+  it("版本一致不过期", () => {
+    expect(
+      shouldInvalidateCacheSchema(CACHE_SCHEMA_VERSION, CACHE_SCHEMA_VERSION)
+    ).toBe(false);
+  });
+
+  it("版本不一致过期", () => {
+    expect(shouldInvalidateCacheSchema(1, 2)).toBe(true);
   });
 });
 
