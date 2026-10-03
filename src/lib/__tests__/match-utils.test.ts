@@ -8,6 +8,7 @@ import {
   getNextMatchStatus,
   matchAgainstArtists,
   buildEventNameForStatus,
+  buildFuzzyCardMap,
 } from "../match-utils";
 
 // ═════════════════════════════════════════════════════════════
@@ -454,5 +455,36 @@ describe("buildEventNameForStatus", () => {
     it("心动(3) + 单选 + 无任何活动名 → null", () => {
       expect(buildEventNameForStatus(3, false, null, null)).toBeNull();
     });
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// buildFuzzyCardMap（反向查询结果反转成 cardMap）
+// ═════════════════════════════════════════════════════════════
+
+describe("buildFuzzyCardMap", () => {
+  it("把画家→卡牌反转成卡名→画家/印刷版本", () => {
+    const map = new Map([
+      ["John Avon", [
+        { name: "Forest", set: "LEA", set_name: "Alpha", collector_number: "300", image_url: "https://a.jpg", released_at: "1993-08-05" },
+      ]],
+      ["Kev Walker", [
+        { name: "Forest", set: "M12", set_name: "Magic 2012", collector_number: "301", image_url: "https://b.jpg", released_at: "2011-07-15" },
+        { name: "Island", set: "M12", set_name: "Magic 2012", collector_number: "287", image_url: "https://c.jpg", released_at: "2011-07-15" },
+      ]],
+    ]);
+
+    const cardMap = buildFuzzyCardMap(map);
+
+    expect(Object.keys(cardMap).sort()).toEqual(["Forest", "Island"]);
+    expect(cardMap.Forest.allArtists.sort()).toEqual(["John Avon", "Kev Walker"]);
+    expect(cardMap.Forest.printings).toHaveLength(2);
+    expect(cardMap.Forest.printings.map((p) => p.artist).sort()).toEqual(["John Avon", "Kev Walker"]);
+    expect(cardMap.Island.allArtists).toEqual(["Kev Walker"]);
+    expect(cardMap.Island.printings[0]).toMatchObject({ artist: "Kev Walker", set: "M12", collector_number: "287" });
+  });
+
+  it("空输入返回空对象", () => {
+    expect(buildFuzzyCardMap(new Map())).toEqual({});
   });
 });
