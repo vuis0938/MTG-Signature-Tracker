@@ -23,14 +23,7 @@ export async function loadAllArtists(): Promise<string[]> {
   if (cache && Date.now() - cache.ts < TTL_MS) return cache.names;
 
   try {
-    const { data, error } = await getSupabase().from("artists").select("name");
-    if (error) {
-      console.warn("[ArtistsCatalog] 读取本地名单失败:", error.message);
-      return cache?.names || [];
-    }
-    const names = (data || [])
-      .map((r) => (r as { name: string }).name)
-      .filter(Boolean);
+    const names = await fetchAllArtistNames();
     // 空结果不缓存：避免「刷新名单前读到空表」被锁死 1 小时，
     // 导致解析全部回退 Scryfall。下次会重新读库。
     if (names.length > 0) {
@@ -40,6 +33,42 @@ export async function loadAllArtists(): Promise<string[]> {
   } catch {
     return cache?.names || [];
   }
+}
+
+/**
+ * 分页拉取所有画家名。
+ *
+ * Supabase 的 PostgREST 默认 db-max-rows=1000，select() 不带 limit 会被
+ * 静默截断到 1000 行（且不报错、不警告）。全量名单有 2400+ 行，必须分页
+ * 拉全，否则靠后的画家（如 John Avon）会缺席，导致本地匹配漏掉、回退 Scryfall。
+ */
+async function fetchAllArtistNames(): Promise<string[]> {
+  const supabase = getSupabase();
+  const PAGE_SIZE = 1000;
+  const all: string[] = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from("artists")
+      .select("name")
+      .order("name")
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) {
+      console.warn("[ArtistsCatalog] 读取本地名单失败:", error.message);
+      if (all.length === 0) throw error; // 一页都没拉到，抛给外层用旧缓存兜底
+      break; // 已拉了一部分，返回部分
+    }
+    if (!data || data.length === 0) break;
+
+    all.push(...data.map((r) => (r as { name: string }).name).filter(Boolean));
+
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  return all;
 }
 
 /**
