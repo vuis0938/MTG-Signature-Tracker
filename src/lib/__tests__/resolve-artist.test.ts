@@ -16,10 +16,14 @@ const h = vi.hoisted(() => ({
   fetchArtistCandidates: vi.fn(),
 }));
 
-vi.mock("@/lib/scryfall-client", () => ({
-  fetchArtistCards: h.fetchArtistCards,
-  fetchArtistCandidates: h.fetchArtistCandidates,
-}));
+vi.mock("@/lib/scryfall-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/scryfall-client")>();
+  return {
+    ...actual,
+    fetchArtistCards: h.fetchArtistCards,
+    fetchArtistCandidates: h.fetchArtistCandidates,
+  };
+});
 
 vi.mock("@/lib/supabase", () => ({
   getSupabase: vi.fn(() => ({
@@ -54,6 +58,28 @@ describe("resolveArtistName", () => {
     h.fetchArtistCards.mockResolvedValue({ cards: makeCards(["Forest"]), complete: true });
 
     const result = await resolveArtistName("John Avon");
+
+    expect(result).toBe("John Avon");
+    expect(h.fetchArtistCandidates).not.toHaveBeenCalled();
+  });
+
+  it("精确命中 + 大小写变体：返回 Scryfall 标准名", async () => {
+    h.fetchArtistCards.mockResolvedValue({
+      cards: [
+        {
+          name: "Forest",
+          set: "LEA",
+          set_name: "Alpha",
+          collector_number: "1",
+          image_url: null,
+          released_at: "1993-08-05",
+          artist: "John Avon",
+        },
+      ],
+      complete: true,
+    });
+
+    const result = await resolveArtistName("john avon");
 
     expect(result).toBe("John Avon");
     expect(h.fetchArtistCandidates).not.toHaveBeenCalled();

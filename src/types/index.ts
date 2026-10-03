@@ -56,6 +56,9 @@ export interface ArtistCard {
   collector_number: string;
   image_url: string | null;
   released_at: string;
+  /** Scryfall 卡片上的原始画家字符串（可能含合作画师，如 "John Avon & Kev Walker"）。
+   *  可选：旧缓存 JSONB 里没有该字段。 */
+  artist?: string;
 }
 
 /** 活动日历事件 */

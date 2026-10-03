@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/lib/toast-context";
-import { Plus, Trash2, Search, Loader2, ArrowRight } from "lucide-react";
+import { Plus, Trash2, Search, Loader2, ArrowRight, Sparkles } from "lucide-react";
 
 interface ArtistAlias {
   id: string;
@@ -20,6 +20,7 @@ export default function ArtistsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [normalizing, setNormalizing] = useState(false);
   const { toast: showToast } = useToast();
 
   // 表单
@@ -100,6 +101,27 @@ export default function ArtistsPage() {
     }
   }
 
+  async function handleNormalize() {
+    setNormalizing(true);
+    try {
+      const res = await fetch("/api/admin/normalize-artists", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        showToast(
+          `标准化完成：处理 ${data.total} 位画家，归并 ${data.mergedVariants} 个变体，删除 ${data.deletedKeys} 条重复`,
+          "success"
+        );
+        await loadAliases(search);
+      } else {
+        showToast(data.error || "标准化失败", "error");
+      }
+    } catch {
+      showToast("网络错误，请重试", "error");
+    } finally {
+      setNormalizing(false);
+    }
+  }
+
   // 按标准名称分组
   const grouped = aliases.reduce((acc, a) => {
     if (!acc[a.canonical_name]) acc[a.canonical_name] = [];
@@ -117,6 +139,30 @@ export default function ArtistsPage() {
           管理画家名称映射 · 共 {aliases.length} 条别名，覆盖 {canonicalNames.length} 位画家
         </p>
       </div>
+
+      {/* 一键标准化 */}
+      <Card>
+        <CardContent className="pt-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-medium">一键标准化</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                把本地画家缓存与别名统一成 Scryfall 标准拼写，归并大小写/空格变体
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNormalize}
+              disabled={normalizing}
+              className="shrink-0"
+            >
+              {normalizing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
+              一键标准化
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* 添加表单 */}
       <Card>
