@@ -86,42 +86,51 @@ export async function POST(request: NextRequest) {
       seenCanonicalLower.add(canonLower);
     }
 
-    // 5. 写库（顺序执行、幂等，失败可重跑）
+    // 5. 写库（并发执行、幂等，失败可重跑）
     // 5a. upsert artist_cards（标准名为键）
-    for (const [canonical, cards] of canonicalCards) {
-      if (cards.length === 0) continue;
-      const { error } = await supabase
-        .from("artist_cards")
-        .upsert(
-          { artist_name: canonical, cards, card_count: cards.length },
-          { onConflict: "artist_name" }
-        );
-      if (error) console.warn(`[Normalize] 缓存写入失败 ${canonical}:`, error.message);
-    }
+    const cardUpserts = [...canonicalCards.entries()]
+      .filter(([, cards]) => cards.length > 0)
+      .map(async ([canonical, cards]) => {
+        const { error } = await supabase
+          .from("artist_cards")
+          .upsert(
+            { artist_name: canonical, cards, card_count: cards.length },
+            { onConflict: "artist_name" }
+          );
+        if (error) console.warn(`[Normalize] 缓存写入失败 ${canonical}:`, error.message);
+      });
 
     // 5b. upsert artist_aliases（变体 -> 标准名）
-    for (const [alias, canonical] of variantMap) {
+    const aliasUpserts = [...variantMap.entries()].map(async ([alias, canonical]) => {
       const { error } = await supabase
         .from("artist_aliases")
         .upsert({ alias, canonical_name: canonical }, { onConflict: "alias" });
       if (error) console.warn(`[Normalize] 别名写入失败 ${alias} → ${canonical}:`, error.message);
-    }
+    });
 
     // 5c. 删除 artist_cards 里「键是大小写变体」的旧行
     //     （键本身不是 canonical，但 lowercase 命中某 canonical → 归并删除）
-    let deletedKeys = 0;
-    for (const row of cacheRows) {
-      const key = row.artist_name;
-      if (canonicalCards.has(key)) continue; // 键本身已是标准名，保留
-      if (seenCanonicalLower.has(key.toLowerCase().trim())) {
+    const deleteKeys = cacheRows
+      .filter(
+        (row) =>
+          !canonicalCards.has(row.artist_name) &&
+          seenCanonicalLower.has(row.artist_name.toLowerCase().trim())
+      )
+      .map((row) => row.artist_name);
+
+    const deleteResults = await Promise.all(
+      deleteKeys.map(async (key): Promise<number> => {
         const { error } = await supabase.from("artist_cards").delete().eq("artist_name", key);
         if (error) {
           console.warn(`[Normalize] 删除变体行失败 ${key}:`, error.message);
-        } else {
-          deletedKeys++;
+          return 0;
         }
-      }
-    }
+        return 1;
+      })
+    );
+    const deletedKeys = deleteResults.reduce((s, n) => s + n, 0);
+
+    await Promise.all([...cardUpserts, ...aliasUpserts]);
 
     await logAdminAction(adminName, "artist_normalize", undefined, {
       totalNames: names.length,
