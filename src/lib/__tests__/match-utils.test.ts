@@ -9,6 +9,8 @@ import {
   matchAgainstArtists,
   buildEventNameForStatus,
   buildFuzzyCardMap,
+  editDistance,
+  matchArtistName,
 } from "../match-utils";
 
 // ═════════════════════════════════════════════════════════════
@@ -514,5 +516,66 @@ describe("buildFuzzyCardMap", () => {
     const cardMap = buildFuzzyCardMap(map);
 
     expect(Object.keys(cardMap)).toEqual(["Forest"]);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// editDistance（Levenshtein 编辑距离）
+// ═════════════════════════════════════════════════════════════
+
+describe("editDistance", () => {
+  it("相同字符串距离为 0", () => {
+    expect(editDistance("Avon", "Avon")).toBe(0);
+  });
+
+  it("插入/删除一个字符（缺字母）", () => {
+    expect(editDistance("Glushkov", "Glushakov")).toBe(1);
+  });
+
+  it("替换一个字符（转写差异）", () => {
+    expect(editDistance("Sergiy", "Sergey")).toBe(1);
+  });
+
+  it("空字符串", () => {
+    expect(editDistance("", "abc")).toBe(3);
+    expect(editDistance("abc", "")).toBe(3);
+  });
+
+  it("多个字符差异", () => {
+    expect(editDistance("Ted", "Tedin")).toBe(2);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// matchArtistName（三关匹配）
+// ═════════════════════════════════════════════════════════════
+
+describe("matchArtistName", () => {
+  it("变音符号差异：归一化后相等，命中", () => {
+    expect(matchArtistName("Milivoj Ceran", ["Milivoj Ćeran"])).toBe("Milivoj Ćeran");
+  });
+
+  it("少中间名：首尾词匹配，命中", () => {
+    expect(matchArtistName("Dan Scott", ["Dan Murayama Scott"])).toBe("Dan Murayama Scott");
+  });
+
+  it("转写差一字母：编辑距离 1，命中", () => {
+    expect(matchArtistName("Sergiy Glushakov", ["Sergey Glushakov"])).toBe("Sergey Glushakov");
+  });
+
+  it("姓氏差两字母：拒绝", () => {
+    expect(matchArtistName("Mark Ted", ["Mark Tedin"])).toBeNull();
+  });
+
+  it("多个候选都命中（歧义）：拒绝", () => {
+    expect(matchArtistName("Dan Scott", ["Dan Scott", "Dan Murayama Scott"])).toBeNull();
+  });
+
+  it("单词输入按姓氏匹配", () => {
+    expect(matchArtistName("Glushkov", ["Sergey Glushakov"])).toBe("Sergey Glushakov");
+  });
+
+  it("无候选：拒绝", () => {
+    expect(matchArtistName("John Avon", [])).toBeNull();
   });
 });

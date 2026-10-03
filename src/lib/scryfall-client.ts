@@ -6,6 +6,7 @@
  */
 
 import { Printing, ArtistCard } from "@/types";
+import { matchArtistName } from "@/lib/match-utils";
 
 // ─── 类型定义 ──────────────────────────────────────────────
 
@@ -646,6 +647,42 @@ export async function fetchAllPrintings(
 // ─── 画家卡牌查询（反向查询：按画家查卡） ────────────────
 
 /**
+ * 从反向查询返回的卡牌中提取画家的标准名（Scryfall 标准拼写）。
+ *
+ * 反向查询 a:"画家名" 命中的卡，其 artist 字段就是标准拼写（可能是合作画师
+ * "A & B" 形式）。用 splitArtists 拆分后，先精确匹配（大小写不敏感），
+ * 精确未命中再近似匹配（编辑距离 ≤1 + 候选唯一）。
+ *
+ * 为什么需要近似匹配：Scryfall 的 a: 是「前缀/词边界」匹配而非精确匹配，
+ * 例如 a:"john avo" 会命中 John Avon 的卡（"avo" 是 "avon" 的前缀），
+ * 此时精确匹配找不到标准名，需要用近似匹配把 "John Avon" 捡回来。
+ * 找不到返回 null（调用方回退用输入名）。
+ */
+export function extractCanonicalArtist(
+  queryName: string,
+  cards: ArtistCard[],
+): string | null {
+  const target = queryName.toLowerCase().trim();
+  if (!target) return null;
+
+  const seen = new Set<string>();
+  const allArtists: string[] = [];
+  for (const card of cards) {
+    const raw = card.artist;
+    if (!raw) continue;
+    for (const a of splitArtists(raw)) {
+      if (seen.has(a)) continue;
+      seen.add(a);
+      allArtists.push(a);
+      if (a.toLowerCase().trim() === target) return a;
+    }
+  }
+
+  // 精确未命中 → 近似匹配（编辑距离 ≤1 + 候选唯一），覆盖 Scryfall 前缀匹配场景
+  return matchArtistName(queryName, allArtists);
+}
+
+/**
  * 获取某位画家的所有卡牌（按画作去重，分页）。
  *
  * 查询 q=a:"画家名"+unique:art：按「画作」去重，而非 unique:prints 的
@@ -715,6 +752,7 @@ export async function fetchArtistCards(
               card.card_faces?.[0]?.image_uris?.small ||
               null,
             released_at: card.released_at,
+            artist: card.artist || card.card_faces?.[0]?.artist || undefined,
           });
         }
 

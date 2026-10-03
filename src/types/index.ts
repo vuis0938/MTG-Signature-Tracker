@@ -36,6 +36,9 @@ export interface FuzzyCardEntry {
   artist: string;
   /** 如果该版本正好在用户套牌中，指向套牌中的卡牌 */
   deckCard?: CardEntry;
+  /** 该卡牌名在套牌里所属的套牌名（多个用「、」连接），用于分组标题显示；
+   *  即使本版本不在套牌中（其他版本），只要套牌里有同名卡，就有值。 */
+  deckName?: string;
 }
 
 /** Scryfall 印刷版本信息 */
@@ -56,6 +59,9 @@ export interface ArtistCard {
   collector_number: string;
   image_url: string | null;
   released_at: string;
+  /** Scryfall 卡片上的原始画家字符串（可能含合作画师，如 "John Avon & Kev Walker"）。
+   *  可选：旧缓存 JSONB 里没有该字段。 */
+  artist?: string;
 }
 
 /** 活动日历事件 */

@@ -17,7 +17,7 @@ import { useLatestRef } from "@/lib/use-latest-ref";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import { useDecks, useEvents, mutateCards } from "@/lib/swr-hooks";
 import {
-  Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Sparkle, Palette, Package, Heart, Check, MoreHorizontal, Lightbulb, ChevronDown, X,
+  Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Sparkle, Palette, Package, Heart, Check, MoreHorizontal, Lightbulb, ChevronDown, X, AlertTriangle,
 } from "lucide-react";
 import ArtistGalleryDialog from "@/components/artist-gallery-dialog";
 
@@ -89,6 +89,7 @@ export default function MatchClient({
   const [parseProgress, setParseProgress] = useState("");
   const [parsedArtists, setParsedArtists] = useState<string[]>([]);
   const [parseMethod, setParseMethod] = useState("");
+  const [notFound, setNotFound] = useState<string[]>([]);
 
   // 套牌选择 — SWR 获取，跨页面共享缓存（使用 SSR fallback 首屏零加载）
   const fallbackData =
@@ -310,6 +311,7 @@ export default function MatchClient({
         setRawText("");
         setParsedArtists([]);
         setParseMethod("");
+        setNotFound([]);
         setCurrentEvent("");
         setCurrentEventDate("");
         resetMatchState();
@@ -321,6 +323,7 @@ export default function MatchClient({
       setRawText(merged.join("\n"));
       setParsedArtists(merged);
       setParseMethod("活动日历");
+      setNotFound([]);
       setCurrentEvent(selectedList.map((e) => e.name).join("、"));
       setCurrentEventDate(selectedList.map((e) => new Date(e.startDate).toLocaleDateString("zh-CN")).join("、"));
       resetMatchState();
@@ -372,6 +375,7 @@ export default function MatchClient({
       if (data.success) {
         setParsedArtists(data.artists);
         setParseMethod(data.method);
+        setNotFound(data.notFound || []);
         resetMatchState();
 
         // 检测解析的画家名单是否与已有活动高度重合，自动勾选匹配的活动
@@ -771,6 +775,9 @@ export default function MatchClient({
 
     for (const [cardName, info] of Object.entries(cardMap)) {
       const deckCards = cardsByName.get(cardName) || [];
+      // 该卡牌名在套牌里所属的套牌名（同名卡的 deck_name 去重），
+      // 供分组标题使用——即使本版本不在套牌中（其他版本），只要套牌里有同名卡就有值
+      const deckName = [...new Set(deckCards.map((dc) => dc.deck_name || "未知套牌"))].join("、");
       const hasPrintings = info.printings && info.printings.length > 0;
 
       if (hasPrintings) {
@@ -796,6 +803,7 @@ export default function MatchClient({
             image_url: printing.image_url,
             artist,
             deckCard: matchedDeckCard ? { ...matchedDeckCard, artist_names: [artist] } : undefined,
+            deckName,
           };
 
           if (!existing.some((e) => isSamePrinting(e, entry))) {
@@ -830,6 +838,7 @@ export default function MatchClient({
                 image_url: dc.image_url,
                 artist,
                 deckCard: { ...dc, artist_names: [artist] },
+                deckName,
               };
               if (!existing.some((e) => isSamePrinting(e, entry))) {
                 existing.push(entry);
@@ -845,6 +854,7 @@ export default function MatchClient({
               image_url: null,
               artist,
               deckCard: undefined,
+              deckName,
             };
             if (!existing.some((e) => isSamePrinting(e, entry))) {
               existing.push(entry);
@@ -1293,6 +1303,17 @@ export default function MatchClient({
               ))}
             </div>
           )}
+          {notFound.length > 0 && (
+            <div className="flex flex-wrap gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <span className="w-full text-xs font-medium text-amber-700 flex items-center gap-1">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                以下 {notFound.length} 位画家未查询成功，请检查拼写是否正确：
+              </span>
+              {notFound.map((a) => (
+                <span key={a} className="px-2 py-1 bg-amber-100 text-amber-700 border border-amber-200 rounded text-xs">{a}</span>
+              ))}
+            </div>
+          )}
           {matchError && (
             <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-2">
               {matchError}
@@ -1361,6 +1382,7 @@ export default function MatchClient({
           matched={matched}
           fuzzyMatched={fuzzyMatched}
           unmatched={unmatched}
+          notFound={notFound}
           parsedArtists={parsedArtists}
           displayMode={displayMode}
           toggleStatus={toggleStatus}
@@ -1389,6 +1411,7 @@ interface MatchResultCardProps {
   matched: Map<string, CardEntry[]>;
   fuzzyMatched: Map<string, FuzzyCardEntry[]>;
   unmatched: string[];
+  notFound: string[];
   parsedArtists: string[];
   displayMode: "individual" | "grouped";
   toggleStatus: (cardIdOrIds: string | string[]) => void;
@@ -1396,7 +1419,7 @@ interface MatchResultCardProps {
 }
 
 function MatchResultCard({
-  fuzzyMode, matching, matched, fuzzyMatched, unmatched, parsedArtists, displayMode, toggleStatus, exportText,
+  fuzzyMode, matching, matched, fuzzyMatched, unmatched, notFound, parsedArtists, displayMode, toggleStatus, exportText,
 }: MatchResultCardProps) {
   const activeMatched = fuzzyMode ? fuzzyMatched : matched;
   const matchedCount = activeMatched.size;
@@ -1458,6 +1481,17 @@ function MatchResultCard({
               <ExactMatchResults matched={matched} displayMode={displayMode} toggleStatus={toggleStatus} />
             )}
           </>
+        )}
+
+        {!matching && notFound.length > 0 && (
+          <div className="pt-4 border-t mt-4">
+            <h4 className="text-sm font-medium text-amber-700 mb-2">以下画家未识别到卡牌作品，名字可能拼写有误：</h4>
+            <div className="flex flex-wrap gap-2">
+              {notFound.map((a) => (
+                <span key={a} className="px-2 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded text-sm">{a}</span>
+              ))}
+            </div>
+          </div>
         )}
 
         {!matching && unmatched.length > 0 && (
@@ -1586,46 +1620,57 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
               </span>
             </h3>
 
-            {Array.from(byCardName).map(([cardName, versions]) => (
-              <div key={cardName} className="mb-3">
-                <p className="text-sm text-muted-foreground mb-2 flex items-center gap-1"><Package className="h-3.5 w-3.5" /> {cardName}</p>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
-                  {versions.map((v, idx) => {
-                    const isInDeck = !!v.deckCard;
-                    const cardId = v.deckCard?.id;
-                    const status = v.deckCard?.status ?? 0;
-                    const isPriority = priorityCount < 8;
-                    priorityCount++;
+            {Array.from(byCardName).map(([cardName, versions]) => {
+              // 提取该卡牌的套牌名（在套牌中的版本所属套牌，可能多个）
+              // 分组标题的套牌名：优先 entry.deckName（含「其他版本」时也能显示套牌名），
+              // 兜底 deckCard.deck_name（mergeExact / matchAgainst 构造的 entry 无 deckName）
+              const deckLabel =
+                versions.find((v) => v.deckName)?.deckName ||
+                [...new Set(versions.filter((v) => v.deckCard).map((v) => v.deckCard!.deck_name || "未知套牌"))].join("、") ||
+                cardName;
 
-                    return (
-                      <div
-                        key={v.set_code + "-" + v.collector_number + "-" + idx}
-                        onClick={() => { if (cardId) toggleStatus(cardId); }}
-                        className={"relative w-full rounded-lg overflow-hidden border transition-all hover:scale-105 " + (isInDeck ? "cursor-pointer hover:shadow-md" : "cursor-default opacity-60") + " " + statusBorderClass(isInDeck, status)}
-                        title={isInDeck ? { 0: "待签", 1: "送签中", 2: "已签", 3: "心动" }[status] : "其他版本"}
-                      >
-                        <div className={isInDeck && status >= 1 ? "opacity-75" : ""}>
-                          {v.image_url ? (
-                            <CardImage src={v.image_url} alt={v.card_name} className="w-full" priority={isPriority} />
-                          ) : (
-                            <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
-                              {v.card_name}
-                            </div>
+              return (
+                <div key={cardName} className="mb-3">
+                  <p className="text-sm text-muted-foreground mb-2 flex items-center gap-1"><Package className="h-3.5 w-3.5" /> {deckLabel}</p>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
+                    {versions.map((v, idx) => {
+                      const isInDeck = !!v.deckCard;
+                      const cardId = v.deckCard?.id;
+                      const status = v.deckCard?.status ?? 0;
+                      const isPriority = priorityCount < 8;
+                      priorityCount++;
+
+                      return (
+                        <div
+                          key={v.set_code + "-" + v.collector_number + "-" + idx}
+                          onClick={() => { if (cardId) toggleStatus(cardId); }}
+                          className={"relative w-full rounded-lg overflow-hidden border transition-all hover:scale-105 " + (isInDeck ? "cursor-pointer hover:shadow-md" : "cursor-default opacity-60") + " " + statusBorderClass(isInDeck, status)}
+                          title={isInDeck ? { 0: "待签", 1: "送签中", 2: "已签", 3: "心动" }[status] : "其他版本"}
+                        >
+                          <div className={isInDeck && status >= 1 ? "opacity-75" : ""}>
+                            {v.image_url ? (
+                              <CardImage src={v.image_url} alt={v.card_name} className="w-full" priority={isPriority} />
+                            ) : (
+                              <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
+                                {v.card_name}
+                              </div>
+                            )}
+                          </div>
+                          <StatusBadge status={status} isInDeck={isInDeck} />
+                          {!isInDeck && (
+                            <div className="absolute top-0 right-0 bg-amber-500 text-white text-xs px-1 rounded-bl">其他</div>
                           )}
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs text-center leading-tight">
+                            <div className="px-1 pt-0.5 truncate">{v.card_name}</div>
+                            <div className="px-1 pb-0.5 truncate border-t border-white/15">{v.set_code.toUpperCase()} #{v.collector_number}</div>
+                          </div>
                         </div>
-                        <StatusBadge status={status} isInDeck={isInDeck} />
-                        {!isInDeck && (
-                          <div className="absolute top-0 right-0 bg-amber-500 text-white text-xs px-1 rounded-bl">其他</div>
-                        )}
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs px-1 py-0.5 text-center leading-tight truncate">
-                          {v.set_code.toUpperCase()} #{v.collector_number}
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         );
       })}

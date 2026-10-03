@@ -5,6 +5,7 @@ import {
   extractImageUrl,
   fetchAllPrintings,
   fetchArtistCards,
+  extractCanonicalArtist,
   RateLimiter,
   type ScryfallCard,
 } from "../scryfall-client";
@@ -250,6 +251,7 @@ describe("Scryfall 印刷查询使用 unique:art", () => {
             collector_number: "300",
             image_uris: { normal: "https://a.jpg" },
             released_at: "1993-08-05",
+            artist: "John Avon",
           },
         ],
         has_more: false,
@@ -265,6 +267,7 @@ describe("Scryfall 印刷查询使用 unique:art", () => {
       set_name: "Limited Edition Alpha",
       collector_number: "300",
       image_url: "https://a.jpg",
+      artist: "John Avon",
     });
 
     const url = fetchMock.mock.calls[0][0] as string;
@@ -315,6 +318,31 @@ describe("Scryfall 印刷查询使用 unique:art", () => {
 
     expect(complete).toBe(true);
     expect(cards.map((c) => c.name)).toEqual(["Forest", "Island"]);
+  });
+
+  it("fetchArtistCards 双面牌：从 card_faces 提取 artist", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: [
+          {
+            name: "Delver of Secrets",
+            set: "ISD",
+            set_name: "Innistrad",
+            collector_number: "51",
+            image_uris: { normal: "https://a.jpg" },
+            released_at: "2011-09-30",
+            card_faces: [{ artist: "Nils Hamm" }],
+          },
+        ],
+        has_more: false,
+      }),
+    });
+
+    const { cards } = await fetchArtistCards("Nils Hamm", new RateLimiter(1000));
+
+    expect(cards[0].artist).toBe("Nils Hamm");
   });
 
   it("fetchAllPrintings 使用 unique:art 且正确翻页", async () => {
@@ -368,5 +396,48 @@ describe("Scryfall 印刷查询使用 unique:art", () => {
 
     const url = fetchMock.mock.calls[0][0] as string;
     expect(url).toContain("unique:art");
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// extractCanonicalArtist
+// ═════════════════════════════════════════════════════════════
+
+describe("extractCanonicalArtist", () => {
+  function card(artist?: string) {
+    return {
+      name: "Forest",
+      set: "LEA",
+      set_name: "Limited Edition Alpha",
+      collector_number: "300",
+      image_url: null,
+      released_at: "1993-08-05",
+      artist,
+    };
+  }
+
+  it("命中：返回标准大小写拼写", () => {
+    const result = extractCanonicalArtist("john avon", [card("John Avon")]);
+    expect(result).toBe("John Avon");
+  });
+
+  it("近似匹配：少字母（前缀）也能提取标准名", () => {
+    const result = extractCanonicalArtist("john avo", [card("John Avon")]);
+    expect(result).toBe("John Avon");
+  });
+
+  it('合作画师拆分：从 "John Avon & Kev Walker" 中提取匹配的画师', () => {
+    const result = extractCanonicalArtist("kev walker", [card("John Avon & Kev Walker")]);
+    expect(result).toBe("Kev Walker");
+  });
+
+  it("找不到：返回 null", () => {
+    const result = extractCanonicalArtist("Mark Tedin", [card("John Avon")]);
+    expect(result).toBeNull();
+  });
+
+  it("cards 无 artist 字段：返回 null", () => {
+    const result = extractCanonicalArtist("John Avon", [card(undefined)]);
+    expect(result).toBeNull();
   });
 });
