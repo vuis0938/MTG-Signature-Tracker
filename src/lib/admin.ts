@@ -37,7 +37,6 @@ export type AdminAction =
   | "cache_delete"
   | "artist_alias_add"
   | "artist_alias_delete"
-  | "artist_normalize"
   | "artist_refresh"
   | "announcement_create"
   | "announcement_update"
