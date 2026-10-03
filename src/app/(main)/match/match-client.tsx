@@ -775,6 +775,9 @@ export default function MatchClient({
 
     for (const [cardName, info] of Object.entries(cardMap)) {
       const deckCards = cardsByName.get(cardName) || [];
+      // 该卡牌名在套牌里所属的套牌名（同名卡的 deck_name 去重），
+      // 供分组标题使用——即使本版本不在套牌中（其他版本），只要套牌里有同名卡就有值
+      const deckName = [...new Set(deckCards.map((dc) => dc.deck_name || "未知套牌"))].join("、");
       const hasPrintings = info.printings && info.printings.length > 0;
 
       if (hasPrintings) {
@@ -800,6 +803,7 @@ export default function MatchClient({
             image_url: printing.image_url,
             artist,
             deckCard: matchedDeckCard ? { ...matchedDeckCard, artist_names: [artist] } : undefined,
+            deckName,
           };
 
           if (!existing.some((e) => isSamePrinting(e, entry))) {
@@ -834,6 +838,7 @@ export default function MatchClient({
                 image_url: dc.image_url,
                 artist,
                 deckCard: { ...dc, artist_names: [artist] },
+                deckName,
               };
               if (!existing.some((e) => isSamePrinting(e, entry))) {
                 existing.push(entry);
@@ -849,6 +854,7 @@ export default function MatchClient({
               image_url: null,
               artist,
               deckCard: undefined,
+              deckName,
             };
             if (!existing.some((e) => isSamePrinting(e, entry))) {
               existing.push(entry);
@@ -1616,12 +1622,12 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
 
             {Array.from(byCardName).map(([cardName, versions]) => {
               // 提取该卡牌的套牌名（在套牌中的版本所属套牌，可能多个）
-              const deckNames = [...new Set(
-                versions
-                  .filter((v) => v.deckCard)
-                  .map((v) => v.deckCard!.deck_name || "未知套牌")
-              )];
-              const deckLabel = deckNames.length > 0 ? deckNames.join("、") : cardName;
+              // 分组标题的套牌名：优先 entry.deckName（含「其他版本」时也能显示套牌名），
+              // 兜底 deckCard.deck_name（mergeExact / matchAgainst 构造的 entry 无 deckName）
+              const deckLabel =
+                versions.find((v) => v.deckName)?.deckName ||
+                [...new Set(versions.filter((v) => v.deckCard).map((v) => v.deckCard!.deck_name || "未知套牌"))].join("、") ||
+                cardName;
 
               return (
                 <div key={cardName} className="mb-3">
