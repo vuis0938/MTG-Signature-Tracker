@@ -17,7 +17,7 @@ import { useLatestRef } from "@/lib/use-latest-ref";
 import { preloadData, getPreloadedData, preloadDialogChunks } from "@/lib/preload";
 import { useDecks, useEvents, mutateCards } from "@/lib/swr-hooks";
 import {
-  Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Sparkle, Palette, Package, Heart, Check, MoreHorizontal, Lightbulb, ChevronDown, X,
+  Search, Play, Download, CheckSquare, Square, Loader2, Sparkles, Sparkle, Palette, Package, Heart, Check, MoreHorizontal, Lightbulb, ChevronDown, X, AlertTriangle,
 } from "lucide-react";
 import ArtistGalleryDialog from "@/components/artist-gallery-dialog";
 
@@ -1294,6 +1294,17 @@ export default function MatchClient({
                 >
                   {a}
                 </Button>
+              ))}
+            </div>
+          )}
+          {notFound.length > 0 && (
+            <div className="flex flex-wrap gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <span className="w-full text-xs font-medium text-amber-700 flex items-center gap-1">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                以下 {notFound.length} 位画家未查询到（名字可能拼写有误）：
+              </span>
+              {notFound.map((a) => (
+                <span key={a} className="px-2 py-1 bg-amber-100 text-amber-700 border border-amber-200 rounded text-xs">{a}</span>
               ))}
             </div>
           )}
