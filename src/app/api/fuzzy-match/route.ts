@@ -88,15 +88,15 @@ export async function POST(request: NextRequest) {
     const missedArtists = resolvedArtists.filter((a) => !artistCardsMap.has(a));
 
     // ── 第二步：未命中的画家走 Scryfall 反向查询（按画家查卡）──
-    const fetched: Array<{ artist: string; cards: ArtistCard[] }> = [];
+    const fetched: Array<{ artist: string; cards: ArtistCard[]; complete: boolean }> = [];
     if (missedArtists.length > 0) {
       const rateLimiter = new RateLimiter(10);
       for (let i = 0; i < missedArtists.length; i += CONCURRENCY) {
         const batch = missedArtists.slice(i, i + CONCURRENCY);
         const batchResults = await Promise.all(
           batch.map(async (artist) => {
-            const { cards } = await fetchArtistCards(artist, rateLimiter);
-            return { artist, cards };
+            const { cards, complete } = await fetchArtistCards(artist, rateLimiter);
+            return { artist, cards, complete };
           })
         );
         for (const r of batchResults) {
@@ -107,9 +107,10 @@ export async function POST(request: NextRequest) {
     }
 
     // 回写缓存（fire-and-forget，不阻塞响应）
+    // complete=false 表示分页中途失败（只拉到部分卡），不缓存，避免残缺数据永久污染缓存
     if (fetched.length > 0) {
       for (const r of fetched) {
-        if (r.cards.length === 0) continue;
+        if (r.cards.length === 0 || !r.complete) continue;
         supabase
           .from("artist_cards")
           .upsert(

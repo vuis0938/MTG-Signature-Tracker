@@ -15,6 +15,9 @@ const h = vi.hoisted(() => ({
   fetchArtistCards: vi.fn(),
   cachedRows: [] as unknown[],
   deckCards: [] as unknown[],
+  upsert: vi.fn(() => ({
+    then: vi.fn(async (cb: (r: { error: null }) => void) => cb({ error: null })),
+  })),
 }));
 
 vi.mock("@/lib/scryfall-client", () => ({
@@ -56,9 +59,7 @@ vi.mock("@/lib/supabase", () => ({
           select: vi.fn(() => ({
             in: vi.fn(async () => ({ data: h.cachedRows, error: null })),
           })),
-          upsert: vi.fn(() => ({
-            then: vi.fn(async (cb: (r: { error: null }) => void) => cb({ error: null })),
-          })),
+          upsert: h.upsert,
         };
       }
       if (table === "cards") {
@@ -87,6 +88,7 @@ beforeEach(() => {
   h.fetchArtistCards.mockReset();
   h.cachedRows = [];
   h.deckCards = [];
+  h.upsert.mockClear();
 });
 
 describe("fuzzy-match 反向查询路由", () => {
@@ -164,5 +166,32 @@ describe("fuzzy-match 反向查询路由", () => {
     expect(body.cardMap.Island.printings[0]).toMatchObject({ artist: "Kev Walker", set: "LEB" });
     expect(h.fetchArtistCards).toHaveBeenCalledTimes(1);
     expect(h.fetchArtistCards).toHaveBeenCalledWith("Kev Walker", expect.anything());
+    // complete=true → 写入缓存
+    expect(h.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it("缓存未命中 + Scryfall 分页不完整（complete=false）：返回部分结果但不写缓存", async () => {
+    h.cachedRows = [];
+    h.deckCards = [{ card_name: "Island" }];
+    h.fetchArtistCards.mockResolvedValue({
+      cards: [
+        {
+          name: "Island",
+          set: "LEB",
+          set_name: "Limited Edition Beta",
+          collector_number: "287",
+          image_url: null,
+          released_at: "1993-10-04",
+        },
+      ],
+      complete: false,
+    });
+
+    const res = await POST(makeRequest({ deckIds: ["deck-1"], artists: ["Kev Walker"] }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.cardMap.Island.allArtists).toEqual(["Kev Walker"]);
+    // complete=false → 不写缓存，避免残缺数据永久污染缓存
+    expect(h.upsert).not.toHaveBeenCalled();
   });
 });
