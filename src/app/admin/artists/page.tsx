@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/lib/toast-context";
-import { Plus, Trash2, Search, Loader2, ArrowRight, Sparkles } from "lucide-react";
+import { Plus, Trash2, Search, Loader2, ArrowRight, Sparkles, RefreshCw } from "lucide-react";
 
 interface ArtistAlias {
   id: string;
@@ -21,6 +21,7 @@ export default function ArtistsPage() {
   const [search, setSearch] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [normalizing, setNormalizing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const { toast: showToast } = useToast();
 
   // 表单
@@ -122,6 +123,23 @@ export default function ArtistsPage() {
     }
   }
 
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/admin/refresh-artists", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`画家名单已刷新：共 ${data.count} 位画家`, "success");
+      } else {
+        showToast(data.error || "刷新失败", "error");
+      }
+    } catch {
+      showToast("网络错误，请重试", "error");
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   // 按标准名称分组
   const grouped = aliases.reduce((acc, a) => {
     if (!acc[a.canonical_name]) acc[a.canonical_name] = [];
@@ -140,26 +158,36 @@ export default function ArtistsPage() {
         </p>
       </div>
 
-      {/* 一键标准化 */}
+      {/* 本地画家名单：刷新 + 标准化 */}
       <Card>
         <CardContent className="pt-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="text-sm font-medium">一键标准化</h2>
+              <h2 className="text-sm font-medium">本地画家名单</h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                把本地画家缓存与别名统一成 Scryfall 标准拼写，归并大小写/空格变体
+                从 Scryfall 拉取全量画家名单用于本地纠错；再把缓存与别名统一成标准拼写
               </p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleNormalize}
-              disabled={normalizing}
-              className="shrink-0"
-            >
-              {normalizing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
-              一键标准化
-            </Button>
+            <div className="flex gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={refreshing}
+              >
+                {refreshing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                刷新名单
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleNormalize}
+                disabled={normalizing}
+              >
+                {normalizing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
+                一键标准化
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

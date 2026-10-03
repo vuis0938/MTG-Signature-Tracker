@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const h = vi.hoisted(() => ({
   fetchArtistCards: vi.fn(),
   fetchArtistCandidates: vi.fn(),
+  loadAllArtists: vi.fn(),
 }));
 
 vi.mock("@/lib/scryfall-client", async (importOriginal) => {
@@ -24,6 +25,10 @@ vi.mock("@/lib/scryfall-client", async (importOriginal) => {
     fetchArtistCandidates: h.fetchArtistCandidates,
   };
 });
+
+vi.mock("@/lib/artists-catalog", () => ({
+  loadAllArtists: h.loadAllArtists,
+}));
 
 vi.mock("@/lib/supabase", () => ({
   getSupabase: vi.fn(() => ({
@@ -40,6 +45,9 @@ import { resolveArtistName } from "../resolve-artist";
 beforeEach(() => {
   h.fetchArtistCards.mockReset();
   h.fetchArtistCandidates.mockReset();
+  h.loadAllArtists.mockReset();
+  // 默认本地名单为空 → 走 Scryfall 降级，保持原有测试语义
+  h.loadAllArtists.mockResolvedValue([]);
 });
 
 function makeCards(names: string[]) {
@@ -83,6 +91,36 @@ describe("resolveArtistName", () => {
 
     expect(result).toBe("John Avon");
     expect(h.fetchArtistCandidates).not.toHaveBeenCalled();
+  });
+
+  it("本地名单精确命中：返回标准名，不打 Scryfall", async () => {
+    h.loadAllArtists.mockResolvedValue(["John Avon"]);
+
+    const result = await resolveArtistName("john avon");
+
+    expect(result).toBe("John Avon");
+    expect(h.fetchArtistCards).not.toHaveBeenCalled();
+    expect(h.fetchArtistCandidates).not.toHaveBeenCalled();
+  });
+
+  it("本地名单模糊命中：转写差异在本地纠错，不打 Scryfall", async () => {
+    h.loadAllArtists.mockResolvedValue(["Sergey Glushakov"]);
+
+    const result = await resolveArtistName("Sergiy Glushakov");
+
+    expect(result).toBe("Sergey Glushakov");
+    expect(h.fetchArtistCards).not.toHaveBeenCalled();
+    expect(h.fetchArtistCandidates).not.toHaveBeenCalled();
+  });
+
+  it("本地名单未命中：回退 Scryfall 精确查询", async () => {
+    h.loadAllArtists.mockResolvedValue(["Someone Else"]);
+    h.fetchArtistCards.mockResolvedValue({ cards: makeCards(["Forest"]), complete: true });
+
+    const result = await resolveArtistName("John Avon");
+
+    expect(result).toBe("John Avon");
+    expect(h.fetchArtistCards).toHaveBeenCalledTimes(1);
   });
 
   it("转写差异：降级查询 + 三关命中", async () => {

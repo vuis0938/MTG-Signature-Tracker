@@ -2,6 +2,7 @@ import "server-only";
 import { fetchArtistCards, fetchArtistCandidates, extractCanonicalArtist } from "@/lib/scryfall-client";
 import type { RateLimiter } from "@/lib/scryfall-client";
 import { getSupabase } from "@/lib/supabase";
+import { loadAllArtists } from "@/lib/artists-catalog";
 import { matchArtistName, safeNormalize } from "@/lib/match-utils";
 import type { ArtistCard } from "@/types";
 
@@ -35,15 +36,32 @@ function writeAlias(alias: string, canonical: string): void {
 }
 
 /**
+ * 在本地全量画家名单里匹配（精确优先，其次三关模糊）。
+ * 命中返回标准名；未命中/歧义返回 null（调用方走 Scryfall 降级兜底）。
+ */
+async function matchLocalArtist(target: string): Promise<string | null> {
+  const names = await loadAllArtists();
+  if (names.length === 0) return null;
+
+  const lower = target.toLowerCase().trim();
+  const exact = names.find((n) => n.toLowerCase().trim() === lower);
+  if (exact) return exact;
+
+  return matchArtistName(target, names);
+}
+
+/**
  * 解析画家名（纯函数，不写库）：把可能有错的名字解析成 Scryfall 标准名。
  *
  * 流程（层层递进，代价随层递增）：
- * 1. 精确查询 a:"全名" → 命中则从卡牌提取标准名（并返回卡牌）
- * 2. 降级查询 a:"姓氏" 收集候选画家名
- * 3. 三关模糊匹配（名+姓编辑距离 ≤1 且候选唯一，保守防错）
- * 4. 二次验证：用标准名再查一次，查空则放弃
+ * 1. 本地全量名单匹配（零 Scryfall）：精确 → 三关模糊
+ * 2. 本地未命中 → Scryfall 降级：精确查询 a:"全名"，命中则从卡牌提取标准名
+ * 3. 降级查询 a:"姓氏" 收集候选画家名
+ * 4. 三关模糊匹配（名+姓编辑距离 ≤1 且候选唯一，保守防错）
+ * 5. 二次验证：用标准名再查一次，查空则放弃
  *
- * 返回 { canonical, cards }：canonical 为标准名（找不到为 null），cards 为该画家的卡牌。
+ * 返回 { canonical, cards }：canonical 为标准名（找不到为 null），cards 为该画家的卡牌
+ * （本地命中时 cards 为空，卡牌在匹配阶段再查）。
  * 不写缓存/别名——由调用方决定（在线路径 fire-and-forget，清理端点统一写）。
  */
 export async function resolveArtistCanonical(
@@ -53,7 +71,11 @@ export async function resolveArtistCanonical(
   const target = name.trim();
   if (!target) return { canonical: null, cards: [] };
 
-  // 1. 精确查询（名字本身就在 Scryfall 上存在）
+  // 1. 本地全量名单匹配（零 Scryfall）
+  const local = await matchLocalArtist(target);
+  if (local) return { canonical: local, cards: [] };
+
+  // 2. 本地未命中 → Scryfall 降级：精确查询（名字本身就在 Scryfall 上存在）
   const { cards } = await fetchArtistCards(target, rateLimiter);
   if (cards.length > 0) {
     // 从卡牌的 artist 字段提取 Scryfall 标准拼写（统一大小写/空格），提取不到回退输入名
@@ -61,18 +83,18 @@ export async function resolveArtistCanonical(
     return { canonical, cards };
   }
 
-  // 2. 降级查询：按姓氏收集候选画家名
+  // 3. 降级查询：按姓氏收集候选画家名
   const words = target.split(/\s+/).filter(Boolean);
   if (words.length === 0) return { canonical: null, cards: [] };
   const surname = words[words.length - 1];
   const candidates = await fetchArtistCandidates(surname, rateLimiter);
   if (candidates.length === 0) return { canonical: null, cards: [] };
 
-  // 3. 三关模糊匹配
+  // 4. 三关模糊匹配
   const matched = matchArtistName(target, candidates);
   if (!matched) return { canonical: null, cards: [] };
 
-  // 4. 二次验证：标准名必须真实存在
+  // 5. 二次验证：标准名必须真实存在
   const { cards: verified } = await fetchArtistCards(matched, rateLimiter);
   if (verified.length === 0) return { canonical: null, cards: [] };
 
