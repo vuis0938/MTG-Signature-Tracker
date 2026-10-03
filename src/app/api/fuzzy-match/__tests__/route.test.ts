@@ -14,6 +14,7 @@ import { NextRequest } from "next/server";
 const h = vi.hoisted(() => ({
   fetchArtistCards: vi.fn(),
   cachedRows: [] as unknown[],
+  deckCards: [] as unknown[],
 }));
 
 vi.mock("@/lib/scryfall-client", () => ({
@@ -60,6 +61,13 @@ vi.mock("@/lib/supabase", () => ({
           })),
         };
       }
+      if (table === "cards") {
+        return {
+          select: vi.fn(() => ({
+            in: vi.fn(async () => ({ data: h.deckCards, error: null })),
+          })),
+        };
+      }
       return { select: vi.fn(), upsert: vi.fn() };
     }),
   },
@@ -78,6 +86,7 @@ function makeRequest(body: unknown): NextRequest {
 beforeEach(() => {
   h.fetchArtistCards.mockReset();
   h.cachedRows = [];
+  h.deckCards = [];
 });
 
 describe("fuzzy-match 反向查询路由", () => {
@@ -88,7 +97,8 @@ describe("fuzzy-match 反向查询路由", () => {
     expect(body.error).toBe("缺少画家名单");
   });
 
-  it("缓存命中：直接用 artist_cards 反转成 cardMap，不调 Scryfall", async () => {
+  it("缓存命中：反转成 cardMap 并过滤套牌外卡，不调 Scryfall", async () => {
+    h.deckCards = [{ card_name: "Forest" }];
     h.cachedRows = [
       {
         artist_name: "John Avon",
@@ -99,6 +109,15 @@ describe("fuzzy-match 反向查询路由", () => {
             set_name: "Limited Edition Alpha",
             collector_number: "300",
             image_url: "https://a.jpg",
+            released_at: "1993-08-05",
+          },
+          {
+            // 套牌里没有这张卡，应被过滤掉
+            name: "Lightning Bolt",
+            set: "LEA",
+            set_name: "Limited Edition Alpha",
+            collector_number: "156",
+            image_url: "https://b.jpg",
             released_at: "1993-08-05",
           },
         ],
@@ -115,12 +134,15 @@ describe("fuzzy-match 反向查询路由", () => {
       set: "LEA",
       collector_number: "300",
     });
+    // 套牌外的卡被过滤掉
+    expect(body.cardMap["Lightning Bolt"]).toBeUndefined();
     // 缓存命中，不应触发 Scryfall 请求
     expect(h.fetchArtistCards).not.toHaveBeenCalled();
   });
 
   it("缓存未命中：调 fetchArtistCards 拉取并返回", async () => {
     h.cachedRows = [];
+    h.deckCards = [{ card_name: "Island" }];
     h.fetchArtistCards.mockResolvedValue({
       cards: [
         {

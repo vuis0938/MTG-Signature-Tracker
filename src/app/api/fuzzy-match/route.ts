@@ -56,6 +56,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "无权访问这些套牌" }, { status: 403 });
     }
 
+    // 查询套牌内的卡名（反向查询返回画家的「全部卡」，需过滤到套牌范围，
+    // 否则会把套牌里根本没有的卡误显示为「其他版本」）
+    const validDeckIds = ownedDecks.map((d) => d.id);
+    const { data: deckCards } = await supabase
+      .from("cards")
+      .select("card_name")
+      .in("deck_id", validDeckIds);
+    const deckNames = new Set((deckCards || []).map((c) => c.card_name));
+
     // 解析画家别名（覆盖「粘贴名单」和「活动日历」两条路径：
     // 粘贴路径在 parse-artists 已解析过，活动日历路径尚未解析，统一在此兜底）
     const aliasMap = await loadArtistAliases();
@@ -117,8 +126,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── 第三步：反转成 cardMap（保持返回结构不变，客户端零改动）──
-    const cardMap = buildFuzzyCardMap(artistCardsMap);
+    // ── 第三步：反转成 cardMap（过滤到套牌范围，保持返回结构不变）──
+    const cardMap = buildFuzzyCardMap(artistCardsMap, deckNames);
 
     return NextResponse.json({
       success: true,

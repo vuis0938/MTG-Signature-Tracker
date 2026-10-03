@@ -27,13 +27,20 @@ export interface FuzzyApiResponse {
  *
  * 每个画家查到的卡按卡名归组，该画家被 tag 进 printings[].artist 与 allArtists。
  * 这样模糊匹配 API 的返回结构保持不变，客户端 buildExpandedArtistCards 零改动。
+ *
+ * @param deckNames 可选：套牌中的卡名集合。反向查询返回画家的「全部卡」，
+ *  必须过滤到套牌范围内，否则会把套牌里根本没有的卡误显示为「其他版本」。
  */
 export function buildFuzzyCardMap(
-  artistCardsMap: Map<string, ArtistCard[]>
+  artistCardsMap: Map<string, ArtistCard[]>,
+  deckNames?: Set<string>
 ): Record<string, FuzzyCardInfo> {
   const cardMap: Record<string, FuzzyCardInfo> = {};
   for (const [artist, cards] of artistCardsMap) {
     for (const card of cards) {
+      // 只保留套牌中存在的卡名（同名卡才算「其他版本」，不同名卡直接丢弃）
+      if (deckNames && !deckNames.has(card.name)) continue;
+
       const entry = cardMap[card.name] || {
         card_name: card.name,
         printings: [],

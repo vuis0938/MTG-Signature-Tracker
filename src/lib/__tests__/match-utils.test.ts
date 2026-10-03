@@ -487,4 +487,32 @@ describe("buildFuzzyCardMap", () => {
   it("空输入返回空对象", () => {
     expect(buildFuzzyCardMap(new Map())).toEqual({});
   });
+
+  it("过滤掉套牌外的卡名", () => {
+    const map = new Map([
+      ["John Avon", [
+        { name: "Forest", set: "LEA", set_name: "Alpha", collector_number: "300", image_url: null, released_at: "1993-08-05" },
+        { name: "Lightning Bolt", set: "LEA", set_name: "Alpha", collector_number: "156", image_url: null, released_at: "1993-08-05" },
+      ]],
+    ]);
+
+    const deckNames = new Set(["Forest"]);
+    const cardMap = buildFuzzyCardMap(map, deckNames);
+
+    expect(Object.keys(cardMap)).toEqual(["Forest"]);
+    expect(cardMap.Forest).toBeDefined();
+    expect(cardMap["Lightning Bolt"]).toBeUndefined();
+  });
+
+  it("不传 deckNames 时不过滤（向后兼容）", () => {
+    const map = new Map([
+      ["John Avon", [
+        { name: "Forest", set: "LEA", set_name: "Alpha", collector_number: "300", image_url: null, released_at: "1993-08-05" },
+      ]],
+    ]);
+
+    const cardMap = buildFuzzyCardMap(map);
+
+    expect(Object.keys(cardMap)).toEqual(["Forest"]);
+  });
 });
