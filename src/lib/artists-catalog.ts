@@ -24,11 +24,18 @@ export async function loadAllArtists(): Promise<string[]> {
 
   try {
     const { data, error } = await getSupabase().from("artists").select("name");
-    if (error) return cache?.names || [];
+    if (error) {
+      console.warn("[ArtistsCatalog] 读取本地名单失败:", error.message);
+      return cache?.names || [];
+    }
     const names = (data || [])
       .map((r) => (r as { name: string }).name)
       .filter(Boolean);
-    cache = { names, ts: Date.now() };
+    // 空结果不缓存：避免「刷新名单前读到空表」被锁死 1 小时，
+    // 导致解析全部回退 Scryfall。下次会重新读库。
+    if (names.length > 0) {
+      cache = { names, ts: Date.now() };
+    }
     return names;
   } catch {
     return cache?.names || [];
