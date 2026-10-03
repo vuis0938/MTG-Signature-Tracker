@@ -6,9 +6,10 @@ import Image from "next/image";
 /**
  * 卡牌图片组件
  *
- * 基于 next/image，提供自动格式转换（AVIF/WebP）、
- * 响应式尺寸（sizes 让浏览器按实际展示宽度下载最小可用图）、
- * 防布局抖动（CLS，aspect-[5/7] 占位）。
+ * 基于 next/image，提供防布局抖动（CLS，aspect-[5/7] 占位）。
+ * 使用 unoptimized 直连 Scryfall 原图、不做二次优化：
+ *  - Scryfall 图片已在 CDN 优化过，二次优化收益低
+ *  - 二次优化会触发 Scryfall 拦截（本地 400）+ 耗尽 Vercel 图片配额（生产 402）
  *
  * MTG 卡牌标准比例 5:7（约 488x680）。
  *
@@ -49,7 +50,7 @@ export function CardImage({
   // 弹窗场景用 small 尺寸：URL 中 /normal/ 替换为 /small/
   const imageSrc = size === "small" ? src.replace("/normal/", "/small/") : src;
 
-  // next/image 优化失败时，降级为普通 img 标签直接加载原图
+  // 图片加载失败时（如原图被移除），降级为普通 img 标签
   if (errored) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
@@ -70,6 +71,7 @@ export function CardImage({
         src={imageSrc}
         alt={alt}
         fill
+        unoptimized
         sizes={sizes}
         className="object-cover"
         loading={priority ? undefined : "lazy"}

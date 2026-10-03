@@ -27,18 +27,20 @@
 ```
 src/
   app/              # Next.js App Router 页面
-    login/          # 登录页面
+    page.tsx        # 落地页（登录/注册/找回密码合一）
     decks/          # 套牌管理页面
     match/          # 活动匹配页面
+    events/         # 活动日历
     settings/       # 设置页面
+    admin/          # 管理后台
     api/            # API Routes
   components/       # 通用 UI 组件
     ui/             # shadcn/ui 组件
   lib/              # 工具函数
     supabase.ts     # Supabase 客户端
-    scryfall.ts     # Scryfall API 工具
-    parser.ts       # CSV 解析工具
-    fuzzy.ts        # Fuse.js 工具
+    scryfall-client.ts  # Scryfall API 工具
+    moxfield-parser.ts  # 套牌列表解析
+    match-utils.ts  # 匹配引擎（自研三级匹配）
   types/            # TypeScript 类型定义
 ```
 
@@ -50,10 +52,10 @@ src/
 ## 外部 API 调用规范
 
 ### Scryfall
-- 每次请求至少 100ms 延迟
-- 携带自定义 User-Agent
+- 用 RateLimiter 平滑限速（10 req/s），不硬编码延迟
+- 携带自定义 User-Agent（图片 CDN 同样要求，否则 400）
 - 错误重试最多 3 次，指数退避
-- 按 `/cards/:set/:number` 端点查询，不模糊搜索卡名
+- 批量查询用 `/cards/collection`；精确匹配失败后降级 fuzzy 搜索兜底
 
 ### LLM API
 - 使用 API Route 代理，不在前端直接调

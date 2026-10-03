@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { delay, SCRYFALL_UA, SCRYFALL_BASE_URL } from "@/lib/scryfall-client";
+import { fetchArtistCards } from "@/lib/scryfall-client";
 import { getUserFromRequest } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
@@ -86,51 +86,18 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // ── 3. 缓存全未命中，查 Scryfall ────────────────────
-    const allCards: ArtistCard[] = [];
-    let pageUrl = `${SCRYFALL_BASE_URL}/cards/search?q=a:"${encodeURIComponent(artistName)}"+unique:prints&order=released`;
+    // ── 3. 缓存全未命中，查 Scryfall（反向查询，按画家查卡）──
+    // 使用 unique:art 按画作去重，避免高产画家被 unique:prints 的
+    // 语言变体放大到十几页（雷区）。
+    const { cards: allCards } = await fetchArtistCards(artistName);
 
-    let isFirstPage = true;
-    while (pageUrl) {
-      // Scryfall 限速：请求间隔 ≥100ms，但首页无需等待
-      if (!isFirstPage) await delay(100);
-      isFirstPage = false;
-      const res = await fetch(pageUrl, {
-        headers: { "User-Agent": SCRYFALL_UA, Accept: "application/json" },
-      });
-
-      if (res.status === 404) {
-        // 404 也缓存（避免重复查询不存在的画家）
-        setCached(artistName, []);
-        return NextResponse.json(
-          { error: `未找到画家 "${artist}" 的卡牌` },
-          { status: 404 }
-        );
-      }
-
-      if (!res.ok) {
-        console.error(`[ArtistCards] HTTP ${res.status}`);
-        break;
-      }
-
-      const data = await res.json();
-      for (const card of data.data || []) {
-        allCards.push({
-          name: card.name,
-          set: card.set,
-          set_name: card.set_name,
-          collector_number: card.collector_number,
-          image_url:
-            card.image_uris?.normal ||
-            card.image_uris?.small ||
-            card.card_faces?.[0]?.image_uris?.normal ||
-            card.card_faces?.[0]?.image_uris?.small ||
-            null,
-          released_at: card.released_at,
-        });
-      }
-
-      pageUrl = data.has_more ? data.next_page : null;
+    if (allCards.length === 0) {
+      // 无结果也缓存（避免重复查询不存在的画家）
+      setCached(artistName, []);
+      return NextResponse.json(
+        { error: `未找到画家 "${artist}" 的卡牌` },
+        { status: 404 }
+      );
     }
 
     // ── 4. 写入双层缓存（内存 + Supabase 持久化） ──────

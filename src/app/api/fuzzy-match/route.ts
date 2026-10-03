@@ -1,19 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { fetchCardArtists, RateLimiter, fetchScryfallBulkDataVersion } from "@/lib/scryfall-client";
-import { warmCardPrintingsCache } from "@/lib/cache-printings";
+import { fetchArtistCards, RateLimiter } from "@/lib/scryfall-client";
+import { loadArtistAliases, resolveAliases } from "@/lib/artist-aliases";
+import { buildFuzzyCardMap } from "@/lib/match-utils";
 import { getUserFromRequest } from "@/lib/auth";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
-import type { Printing } from "@/types";
+import type { ArtistCard } from "@/types";
 
-interface FuzzyCardResult {
-  card_name: string;
-  printings: Printing[];
-  allArtists: string[];
-}
+// 反向查询并发数（配合 RateLimiter 10 req/s；中国到 Scryfall ~2s/次，
+// 并发 6 时吞吐约 3/s，30 个画家 ≈ 10 秒冷启动）
+const CONCURRENCY = 6;
 
-// 版本号检查节流：1 小时内不重复查 Scryfall
-const VERSION_CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 小时
+// 画家数量上限（活动名单一般 20-30 位，留足余量）
+const MAX_ARTISTS = 100;
 
 export async function POST(request: NextRequest) {
   // 鉴权
@@ -31,7 +30,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { deckIds } = body as { deckIds?: string[] };
+    const { deckIds, artists } = body as { deckIds?: string[]; artists?: string[] };
 
     if (!deckIds || deckIds.length === 0) {
       return NextResponse.json({ error: "缺少套牌 ID" }, { status: 400 });
@@ -39,149 +38,101 @@ export async function POST(request: NextRequest) {
     if (deckIds.length > 50) {
       return NextResponse.json({ error: "套牌数量过多（最多 50 个）" }, { status: 400 });
     }
+    if (!artists || artists.length === 0) {
+      return NextResponse.json({ error: "缺少画家名单" }, { status: 400 });
+    }
+    if (artists.length > MAX_ARTISTS) {
+      return NextResponse.json({ error: `画家数量过多（最多 ${MAX_ARTISTS} 个）` }, { status: 400 });
+    }
 
-    // 验证所有套牌属于当前用户 + 检查 Scryfall 版本号（并行，互不依赖）
-    const [deckResult, metaResult] = await Promise.all([
-      supabase
-        .from("decks")
-        .select("id")
-        .in("id", deckIds)
-        .eq("user_name", userName),
-      supabase
-        .from("scryfall_meta")
-        .select("value, updated_at")
-        .eq("key", "bulk_data_version")
-        .single(),
-    ]);
-
-    const { data: ownedDecks } = deckResult;
-    const { data: metaRows } = metaResult;
+    // 验证所有套牌属于当前用户
+    const { data: ownedDecks } = await supabase
+      .from("decks")
+      .select("id")
+      .in("id", deckIds)
+      .eq("user_name", userName);
 
     if (!ownedDecks || ownedDecks.length === 0) {
       return NextResponse.json({ error: "无权访问这些套牌" }, { status: 403 });
     }
 
-    // 只查询属于当前用户的套牌
+    // 查询套牌内的卡名（反向查询返回画家的「全部卡」，需过滤到套牌范围，
+    // 否则会把套牌里根本没有的卡误显示为「其他版本」）
     const validDeckIds = ownedDecks.map((d) => d.id);
-
-    const { data: cards } = await supabase
+    const { data: deckCards } = await supabase
       .from("cards")
-      .select("card_name, deck_id")
+      .select("card_name")
       .in("deck_id", validDeckIds);
+    const deckNames = new Set((deckCards || []).map((c) => c.card_name));
 
-    if (!cards || cards.length === 0) {
-      return NextResponse.json({
-        success: true,
-        cardMap: {},
-        cardCount: 0,
-      });
-    }
+    // 解析画家别名（覆盖「粘贴名单」和「活动日历」两条路径：
+    // 粘贴路径在 parse-artists 已解析过，活动日历路径尚未解析，统一在此兜底）
+    const aliasMap = await loadArtistAliases();
+    const resolvedArtists = [...new Set(resolveAliases(artists, aliasMap))];
 
-    const uniqueNames = [...new Set(cards.map((c) => c.card_name))];
-
-    // ── 检查 Scryfall 数据版本号，判断缓存是否可靠 ──
-    let forceRefresh = false;
-    const storedVersion: string | null = metaRows?.value?.updated_at ?? null;
-    const lastChecked = metaRows?.updated_at ? new Date(metaRows.updated_at).getTime() : 0;
-    const shouldCheckVersion = Date.now() - lastChecked > VERSION_CHECK_INTERVAL_MS;
-
-    if (shouldCheckVersion) {
-      const currentVersion = await fetchScryfallBulkDataVersion();
-      if (currentVersion && currentVersion !== storedVersion) {
-        // 数据版本号变了 → 缓存可能过期，需要刷新
-        forceRefresh = true;
-        console.log(`[FuzzyMatch] Scryfall 数据版本变化: ${storedVersion} → ${currentVersion}`);
-      }
-
-      // 更新本地存储的版本号（无论是否变化，都更新检查时间）
-      supabase
-        .from("scryfall_meta")
-        .upsert(
-          {
-            key: "bulk_data_version",
-            value: { updated_at: currentVersion ?? storedVersion },
-          },
-          { onConflict: "key" }
-        )
-        .then(({ error }) => {
-          if (error) console.warn("[FuzzyMatch] 更新版本号失败:", error.message);
-        });
-    }
-
-    // ── 第一步：预热/刷新缓存 ──
-    if (forceRefresh) {
-      // 数据版本变了，强制刷新本次查询涉及的所有卡牌
-      await warmCardPrintingsCache(uniqueNames, { forceRefresh: true });
-    }
-
-    // ── 第二步：从缓存表批量读取 ──
+    // ── 第一步：批量查 artist_cards 缓存（按画家，跨套牌复用）──
     const { data: cachedRows } = await supabase
-      .from("card_printings")
-      .select("card_name, printings, all_artists")
-      .in("card_name", uniqueNames);
+      .from("artist_cards")
+      .select("artist_name, cards")
+      .in("artist_name", resolvedArtists);
 
-    const cachedMap = new Map<string, FuzzyCardResult>();
+    const artistCardsMap = new Map<string, ArtistCard[]>();
     if (cachedRows) {
       for (const row of cachedRows) {
-        cachedMap.set(row.card_name, {
-          card_name: row.card_name,
-          printings: row.printings as Printing[],
-          allArtists: row.all_artists as string[],
-        });
+        if (row.cards && Array.isArray(row.cards)) {
+          artistCardsMap.set(row.artist_name, row.cards as ArtistCard[]);
+        }
       }
     }
 
-    const cachedNames = new Set(cachedMap.keys());
-    const missedNames = uniqueNames.filter((n) => !cachedNames.has(n));
+    const missedArtists = resolvedArtists.filter((a) => !artistCardsMap.has(a));
 
-    // ── 第三步：缓存未命中的走 Scryfall 轻量查询（仅首页，只取画家名）──
-    // Phase 1 策略：不翻页、不拉取完整印刷版本，只取首页画家名列表。
-    // 100 张卡从 10-20 秒降到 2-3 秒。完整印刷版本由客户端 Phase 2 按需加载。
-    const scryfallResults: FuzzyCardResult[] = [];
-    if (missedNames.length > 0) {
-      const CONCURRENCY = 6;
+    // ── 第二步：未命中的画家走 Scryfall 反向查询（按画家查卡）──
+    const fetched: Array<{ artist: string; cards: ArtistCard[] }> = [];
+    if (missedArtists.length > 0) {
       const rateLimiter = new RateLimiter(10);
-      for (let i = 0; i < missedNames.length; i += CONCURRENCY) {
-        const batch = missedNames.slice(i, i + CONCURRENCY);
+      for (let i = 0; i < missedArtists.length; i += CONCURRENCY) {
+        const batch = missedArtists.slice(i, i + CONCURRENCY);
         const batchResults = await Promise.all(
-          batch.map(async (name) => {
-            const { artists } = await fetchCardArtists(name, rateLimiter);
-            return {
-              card_name: name,
-              printings: [], // Phase 1 不返回印刷版本，客户端 Phase 2 按需加载
-              allArtists: artists,
-            };
+          batch.map(async (artist) => {
+            const { cards } = await fetchArtistCards(artist, rateLimiter);
+            return { artist, cards };
           })
         );
-        scryfallResults.push(...batchResults);
+        for (const r of batchResults) {
+          artistCardsMap.set(r.artist, r.cards);
+          fetched.push(r);
+        }
       }
     }
 
-    // ── 第四步：写入缓存（仅当有完整印刷版本时，Phase 1 不写缓存）──
-    // Phase 1 的数据不完整（printings 为空），不写入缓存。
-    // 完整印刷版本由客户端调用 /api/cache-printings 后台加载后写入。
-
-    // ── 第五步：合并结果 ──
-    const cardMap: Record<string, FuzzyCardResult> = {};
-    for (const r of cachedMap.values()) {
-      cardMap[r.card_name] = r;
+    // 回写缓存（fire-and-forget，不阻塞响应）
+    if (fetched.length > 0) {
+      for (const r of fetched) {
+        if (r.cards.length === 0) continue;
+        supabase
+          .from("artist_cards")
+          .upsert(
+            {
+              artist_name: r.artist,
+              cards: r.cards,
+              card_count: r.cards.length,
+            },
+            { onConflict: "artist_name" }
+          )
+          .then(({ error }) => {
+            if (error) console.warn(`[FuzzyMatch] 缓存写入失败 ${r.artist}:`, error.message);
+          });
+      }
     }
-    for (const r of scryfallResults) {
-      cardMap[r.card_name] = r;
-    }
 
-    const totalPrintings = Object.values(cardMap).reduce(
-      (s, r) => s + r.printings.length,
-      0
-    );
+    // ── 第三步：反转成 cardMap（过滤到套牌范围，保持返回结构不变）──
+    const cardMap = buildFuzzyCardMap(artistCardsMap, deckNames);
 
     return NextResponse.json({
       success: true,
       cardMap,
-      cardCount: uniqueNames.length,
-      totalPrintings,
-      cacheHit: cachedMap.size,
-      cacheMiss: missedNames.length,
+      cardCount: Object.keys(cardMap).length,
     });
   } catch (error) {
     console.error("[FuzzyMatch]", error);

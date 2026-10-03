@@ -14,7 +14,7 @@ vi.mock("@/lib/auth-edge", () => ({
   isAdmin: vi.fn(),
 }));
 
-import { middleware } from "./middleware";
+import { proxy } from "./proxy";
 import { verifyToken, isAdmin } from "@/lib/auth-edge";
 import { NextResponse } from "next/server";
 
@@ -33,26 +33,26 @@ function makeRequest(pathname: string, token?: string): NextRequest {
   } as unknown as NextRequest;
 }
 
-describe("middleware", () => {
+describe("proxy", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("公开路径 / 直接放行", async () => {
-    await middleware(makeRequest("/"));
+    await proxy(makeRequest("/"));
     expect(nextMock).toHaveBeenCalledTimes(1);
     expect(redirectMock).not.toHaveBeenCalled();
   });
 
   it("公开路径 /api/auth 直接放行", async () => {
-    await middleware(makeRequest("/api/auth"));
+    await proxy(makeRequest("/api/auth"));
     expect(nextMock).toHaveBeenCalledTimes(1);
   });
 
   it("静态资源直接放行", async () => {
-    await middleware(makeRequest("/_next/static/chunk.js"));
-    await middleware(makeRequest("/favicon.ico"));
-    await middleware(makeRequest("/logo.png"));
+    await proxy(makeRequest("/_next/static/chunk.js"));
+    await proxy(makeRequest("/favicon.ico"));
+    await proxy(makeRequest("/logo.png"));
     expect(nextMock).toHaveBeenCalledTimes(3);
     expect(redirectMock).not.toHaveBeenCalled();
   });
@@ -60,7 +60,7 @@ describe("middleware", () => {
   it("SEO 与法律页面未登录也可访问", async () => {
     const paths = ["/robots.txt", "/sitemap.xml", "/privacy", "/terms", "/site.webmanifest"];
     for (const path of paths) {
-      await middleware(makeRequest(path));
+      await proxy(makeRequest(path));
     }
     expect(nextMock).toHaveBeenCalledTimes(paths.length);
     expect(redirectMock).not.toHaveBeenCalled();
@@ -68,7 +68,7 @@ describe("middleware", () => {
 
   it("未登录访问 /decks 重定向到 /", async () => {
     vi.mocked(verifyToken).mockResolvedValue(null);
-    await middleware(makeRequest("/decks"));
+    await proxy(makeRequest("/decks"));
     expect(redirectMock).toHaveBeenCalledTimes(1);
     const url = redirectMock.mock.calls[0][0] as URL;
     expect(url.href).toBe("http://localhost/");
@@ -77,7 +77,7 @@ describe("middleware", () => {
 
   it("已登录访问 /decks 放行", async () => {
     vi.mocked(verifyToken).mockResolvedValue("testuser");
-    await middleware(makeRequest("/decks", "valid-token"));
+    await proxy(makeRequest("/decks", "valid-token"));
     expect(nextMock).toHaveBeenCalledTimes(1);
     expect(redirectMock).not.toHaveBeenCalled();
   });
@@ -85,7 +85,7 @@ describe("middleware", () => {
   it("非管理员访问 /admin 重定向到 /decks", async () => {
     vi.mocked(verifyToken).mockResolvedValue("testuser");
     vi.mocked(isAdmin).mockReturnValue(false);
-    await middleware(makeRequest("/admin", "valid-token"));
+    await proxy(makeRequest("/admin", "valid-token"));
     expect(redirectMock).toHaveBeenCalledTimes(1);
     const url = redirectMock.mock.calls[0][0] as URL;
     expect(url.href).toBe("http://localhost/decks");
@@ -94,7 +94,7 @@ describe("middleware", () => {
   it("管理员访问 /admin 放行", async () => {
     vi.mocked(verifyToken).mockResolvedValue("adminuser");
     vi.mocked(isAdmin).mockReturnValue(true);
-    await middleware(makeRequest("/admin", "admin-token"));
+    await proxy(makeRequest("/admin", "admin-token"));
     expect(nextMock).toHaveBeenCalledTimes(1);
     expect(redirectMock).not.toHaveBeenCalled();
   });

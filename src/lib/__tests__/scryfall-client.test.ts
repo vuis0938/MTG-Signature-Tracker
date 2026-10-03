@@ -1,8 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   splitArtists,
   extractArtists,
   extractImageUrl,
+  fetchAllPrintings,
+  fetchArtistCards,
+  RateLimiter,
   type ScryfallCard,
 } from "../scryfall-client";
 
@@ -215,5 +218,155 @@ describe("extractImageUrl", () => {
       image_uris: undefined,
     });
     expect(extractImageUrl(card)).toBeNull();
+  });
+});
+
+// ═════════════════════════════════════════════════════════════
+// fetchArtistCards / fetchAllPrintings（mock fetch，验证 unique:art）
+// ═════════════════════════════════════════════════════════════
+
+describe("Scryfall 印刷查询使用 unique:art", () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("fetchArtistCards 使用 unique:art 且正确提取卡牌字段", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: [
+          {
+            name: "Forest",
+            set: "LEA",
+            set_name: "Limited Edition Alpha",
+            collector_number: "300",
+            image_uris: { normal: "https://a.jpg" },
+            released_at: "1993-08-05",
+          },
+        ],
+        has_more: false,
+      }),
+    });
+
+    const { cards } = await fetchArtistCards("John Avon", new RateLimiter(1000));
+
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toMatchObject({
+      name: "Forest",
+      set: "LEA",
+      set_name: "Limited Edition Alpha",
+      collector_number: "300",
+      image_url: "https://a.jpg",
+    });
+
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain('a:"John%20Avon"');
+    expect(url).toContain("unique:art");
+    expect(url).not.toContain("unique:prints");
+  });
+
+  it("fetchArtistCards 正确翻页", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            {
+              name: "Forest",
+              set: "LEA",
+              set_name: "Limited Edition Alpha",
+              collector_number: "300",
+              image_uris: { normal: "https://a.jpg" },
+              released_at: "1993-08-05",
+            },
+          ],
+          has_more: true,
+          next_page: "https://api.scryfall.com/cards/search?page=2",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            {
+              name: "Island",
+              set: "LEB",
+              set_name: "Limited Edition Beta",
+              collector_number: "287",
+              image_uris: { normal: "https://b.jpg" },
+              released_at: "1993-10-04",
+            },
+          ],
+          has_more: false,
+        }),
+      });
+
+    const { cards, complete } = await fetchArtistCards("John Avon", new RateLimiter(1000));
+
+    expect(complete).toBe(true);
+    expect(cards.map((c) => c.name)).toEqual(["Forest", "Island"]);
+  });
+
+  it("fetchAllPrintings 使用 unique:art 且正确翻页", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            {
+              name: "Forest",
+              artist: "John Avon",
+              set: "LEA",
+              set_name: "Limited Edition Alpha",
+              collector_number: "300",
+              image_uris: { normal: "https://a.jpg" },
+              released_at: "1993-08-05",
+            },
+          ],
+          has_more: true,
+          next_page: "https://api.scryfall.com/cards/search?page=2",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            {
+              name: "Forest",
+              artist: "Kev Walker",
+              set: "M12",
+              set_name: "Magic 2012",
+              collector_number: "301",
+              image_uris: { normal: "https://b.jpg" },
+              released_at: "2011-07-15",
+            },
+          ],
+          has_more: false,
+        }),
+      });
+
+    const { printings, complete } = await fetchAllPrintings(
+      "Forest",
+      new RateLimiter(1000)
+    );
+
+    expect(complete).toBe(true);
+    expect(printings).toHaveLength(2);
+    expect(printings.map((p) => p.artist)).toEqual(["John Avon", "Kev Walker"]);
+
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain("unique:art");
   });
 });

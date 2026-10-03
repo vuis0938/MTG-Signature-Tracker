@@ -661,7 +661,7 @@ export default function MatchClient({
     //    原先串行等待，总耗时 = 两者之和；并行后 = max(两者)
     const [cards, fuzzyData] = await Promise.all([
       fetchCardsByDeckIds(deckIds),
-      callFuzzyApi(deckIds),
+      callFuzzyApi(deckIds, currentParsedArtists),
     ]);
 
     if (cards.length === 0) {
@@ -693,48 +693,6 @@ export default function MatchClient({
     setMatched(new Map());
     setFuzzyMatched(newFuzzyMatched);
     setUnmatched(newUnmatched);
-
-    // ── Phase 2：后台加载完整印刷版本（"其他版本"卡图等）──
-    // Phase 1 只返回画家名，2-3 秒出匹配结果。
-    // 用户看到结果后，后台拉取完整印刷版本，补充"其他版本"展示。
-    if (fuzzyData.success && fuzzyData.cardMap) {
-      const needsPrintings = Object.values(fuzzyData.cardMap).some(
-        (info) => !info.printings || info.printings.length === 0
-      );
-      if (needsPrintings) {
-        loadFullPrintingsPhase2(deckIds, cards);
-      }
-    }
-  }
-
-  /** Phase 2：后台加载完整印刷版本，更新匹配结果 */
-  async function loadFullPrintingsPhase2(deckIds: string[], cards: CardEntry[]) {
-    try {
-      // 1. 后台预热缓存（拉取完整 printings 写入 card_printings 表）
-      await apiPost("/api/cache-printings", { deckIds });
-
-      // 2. 重新调用模糊匹配 API（此时缓存已就绪，秒出完整数据）
-      const fuzzyRes = await apiPost("/api/fuzzy-match", { deckIds });
-      const text = await fuzzyRes.text();
-      if (!fuzzyRes.ok) return;
-      const fuzzyData = JSON.parse(text) as FuzzyApiResponse;
-      if (!fuzzyData.success || !fuzzyData.cardMap) return;
-
-      // 3. 重新构建完整匹配结果（含"其他版本"卡图）
-      const currentParsedArtists = parsedArtistsRef.current;
-      const { artistCards, exactMatchedKeys, artistDbKeys, artistNormalizedMap } =
-        buildExactBaseline(cards, currentParsedArtists);
-      const expandedArtistCards = buildExpandedArtistCards(cards, fuzzyData);
-      mergeExactIntoExpanded(artistCards, exactMatchedKeys, expandedArtistCards);
-      const { newFuzzyMatched } = matchAgainstArtists(
-        currentParsedArtists, expandedArtistCards, exactMatchedKeys,
-        artistDbKeys, artistNormalizedMap, artistCards
-      );
-
-      setFuzzyMatched(newFuzzyMatched);
-    } catch (err) {
-      console.warn("[Phase 2] 印刷版本加载失败:", err);
-    }
   }
 
   // ─── 模糊匹配子步骤 ────────────────────────────────────
@@ -764,9 +722,9 @@ export default function MatchClient({
   }
 
   /** 调用模糊匹配 API */
-  async function callFuzzyApi(deckIds: string[]): Promise<FuzzyApiResponse> {
+  async function callFuzzyApi(deckIds: string[], artists: string[]): Promise<FuzzyApiResponse> {
     try {
-      const fuzzyRes = await apiPost("/api/fuzzy-match", { deckIds });
+      const fuzzyRes = await apiPost("/api/fuzzy-match", { deckIds, artists });
       const text = await fuzzyRes.text();
 
       const htmlError = detectResponseError(fuzzyRes, text);

@@ -6,6 +6,7 @@
 
 | 文件 | 内容 | 何时查阅 |
 |------|------|---------|
+| [docs/handover-notes.md](./docs/handover-notes.md) | 当前真实状态（代码/数据库/环境/待办），权威 | 每次开始前优先查阅 |
 | [docs/requirements.md](./docs/requirements.md) | 项目需求、功能列表、页面规划 | 不确定功能范围时 |
 | [docs/tech-stack.md](./docs/tech-stack.md) | 技术栈选型、API 说明、依赖列表 | 添加新依赖或调外部 API 时 |
 | [docs/design-spec.md](./docs/design-spec.md) | 配色、版式、组件规范 | 写 UI 代码前 |
@@ -23,7 +24,7 @@
 
 ## 工作流程
 
-1. **开始工作前**: 查阅 `docs/roadmap.md` 确认当前阶段
+1. **开始工作前**: 先查 [handover-notes.md](./docs/handover-notes.md) 了解当前真实状态
 2. **写代码时**: 遵守 `docs/conventions.md` 中的规范
 3. **完成一个阶段**: Git commit，更新 `docs/roadmap.md` 打勾
 4. **每天结束**: 更新 `dev-logs/` 中当天的日志
@@ -32,6 +33,6 @@
 
 - 每完成一个阶段的任务，立即 `git commit`
 - 小步迭代，每个功能点写完验证再继续
-- Scryfall API: 100ms 间隔 + 自定义 User-Agent
+- Scryfall API: RateLimiter 10 req/s + 自定义 User-Agent
 - CSV 解析: 强依赖 Set Code + Collector Number
 - 所有异步操作要有 Loading 状态，所有错误要有 Toast 提示

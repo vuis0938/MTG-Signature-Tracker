@@ -7,16 +7,60 @@
 
 // ─── 类型定义 ──────────────────────────────────────────────
 
-import type { Printing, CardEntry, FuzzyCardEntry } from "@/types";
+import type { Printing, ArtistCard, CardEntry, FuzzyCardEntry } from "@/types";
+
+/** 模糊匹配 cardMap 中单张卡牌的值 */
+export interface FuzzyCardInfo {
+  card_name: string;
+  printings: Printing[];
+  allArtists: string[];
+}
 
 /** 模糊匹配 API 返回结构 */
 export interface FuzzyApiResponse {
   success: boolean;
-  cardMap?: Record<string, {
-    card_name: string;
-    printings: Printing[];
-    allArtists: string[];
-  }>;
+  cardMap?: Record<string, FuzzyCardInfo>;
+}
+
+/**
+ * 把「画家 → 卡牌列表」的反向查询结果反转成「卡名 → 画家/印刷版本」的 cardMap。
+ *
+ * 每个画家查到的卡按卡名归组，该画家被 tag 进 printings[].artist 与 allArtists。
+ * 这样模糊匹配 API 的返回结构保持不变，客户端 buildExpandedArtistCards 零改动。
+ *
+ * @param deckNames 可选：套牌中的卡名集合。反向查询返回画家的「全部卡」，
+ *  必须过滤到套牌范围内，否则会把套牌里根本没有的卡误显示为「其他版本」。
+ */
+export function buildFuzzyCardMap(
+  artistCardsMap: Map<string, ArtistCard[]>,
+  deckNames?: Set<string>
+): Record<string, FuzzyCardInfo> {
+  const cardMap: Record<string, FuzzyCardInfo> = {};
+  for (const [artist, cards] of artistCardsMap) {
+    for (const card of cards) {
+      // 只保留套牌中存在的卡名（同名卡才算「其他版本」，不同名卡直接丢弃）
+      if (deckNames && !deckNames.has(card.name)) continue;
+
+      const entry = cardMap[card.name] || {
+        card_name: card.name,
+        printings: [],
+        allArtists: [],
+      };
+      entry.printings.push({
+        artist,
+        set: card.set,
+        set_name: card.set_name,
+        collector_number: card.collector_number,
+        image_url: card.image_url,
+        released_at: card.released_at,
+      });
+      if (!entry.allArtists.includes(artist)) {
+        entry.allArtists.push(artist);
+      }
+      cardMap[card.name] = entry;
+    }
+  }
+  return cardMap;
 }
 
 // ─── 画家名解析 ──────────────────────────────────────────
