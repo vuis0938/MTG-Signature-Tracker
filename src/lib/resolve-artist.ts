@@ -48,7 +48,7 @@ async function matchLocalArtist(target: string): Promise<string | null> {
  * （本地命中时 cards 为空，卡牌在匹配阶段再查）。
  * 不写缓存——由调用方决定。
  */
-export async function resolveArtistCanonical(
+async function resolveArtistCanonical(
   name: string,
   rateLimiter?: RateLimiter,
 ): Promise<{ canonical: string | null; cards: ArtistCard[] }> {

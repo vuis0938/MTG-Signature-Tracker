@@ -320,6 +320,31 @@ describe("Scryfall 印刷查询使用 unique:art", () => {
     expect(cards.map((c) => c.name)).toEqual(["Forest", "Island"]);
   });
 
+  it("fetchArtistCards 双面牌：从 card_faces 提取 artist", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: [
+          {
+            name: "Delver of Secrets",
+            set: "ISD",
+            set_name: "Innistrad",
+            collector_number: "51",
+            image_uris: { normal: "https://a.jpg" },
+            released_at: "2011-09-30",
+            card_faces: [{ artist: "Nils Hamm" }],
+          },
+        ],
+        has_more: false,
+      }),
+    });
+
+    const { cards } = await fetchArtistCards("Nils Hamm", new RateLimiter(1000));
+
+    expect(cards[0].artist).toBe("Nils Hamm");
+  });
+
   it("fetchAllPrintings 使用 unique:art 且正确翻页", async () => {
     fetchMock
       .mockResolvedValueOnce({
