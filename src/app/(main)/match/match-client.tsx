@@ -1614,46 +1614,59 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
               </span>
             </h3>
 
-            {Array.from(byCardName).map(([cardName, versions]) => (
-              <div key={cardName} className="mb-3">
-                <p className="text-sm text-muted-foreground mb-2 flex items-center gap-1"><Package className="h-3.5 w-3.5" /> {cardName}</p>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
-                  {versions.map((v, idx) => {
-                    const isInDeck = !!v.deckCard;
-                    const cardId = v.deckCard?.id;
-                    const status = v.deckCard?.status ?? 0;
-                    const isPriority = priorityCount < 8;
-                    priorityCount++;
+            {Array.from(byCardName).map(([cardName, versions]) => {
+              // 提取该卡牌的套牌名（在套牌中的版本所属套牌，可能多个）
+              const deckNames = [...new Set(
+                versions
+                  .filter((v) => v.deckCard)
+                  .map((v) => v.deckCard!.deck_name || "未知套牌")
+              )];
+              const deckLabel = deckNames.length > 0 ? deckNames.join("、") : "其他版本";
 
-                    return (
-                      <div
-                        key={v.set_code + "-" + v.collector_number + "-" + idx}
-                        onClick={() => { if (cardId) toggleStatus(cardId); }}
-                        className={"relative w-full rounded-lg overflow-hidden border transition-all hover:scale-105 " + (isInDeck ? "cursor-pointer hover:shadow-md" : "cursor-default opacity-60") + " " + statusBorderClass(isInDeck, status)}
-                        title={isInDeck ? { 0: "待签", 1: "送签中", 2: "已签", 3: "心动" }[status] : "其他版本"}
-                      >
-                        <div className={isInDeck && status >= 1 ? "opacity-75" : ""}>
-                          {v.image_url ? (
-                            <CardImage src={v.image_url} alt={v.card_name} className="w-full" priority={isPriority} />
-                          ) : (
-                            <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
-                              {v.card_name}
-                            </div>
+              return (
+                <div key={cardName} className="mb-3">
+                  <p className="text-sm text-muted-foreground mb-2 flex items-center gap-1"><Package className="h-3.5 w-3.5" /> {deckLabel}</p>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
+                    {versions.map((v, idx) => {
+                      const isInDeck = !!v.deckCard;
+                      const cardId = v.deckCard?.id;
+                      const status = v.deckCard?.status ?? 0;
+                      const isPriority = priorityCount < 8;
+                      priorityCount++;
+
+                      return (
+                        <div
+                          key={v.set_code + "-" + v.collector_number + "-" + idx}
+                          onClick={() => { if (cardId) toggleStatus(cardId); }}
+                          className={"relative w-full rounded-lg overflow-hidden border transition-all hover:scale-105 " + (isInDeck ? "cursor-pointer hover:shadow-md" : "cursor-default opacity-60") + " " + statusBorderClass(isInDeck, status)}
+                          title={isInDeck ? { 0: "待签", 1: "送签中", 2: "已签", 3: "心动" }[status] : "其他版本"}
+                        >
+                          <div className={isInDeck && status >= 1 ? "opacity-75" : ""}>
+                            {v.image_url ? (
+                              <CardImage src={v.image_url} alt={v.card_name} className="w-full" priority={isPriority} />
+                            ) : (
+                              <div className="w-full aspect-[5/7] bg-accent flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
+                                {v.card_name}
+                              </div>
+                            )}
+                          </div>
+                          <StatusBadge status={status} isInDeck={isInDeck} />
+                          {!isInDeck && (
+                            <div className="absolute top-0 right-0 bg-amber-500 text-white text-xs px-1 rounded-bl">其他</div>
                           )}
+                          <div className="absolute bottom-5 left-0 right-0 bg-black/70 text-white text-xs px-1 py-0.5 text-center leading-tight truncate">
+                            {v.card_name}
+                          </div>
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs px-1 py-0.5 text-center leading-tight truncate">
+                            {v.set_code.toUpperCase()} #{v.collector_number}
+                          </div>
                         </div>
-                        <StatusBadge status={status} isInDeck={isInDeck} />
-                        {!isInDeck && (
-                          <div className="absolute top-0 right-0 bg-amber-500 text-white text-xs px-1 rounded-bl">其他</div>
-                        )}
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs px-1 py-0.5 text-center leading-tight truncate">
-                          {v.set_code.toUpperCase()} #{v.collector_number}
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         );
       })}
