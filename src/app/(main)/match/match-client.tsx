@@ -1621,7 +1621,7 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
                   .filter((v) => v.deckCard)
                   .map((v) => v.deckCard!.deck_name || "未知套牌")
               )];
-              const deckLabel = deckNames.length > 0 ? deckNames.join("、") : "其他版本";
+              const deckLabel = deckNames.length > 0 ? deckNames.join("、") : cardName;
 
               return (
                 <div key={cardName} className="mb-3">
@@ -1654,11 +1654,9 @@ function FuzzyMatchResults({ fuzzyMatched, toggleStatus }: { fuzzyMatched: Map<s
                           {!isInDeck && (
                             <div className="absolute top-0 right-0 bg-amber-500 text-white text-xs px-1 rounded-bl">其他</div>
                           )}
-                          <div className="absolute bottom-5 left-0 right-0 bg-black/70 text-white text-xs px-1 py-0.5 text-center leading-tight truncate">
-                            {v.card_name}
-                          </div>
-                          <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs px-1 py-0.5 text-center leading-tight truncate">
-                            {v.set_code.toUpperCase()} #{v.collector_number}
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs text-center leading-tight">
+                            <div className="px-1 pt-0.5 truncate">{v.card_name}</div>
+                            <div className="px-1 pb-0.5 truncate border-t border-white/15">{v.set_code.toUpperCase()} #{v.collector_number}</div>
                           </div>
                         </div>
                       );
