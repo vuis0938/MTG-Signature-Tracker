@@ -3,7 +3,7 @@ import { fetchArtistCards, fetchArtistCandidates, extractCanonicalArtist } from 
 import type { RateLimiter } from "@/lib/scryfall-client";
 import { getSupabase } from "@/lib/supabase";
 import { loadAllArtists } from "@/lib/artists-catalog";
-import { matchArtistName, safeNormalize } from "@/lib/match-utils";
+import { matchArtistName } from "@/lib/match-utils";
 import type { ArtistCard } from "@/types";
 
 /**
@@ -19,19 +19,6 @@ function cacheArtistCards(artistName: string, cards: ArtistCard[]): void {
     )
     .then(({ error }) => {
       if (error) console.warn(`[ResolveArtist] 缓存写入失败 ${artistName}:`, error.message);
-    });
-}
-
-/**
- * 写别名（错误名 → 标准名），自愈：下次同名直接命中别名表。
- * alias 列有唯一约束，用 upsert 幂等覆盖。
- */
-function writeAlias(alias: string, canonical: string): void {
-  getSupabase()
-    .from("artist_aliases")
-    .upsert({ alias, canonical_name: canonical }, { onConflict: "alias" })
-    .then(({ error }) => {
-      if (error) console.warn(`[ResolveArtist] 别名写入失败 ${alias} → ${canonical}:`, error.message);
     });
 }
 
@@ -102,24 +89,22 @@ export async function resolveArtistCanonical(
 }
 
 /**
- * 解析画家名并自愈：把可能有错的名字解析成 Scryfall 标准名，
- * 同时缓存卡牌 + 写别名（fire-and-forget，失败不影响主流程）。
+ * 解析画家名：把可能有错的名字解析成 Scryfall 标准名，并缓存卡牌。
  *
  * 返回标准名；无法解析返回 null（调用方标记为「未识别」）。
+ *
+ * 注：不再自动写别名自愈——全量名单的本地匹配已覆盖大小写/变音/编辑距离 ≤1 的错名，
+ * 别名表仅保留给管理员手动配置（兜底本地匹配覆盖不了的距离 >1 / 歧义错名）。
  */
 export async function resolveArtistName(
   name: string,
   rateLimiter?: RateLimiter,
 ): Promise<string | null> {
-  const target = name.trim();
-  const { canonical, cards } = await resolveArtistCanonical(target, rateLimiter);
+  const { canonical, cards } = await resolveArtistCanonical(name.trim(), rateLimiter);
   if (!canonical) return null;
 
-  // 缓存卡牌（以标准名为键）+ 写别名自愈（精确命中的大小写变体也会在此自愈）
+  // 缓存卡牌（以标准名为键）
   cacheArtistCards(canonical, cards);
-  if (safeNormalize(canonical.toLowerCase()) !== safeNormalize(target.toLowerCase())) {
-    writeAlias(target, canonical);
-  }
 
   return canonical;
 }
