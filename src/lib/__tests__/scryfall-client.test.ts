@@ -421,6 +421,11 @@ describe("extractCanonicalArtist", () => {
     expect(result).toBe("John Avon");
   });
 
+  it("近似匹配：少字母（前缀）也能提取标准名", () => {
+    const result = extractCanonicalArtist("john avo", [card("John Avon")]);
+    expect(result).toBe("John Avon");
+  });
+
   it('合作画师拆分：从 "John Avon & Kev Walker" 中提取匹配的画师', () => {
     const result = extractCanonicalArtist("kev walker", [card("John Avon & Kev Walker")]);
     expect(result).toBe("Kev Walker");
