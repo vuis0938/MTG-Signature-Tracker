@@ -186,6 +186,82 @@ export function findMatchingArtist(
   return map.get(normalizedKey) || null;
 }
 
+// ─── 编辑距离 ──────────────────────────────────────────────
+
+/**
+ * 计算两个字符串的 Levenshtein 编辑距离（用于画家名模糊匹配）。
+ * 返回把 a 变成 b 所需的最少「插入/删除/替换」次数。
+ */
+export function editDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  const m = a.length;
+  const n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+
+  // 滚动数组节省内存
+  let prev = new Array<number>(n + 1).fill(0).map((_, j) => j);
+  let curr = new Array<number>(n + 1).fill(0);
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[n];
+}
+
+/** 名字归一化：小写 + 去变音符号 + trim（用于模糊匹配比较） */
+function normalizeNameForMatch(name: string): string {
+  return safeNormalize(name.toLowerCase().trim());
+}
+
+// ─── 画家名模糊匹配（三关）─────────────────────────────────
+
+/** 名/姓氏 编辑距离阈值：超过即视为不同画家（保守，宁可漏不可错） */
+export const MAX_NAME_EDIT_DISTANCE = 1;
+
+/**
+ * 三关匹配：判断输入名字与候选画家名是否为同一画家。
+ *
+ * 三关：
+ * 1. 名（首词）与候选首词 编辑距离 ≤ MAX_NAME_EDIT_DISTANCE
+ * 2. 姓（末词）与候选末词 编辑距离 ≤ MAX_NAME_EDIT_DISTANCE
+ * 3. 通过前两关的候选必须唯一（防歧义，多个都过则拒）
+ *
+ * 单词输入当作「姓氏」，只比末词。
+ * 中间词忽略（允许「少中间名」）。
+ *
+ * 返回唯一匹配的候选名，否则返回 null。
+ */
+export function matchArtistName(input: string, candidates: string[]): string | null {
+  const inWords = normalizeNameForMatch(input).split(/\s+/).filter(Boolean);
+  if (inWords.length === 0) return null;
+
+  const passed: string[] = [];
+  for (const c of candidates) {
+    const cWords = normalizeNameForMatch(c).split(/\s+/).filter(Boolean);
+    if (cWords.length === 0) continue;
+
+    if (inWords.length === 1) {
+      // 单词输入：当作姓氏，只比末词
+      const lastDist = editDistance(inWords[0], cWords[cWords.length - 1]);
+      if (lastDist <= MAX_NAME_EDIT_DISTANCE) passed.push(c);
+    } else {
+      // 多词输入：比首词 + 末词（中间词忽略）
+      const firstDist = editDistance(inWords[0], cWords[0]);
+      const lastDist = editDistance(inWords[inWords.length - 1], cWords[cWords.length - 1]);
+      if (firstDist <= MAX_NAME_EDIT_DISTANCE && lastDist <= MAX_NAME_EDIT_DISTANCE) {
+        passed.push(c);
+      }
+    }
+  }
+
+  return passed.length === 1 ? passed[0] : null;
+}
+
 // ─── 卡牌去重 ────────────────────────────────────────────
 
 /** 判断两张卡牌是否是同一印刷版本（同名+同系列+同编号） */

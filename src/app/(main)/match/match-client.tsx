@@ -89,6 +89,7 @@ export default function MatchClient({
   const [parseProgress, setParseProgress] = useState("");
   const [parsedArtists, setParsedArtists] = useState<string[]>([]);
   const [parseMethod, setParseMethod] = useState("");
+  const [notFound, setNotFound] = useState<string[]>([]);
 
   // 套牌选择 — SWR 获取，跨页面共享缓存（使用 SSR fallback 首屏零加载）
   const fallbackData =
@@ -310,6 +311,7 @@ export default function MatchClient({
         setRawText("");
         setParsedArtists([]);
         setParseMethod("");
+        setNotFound([]);
         setCurrentEvent("");
         setCurrentEventDate("");
         resetMatchState();
@@ -321,6 +323,7 @@ export default function MatchClient({
       setRawText(merged.join("\n"));
       setParsedArtists(merged);
       setParseMethod("活动日历");
+      setNotFound([]);
       setCurrentEvent(selectedList.map((e) => e.name).join("、"));
       setCurrentEventDate(selectedList.map((e) => new Date(e.startDate).toLocaleDateString("zh-CN")).join("、"));
       resetMatchState();
@@ -372,6 +375,7 @@ export default function MatchClient({
       if (data.success) {
         setParsedArtists(data.artists);
         setParseMethod(data.method);
+        setNotFound(data.notFound || []);
         resetMatchState();
 
         // 检测解析的画家名单是否与已有活动高度重合，自动勾选匹配的活动
@@ -1361,6 +1365,7 @@ export default function MatchClient({
           matched={matched}
           fuzzyMatched={fuzzyMatched}
           unmatched={unmatched}
+          notFound={notFound}
           parsedArtists={parsedArtists}
           displayMode={displayMode}
           toggleStatus={toggleStatus}
@@ -1389,6 +1394,7 @@ interface MatchResultCardProps {
   matched: Map<string, CardEntry[]>;
   fuzzyMatched: Map<string, FuzzyCardEntry[]>;
   unmatched: string[];
+  notFound: string[];
   parsedArtists: string[];
   displayMode: "individual" | "grouped";
   toggleStatus: (cardIdOrIds: string | string[]) => void;
@@ -1396,7 +1402,7 @@ interface MatchResultCardProps {
 }
 
 function MatchResultCard({
-  fuzzyMode, matching, matched, fuzzyMatched, unmatched, parsedArtists, displayMode, toggleStatus, exportText,
+  fuzzyMode, matching, matched, fuzzyMatched, unmatched, notFound, parsedArtists, displayMode, toggleStatus, exportText,
 }: MatchResultCardProps) {
   const activeMatched = fuzzyMode ? fuzzyMatched : matched;
   const matchedCount = activeMatched.size;
@@ -1458,6 +1464,17 @@ function MatchResultCard({
               <ExactMatchResults matched={matched} displayMode={displayMode} toggleStatus={toggleStatus} />
             )}
           </>
+        )}
+
+        {!matching && notFound.length > 0 && (
+          <div className="pt-4 border-t mt-4">
+            <h4 className="text-sm font-medium text-amber-700 mb-2">以下画家未识别到卡牌作品，名字可能拼写有误：</h4>
+            <div className="flex flex-wrap gap-2">
+              {notFound.map((a) => (
+                <span key={a} className="px-2 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded text-sm">{a}</span>
+              ))}
+            </div>
+          </div>
         )}
 
         {!matching && unmatched.length > 0 && (

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
 import { loadArtistAliases, resolveAliases } from "@/lib/artist-aliases";
+import { resolveArtistName } from "@/lib/resolve-artist";
+import { RateLimiter } from "@/lib/scryfall-client";
+import { getSupabase } from "@/lib/supabase";
 
 // ─── LLM 清洗（DeepSeek 优先，Anthropic 备选） ─────────────
 
@@ -256,10 +259,47 @@ export async function POST(request: NextRequest) {
       artists = resolveAliases(artists, aliasMap);
     }
 
+    // 逐个解析为标准名（反向查询纠错），并标记无法识别的画家
+    const resolvedSet = new Set<string>();
+    const notFoundSet = new Set<string>();
+
+    // 批量查本地缓存：已缓存的画家（标准名）直接算「已识别」，不问 Scryfall
+    let toResolve = artists;
+    if (artists.length > 0) {
+      const { data: cachedRows } = await getSupabase()
+        .from("artist_cards")
+        .select("artist_name")
+        .in("artist_name", artists);
+      const cachedSet = new Set((cachedRows || []).map((r) => r.artist_name));
+      for (const name of artists) {
+        if (cachedSet.has(name)) resolvedSet.add(name);
+      }
+      toResolve = artists.filter((a) => !cachedSet.has(a));
+    }
+
+    // 未缓存的画家走 resolveArtistName（精确查 + 降级纠错）
+    const CONCURRENCY = 6;
+    const rateLimiter = new RateLimiter(10);
+
+    for (let i = 0; i < toResolve.length; i += CONCURRENCY) {
+      const batch = toResolve.slice(i, i + CONCURRENCY);
+      const results = await Promise.all(
+        batch.map(async (name) => ({
+          original: name,
+          canonical: await resolveArtistName(name, rateLimiter),
+        }))
+      );
+      for (const r of results) {
+        if (r.canonical) resolvedSet.add(r.canonical);
+        else notFoundSet.add(r.original);
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      artists,
-      count: artists.length,
+      artists: [...resolvedSet],
+      notFound: [...notFoundSet],
+      count: resolvedSet.size,
       method,
     });
   } catch {
