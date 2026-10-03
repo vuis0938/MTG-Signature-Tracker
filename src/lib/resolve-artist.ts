@@ -44,30 +44,30 @@ async function matchLocalArtist(target: string): Promise<string | null> {
  * 1. 本地全量名单匹配（零 Scryfall）：精确 → 三关模糊（编辑距离 ≤1 + 候选唯一）
  * 2. 本地未命中 → Scryfall 精确查一次 a:"全名"（兜底名单未覆盖的新画家）
  *
- * 返回 { canonical, cards }：canonical 为标准名（找不到为 null），cards 为该画家的卡牌
- * （本地命中时 cards 为空，卡牌在匹配阶段再查）。
+ * 返回 { canonical, cards, complete }：canonical 为标准名（找不到为 null），cards 为该画家的卡牌
+ * （本地命中时 cards 为空，卡牌在匹配阶段再查），complete 为 Scryfall 查询是否完整（分页未中断）。
  * 不写缓存——由调用方决定。
  */
 async function resolveArtistCanonical(
   name: string,
   rateLimiter?: RateLimiter,
-): Promise<{ canonical: string | null; cards: ArtistCard[] }> {
+): Promise<{ canonical: string | null; cards: ArtistCard[]; complete: boolean }> {
   const target = name.trim();
-  if (!target) return { canonical: null, cards: [] };
+  if (!target) return { canonical: null, cards: [], complete: false };
 
   // 1. 本地全量名单匹配（零 Scryfall）
   const local = await matchLocalArtist(target);
-  if (local) return { canonical: local, cards: [] };
+  if (local) return { canonical: local, cards: [], complete: true };
 
   // 2. 本地未命中 → Scryfall 精确查一次（兜底新画家）
-  const { cards } = await fetchArtistCards(target, rateLimiter);
+  const { cards, complete } = await fetchArtistCards(target, rateLimiter);
   if (cards.length > 0) {
     // 从卡牌的 artist 字段提取 Scryfall 标准拼写（统一大小写/空格），提取不到回退输入名
     const canonical = extractCanonicalArtist(target, cards) || target;
-    return { canonical, cards };
+    return { canonical, cards, complete };
   }
 
-  return { canonical: null, cards: [] };
+  return { canonical: null, cards: [], complete };
 }
 
 /**
@@ -82,11 +82,11 @@ export async function resolveArtistName(
   name: string,
   rateLimiter?: RateLimiter,
 ): Promise<string | null> {
-  const { canonical, cards } = await resolveArtistCanonical(name.trim(), rateLimiter);
+  const { canonical, cards, complete } = await resolveArtistCanonical(name.trim(), rateLimiter);
   if (!canonical) return null;
 
-  // 缓存卡牌（以标准名为键）
-  cacheArtistCards(canonical, cards);
+  // 缓存卡牌（以标准名为键）；complete=false 表示分页中途失败，不缓存残缺结果
+  if (complete) cacheArtistCards(canonical, cards);
 
   return canonical;
 }

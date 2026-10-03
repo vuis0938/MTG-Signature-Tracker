@@ -20,6 +20,11 @@ export async function GET(request: NextRequest) {
       .from("card_printings")
       .select("*", { count: "exact", head: true });
 
+    // 画家卡牌缓存统计（反向查询的缓存表）
+    const { count: artistCardsCount } = await supabase
+      .from("artist_cards")
+      .select("*", { count: "exact", head: true });
+
     // 平均年龄（最早和最晚的 created_at）
     const { data: oldest } = await supabase
       .from("card_printings")
@@ -57,6 +62,7 @@ export async function GET(request: NextRequest) {
       success: true,
       stats: {
         totalCached: totalCount ?? 0,
+        artistCardsCount: artistCardsCount ?? 0,
         oldestCreatedAt: oldest?.created_at || null,
         newestUpdatedAt: newest?.updated_at || null,
       },
@@ -86,18 +92,35 @@ export async function DELETE(request: NextRequest) {
     const supabase = getSupabase();
 
     if (clearAll) {
-      const { count } = await supabase
+      const { count: printingsCount } = await supabase
         .from("card_printings")
         .select("*", { count: "exact", head: true });
+      const { count: artistCardsCount } = await supabase
+        .from("artist_cards")
+        .select("*", { count: "exact", head: true });
 
-      const { error } = await supabase.from("card_printings").delete().neq("card_name", "___impossible___");
-
-      if (error) {
-        return NextResponse.json({ error: "清空缓存失败" }, { status: 500 });
+      const { error: printingsError } = await supabase
+        .from("card_printings")
+        .delete()
+        .neq("card_name", "___impossible___");
+      if (printingsError) {
+        return NextResponse.json({ error: "清空印刷缓存失败" }, { status: 500 });
       }
 
-      await logAdminAction(adminName, "cache_clear_all", undefined, { deleted: count ?? 0 });
-      return NextResponse.json({ success: true, message: `已清空 ${count ?? 0} 条缓存` });
+      const { error: artistCardsError } = await supabase
+        .from("artist_cards")
+        .delete()
+        .neq("artist_name", "___impossible___");
+      if (artistCardsError) {
+        return NextResponse.json({ error: "清空画家缓存失败" }, { status: 500 });
+      }
+
+      const deletedTotal = (printingsCount ?? 0) + (artistCardsCount ?? 0);
+      await logAdminAction(adminName, "cache_clear_all", undefined, { deleted: deletedTotal });
+      return NextResponse.json({
+        success: true,
+        message: `已清空 ${printingsCount ?? 0} 条印刷缓存、${artistCardsCount ?? 0} 条画家缓存`,
+      });
     }
 
     if (cardName) {

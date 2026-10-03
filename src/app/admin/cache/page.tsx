@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/toast-context";
-import { Search, Trash2, Loader2, Database, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
+import { Search, Trash2, Loader2, Database, Users, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
 
 interface CacheItem {
   card_name: string;
@@ -15,6 +15,7 @@ interface CacheItem {
 
 interface CacheStats {
   totalCached: number;
+  artistCardsCount: number;
   oldestCreatedAt: string | null;
   newestUpdatedAt: string | null;
 }
@@ -112,9 +113,9 @@ export default function CachePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">缓存管理</h1>
-          <p className="text-muted-foreground text-sm">Scryfall 印刷版本缓存</p>
+          <p className="text-muted-foreground text-sm">Scryfall 缓存（印刷版本 + 画家卡牌）</p>
         </div>
-        {stats && stats.totalCached > 0 && !confirmClearAll && (
+        {stats && (stats.totalCached > 0 || stats.artistCardsCount > 0) && !confirmClearAll && (
           <Button variant="outline" size="sm" onClick={() => setConfirmClearAll(true)} className="text-red-600 hover:text-red-700">
             <Trash2 className="h-4 w-4 mr-1" />
             清空全部
@@ -130,10 +131,10 @@ export default function CachePage() {
               <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm font-medium">
-                  确定要清空全部 {stats?.totalCached || 0} 条缓存吗？
+                  确定要清空全部缓存吗？（印刷 {stats?.totalCached || 0} 条 + 画家 {stats?.artistCardsCount || 0} 条）
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  清空后用户下次匹配时会重新从 Scryfall 拉取所有印刷版本，可能导致短暂的匹配变慢。
+                  清空后用户下次匹配时会重新从 Scryfall 拉取所有印刷版本和画家卡牌，可能导致短暂的匹配变慢。
                 </p>
               </div>
               <div className="flex gap-2">
@@ -151,14 +152,23 @@ export default function CachePage() {
 
       {/* 统计卡片 */}
       {stats && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-5">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">缓存总数</span>
+                <span className="text-sm text-muted-foreground">印刷缓存</span>
                 <Database className="h-4 w-4 text-blue-600" />
               </div>
               <div className="text-2xl font-bold">{stats.totalCached}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-5">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-muted-foreground">画家卡牌缓存</span>
+                <Users className="h-4 w-4 text-purple-600" />
+              </div>
+              <div className="text-2xl font-bold">{stats.artistCardsCount}</div>
             </CardContent>
           </Card>
           <Card>

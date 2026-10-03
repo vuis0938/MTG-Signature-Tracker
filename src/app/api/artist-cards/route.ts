@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
     // ── 3. 缓存全未命中，查 Scryfall（反向查询，按画家查卡）──
     // 使用 unique:art 按画作去重，避免高产画家被 unique:prints 的
     // 语言变体放大到十几页（雷区）。
-    const { cards: allCards } = await fetchArtistCards(artistName);
+    const { cards: allCards, complete } = await fetchArtistCards(artistName);
 
     if (allCards.length === 0) {
       // 无结果也缓存（避免重复查询不存在的画家）
@@ -101,10 +101,12 @@ export async function GET(request: NextRequest) {
     }
 
     // ── 4. 写入双层缓存（内存 + Supabase 持久化） ──────
-    setCached(artistName, allCards);
+    // complete=false 表示分页中途失败（只拉到部分卡），不缓存，
+    // 避免残缺数据永久污染 Supabase 持久缓存（下次仍会重新拉取）
+    if (complete) {
+      setCached(artistName, allCards);
 
-    // Supabase 持久缓存写入（fire-and-forget，不阻塞响应）
-    if (allCards.length > 0) {
+      // Supabase 持久缓存写入（fire-and-forget，不阻塞响应）
       supabase
         .from("artist_cards")
         .upsert({

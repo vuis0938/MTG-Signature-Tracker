@@ -14,6 +14,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const h = vi.hoisted(() => ({
   fetchArtistCards: vi.fn(),
   loadAllArtists: vi.fn(),
+  upsert: vi.fn(() => ({
+    then: vi.fn(async (cb: (r: { error: null }) => void) => cb({ error: null })),
+  })),
 }));
 
 vi.mock("@/lib/scryfall-client", async (importOriginal) => {
@@ -31,9 +34,7 @@ vi.mock("@/lib/artists-catalog", () => ({
 vi.mock("@/lib/supabase", () => ({
   getSupabase: vi.fn(() => ({
     from: vi.fn(() => ({
-      upsert: vi.fn(() => ({
-        then: vi.fn(async (cb: (r: { error: null }) => void) => cb({ error: null })),
-      })),
+      upsert: h.upsert,
     })),
   })),
 }));
@@ -43,6 +44,7 @@ import { resolveArtistName } from "../resolve-artist";
 beforeEach(() => {
   h.fetchArtistCards.mockReset();
   h.loadAllArtists.mockReset();
+  h.upsert.mockClear();
   // 默认本地名单为空 → 走 Scryfall 精确查兜底
   h.loadAllArtists.mockResolvedValue([]);
 });
@@ -114,5 +116,31 @@ describe("resolveArtistName", () => {
     const result = await resolveArtistName("Xyz Abcdefg");
 
     expect(result).toBeNull();
+  });
+
+  it("Scryfall 查询完整（complete=true）：识别标准名并缓存卡牌", async () => {
+    h.loadAllArtists.mockResolvedValue(["Someone Else"]);
+    h.fetchArtistCards.mockResolvedValue({
+      cards: makeCards(["Forest"]),
+      complete: true,
+    });
+
+    const result = await resolveArtistName("John Avon");
+
+    expect(result).toBe("John Avon");
+    expect(h.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it("Scryfall 分页不完整（complete=false）：仍识别标准名，但不缓存卡牌", async () => {
+    h.loadAllArtists.mockResolvedValue(["Someone Else"]);
+    h.fetchArtistCards.mockResolvedValue({
+      cards: makeCards(["Forest"]),
+      complete: false,
+    });
+
+    const result = await resolveArtistName("John Avon");
+
+    expect(result).toBe("John Avon");
+    expect(h.upsert).not.toHaveBeenCalled();
   });
 });
