@@ -20,6 +20,9 @@ import { warmCardPrintingsCache } from "@/lib/cache-printings";
 const CROSS_REFERENCE_BATCH = 100; // .in() 分块，避免 PostgREST URL 超长
 const LOOKBACK_DAYS_ON_ADVANCE = 1; // 成功后回看 1 天，容忍当日数据晚到
 
+// Vercel 函数超时：给 cron 充足时间（增量分页 + 交叉比对 + 刷新）
+export const maxDuration = 60;
+
 /** 读取上次增量检查的 since 日期（无记录则默认 30 天前） */
 async function readLastSince(): Promise<string> {
   const supabase = getSupabase();
@@ -30,7 +33,10 @@ async function readLastSince(): Promise<string> {
     .single();
   const since = (data?.value as { since?: string } | null)?.since;
   if (since) return since;
-  return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  // 首次运行不补历史：只从最近 1 天开始，避免一次性回填大量数据触发限流
+  return new Date(
+    Date.now() - LOOKBACK_DAYS_ON_ADVANCE * 24 * 60 * 60 * 1000
+  )
     .toISOString()
     .split("T")[0];
 }
@@ -38,7 +44,7 @@ async function readLastSince(): Promise<string> {
 /** 拉取 released>=since 的全部新画作（unique:art 按画作去重，与全站一致） */
 async function fetchReleasedSince(since: string): Promise<ScryfallCard[]> {
   const results: ScryfallCard[] = [];
-  const q = `released>=${since} unique:art`;
+  const q = `date>=${since} unique:art`;
   let pageUrl: string | null = `${SCRYFALL_BASE_URL}/cards/search?q=${encodeURIComponent(
     q
   )}&order=released`;

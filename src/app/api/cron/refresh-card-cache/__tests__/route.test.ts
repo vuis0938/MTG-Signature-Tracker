@@ -23,6 +23,7 @@ const h = vi.hoisted(() => ({
   deltaCards: [] as unknown[],
   deltaHttpError: null as number | null,
   logFail: null as string | null,
+  fetchUrl: null as string | null,
 }));
 
 vi.mock("@/lib/supabase", () => ({
@@ -93,7 +94,8 @@ vi.mock("@/lib/scryfall-client", async (importOriginal) => {
 
 vi.stubGlobal(
   "fetch",
-  vi.fn(async () => {
+  vi.fn(async (url: unknown) => {
+    h.fetchUrl = String(url);
     if (h.deltaHttpError) {
       return { ok: false, status: h.deltaHttpError, json: async () => ({}) };
     }
@@ -125,6 +127,7 @@ beforeEach(() => {
   h.deltaCards = [];
   h.deltaHttpError = null;
   h.logFail = null;
+  h.fetchUrl = null;
   process.env.CRON_SECRET = "test-secret";
 });
 
@@ -144,6 +147,14 @@ describe("refresh-card-cache cron", () => {
     expect(body.newCards).toBe(0);
     expect(body.refreshedCards).toBe(0);
     expect(body.refreshedArtists).toBe(0);
+  });
+
+  it("增量查询使用 date>= 且 unique:art", async () => {
+    await GET(makeRequest());
+
+    // encodeURIComponent("date>=...") → "date%3E%3D..."，":" → "%3A"
+    expect(h.fetchUrl).toContain("date%3E%3D");
+    expect(h.fetchUrl).toContain("unique%3Aart");
   });
 
   it("增量命中缓存：刷新卡片和画家", async () => {
