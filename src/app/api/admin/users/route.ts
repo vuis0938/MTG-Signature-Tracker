@@ -13,58 +13,30 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabase();
 
-    // 并行查询用户、套牌、卡牌（原先串行三次往返）
-    const [usersRes, decksRes, deckCardCountsRes] = await Promise.all([
-      supabase
-        .from("users")
-        .select("username, created_at, last_active_at")
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("decks")
-        .select("id, user_name"),
-      supabase
-        .from("cards")
-        .select("deck_id")
-        .limit(10000),
-    ]);
+    // 用户统计视图：数据库侧一次性聚合出每用户的套牌数/卡牌数。
+    // 不再应用层拉全量 cards（PostgREST 1000 行上限会静默截断导致漏数）。
+    const { data, error } = await supabase
+      .from("user_stats")
+      .select("username, created_at, last_active_at, deck_count, card_count")
+      .order("created_at", { ascending: false });
 
-    const { data: users, error: usersError } = usersRes;
-    if (usersError) {
-      console.error("[Admin Users API] 查询失败:", usersError.message);
+    if (error) {
+      console.error("[Admin Users API] 查询失败:", error.message);
       return NextResponse.json({ error: "获取用户列表失败" }, { status: 500 });
     }
 
-    const decks = decksRes.data || [];
-    const deckCardCounts = deckCardCountsRes.data || [];
-
-    // 按 deck_id 统计卡牌数
-    const cardCountByDeck: Record<string, number> = {};
-    (deckCardCounts || []).forEach((c) => {
-      if (c.deck_id) {
-        cardCountByDeck[c.deck_id] = (cardCountByDeck[c.deck_id] || 0) + 1;
-      }
-    });
-
-    // 按用户聚合
-    const deckCountByUser: Record<string, number> = {};
-    const cardCountByUser: Record<string, number> = {};
-    (decks || []).forEach((d) => {
-      deckCountByUser[d.user_name] = (deckCountByUser[d.user_name] || 0) + 1;
-      cardCountByUser[d.user_name] = (cardCountByUser[d.user_name] || 0) + (cardCountByDeck[d.id] || 0);
-    });
-
-    const userList = (users || []).map((u) => ({
-      username: u.username,
-      createdAt: u.created_at,
-      lastActiveAt: u.last_active_at,
-      deckCount: deckCountByUser[u.username] || 0,
-      cardCount: cardCountByUser[u.username] || 0,
+    const users = (data || []).map((row) => ({
+      username: row.username,
+      createdAt: row.created_at,
+      lastActiveAt: row.last_active_at,
+      deckCount: row.deck_count ?? 0,
+      cardCount: row.card_count ?? 0,
     }));
 
     return NextResponse.json({
       success: true,
-      users: userList,
-      total: userList.length,
+      users,
+      total: users.length,
     });
   } catch (err) {
     console.error("[Admin Users API]", err);
