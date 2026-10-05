@@ -32,8 +32,8 @@
 
 ## 前端依赖
 - `@supabase/supabase-js` — Supabase 客户端 SDK
-- `fuse.js` — 模糊搜索库
-- `papaparse` — CSV 解析库
+- `swr` — 数据请求缓存
+- `lucide-react` — 图标库
 
 ## 环境变量
 ```
