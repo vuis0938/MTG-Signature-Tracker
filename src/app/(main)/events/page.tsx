@@ -24,19 +24,22 @@ export default async function EventsPage() {
   }
 
   let events: CalendarEvent[] = [];
+  let mtgacUpdatedAt: string | null = null;
   try {
-    events = (await getEvents()) as CalendarEvent[];
+    const result = await getEvents();
+    events = result.events as CalendarEvent[];
+    mtgacUpdatedAt = result.mtgacUpdatedAt;
   } catch {
     // 所有数据源均失败时不缓存空结果，SWR 客户端会重新尝试
   }
 
   const fallback: Record<string, unknown> = {
-    "/api/events": { success: true, events },
+    "/api/events": { success: true, events, mtgacUpdatedAt },
   };
 
   return (
     <SWRFallbackProvider fallback={fallback}>
-      <EventsClient fallbackEvents={events} />
+      <EventsClient fallbackEvents={events} mtgacUpdatedAt={mtgacUpdatedAt} />
     </SWRFallbackProvider>
   );
 }

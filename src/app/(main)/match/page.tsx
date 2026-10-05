@@ -25,18 +25,18 @@ export default async function MatchPage() {
   }
 
   // 两个数据源相互独立，并行预取（events 走 unstable_cache，成本极低）
-  const [{ decks, stats }, events] = await Promise.all([
+  const [{ decks, stats }, eventsResult] = await Promise.all([
     getDecksWithStats(userName),
     getEvents(),
   ]);
 
   const typedDecks = decks as Deck[];
-  const typedEvents = events as CalendarEvent[];
+  const typedEvents = eventsResult.events as CalendarEvent[];
 
   // 构建全局缓存 fallback：decks 列表 + 活动
   const fallback: Record<string, unknown> = {
     "/api/decks": { success: true, decks: typedDecks, stats },
-    "/api/events": { success: true, events: typedEvents },
+    "/api/events": { success: true, events: typedEvents, mtgacUpdatedAt: eventsResult.mtgacUpdatedAt },
   };
 
   return (

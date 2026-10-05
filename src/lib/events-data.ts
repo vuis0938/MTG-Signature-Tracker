@@ -47,6 +47,7 @@ interface GraphqlResponse {
     signingEvent?: RawEvent[];
     artistsByEventIds?: EventArtist[];
   };
+  errors?: Array<{ message?: string }>;
 }
 
 // ─── GraphQL 客户端 ───────────────────────────────────────
@@ -60,13 +61,75 @@ async function graphql(query: string, variables?: Record<string, unknown>): Prom
     method: "POST",
     headers: { "Content-Type": "application/json", "User-Agent": UA },
     body: JSON.stringify({ query, variables }),
+    signal: AbortSignal.timeout(15_000),
   });
-  return res.json();
+  if (!res.ok) {
+    throw new Error(`MTGAC GraphQL HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  if (data?.errors?.length) {
+    throw new Error(`MTGAC GraphQL 错误: ${data.errors[0]?.message || "unknown"}`);
+  }
+  return data;
 }
 
 // ─── 数据源 1: MTG Artist Connection ──────────────────────
 
-async function fetchMtgacEvents(): Promise<EventWithArtists[]> {
+// mtgac 活动更新频率很低：拉取失败/超时/空结果时，回退 Supabase 里
+// 持久化的「最近一次成功结果」（不设 TTL，即使 10 天前也照用）。
+// 共享持久存储，冷启动也读得到，避免活动清单时有时无。
+const MTGAC_CACHE_ID = "mtgac";
+
+async function fetchMtgacEvents(): Promise<{ events: EventWithArtists[]; updatedAt: string | null }> {
+  try {
+    const events = await fetchMtgacFresh();
+    if (events.length > 0) {
+      const now = new Date().toISOString();
+      await persistMtgacEvents(events, now);
+      return { events, updatedAt: now };
+    }
+    // 空结果视为拉取失败（正常情况 mtgac 总有未来活动），回退持久缓存
+    const persisted = await loadPersistedMtgacEvents();
+    if (persisted) return persisted;
+    return { events, updatedAt: null };
+  } catch (error) {
+    console.warn("[Events] MTGAC 拉取失败，回退持久缓存:", error);
+    const persisted = await loadPersistedMtgacEvents();
+    if (persisted) return persisted;
+    throw error;
+  }
+}
+
+/** 把最近一次成功结果写入 Supabase（覆盖旧数据，best-effort，失败不影响返回） */
+async function persistMtgacEvents(events: EventWithArtists[], updatedAt: string): Promise<void> {
+  try {
+    await getSupabase()
+      .from("mtgac_events_cache")
+      .upsert({ id: MTGAC_CACHE_ID, events, updated_at: updatedAt }, { onConflict: "id" });
+  } catch (error) {
+    console.warn("[Events] MTGAC 缓存写入失败:", error);
+  }
+}
+
+/** 读取 Supabase 里持久化的最近一次成功结果，没有则返回 null */
+async function loadPersistedMtgacEvents(): Promise<{ events: EventWithArtists[]; updatedAt: string } | null> {
+  try {
+    const { data } = await getSupabase()
+      .from("mtgac_events_cache")
+      .select("events, updated_at")
+      .eq("id", MTGAC_CACHE_ID)
+      .single();
+    if (data?.events && Array.isArray(data.events) && data.events.length > 0) {
+      return { events: data.events as EventWithArtists[], updatedAt: data.updated_at };
+    }
+    return null;
+  } catch (error) {
+    console.warn("[Events] MTGAC 缓存读取失败:", error);
+    return null;
+  }
+}
+
+async function fetchMtgacFresh(): Promise<EventWithArtists[]> {
   const results: EventWithArtists[] = [];
 
   const eventsData = await graphql(
@@ -231,7 +294,7 @@ async function fetchCustomEvents(): Promise<EventWithArtists[]> {
  * 供 API 路由和 Server Component 共享。
  * 任何数据源失败不影响其他数据源。
  */
-async function _getEvents(): Promise<EventWithArtists[]> {
+async function _getEvents(): Promise<{ events: EventWithArtists[]; mtgacUpdatedAt: string | null }> {
   const [mtgacResult, mmResult, customResult] = await Promise.allSettled([
     fetchMtgacEvents(),
     fetchMountainMageEvents(),
@@ -240,9 +303,11 @@ async function _getEvents(): Promise<EventWithArtists[]> {
 
   const results: EventWithArtists[] = [];
   let successCount = 0;
+  let mtgacUpdatedAt: string | null = null;
 
   if (mtgacResult.status === "fulfilled") {
-    results.push(...mtgacResult.value);
+    results.push(...mtgacResult.value.events);
+    mtgacUpdatedAt = mtgacResult.value.updatedAt;
     successCount++;
   } else {
     console.error("[Events] MTGAC 获取失败:", mtgacResult.reason);
@@ -278,7 +343,7 @@ async function _getEvents(): Promise<EventWithArtists[]> {
     return 0;
   });
 
-  return results;
+  return { events: results, mtgacUpdatedAt };
 }
 
 /**

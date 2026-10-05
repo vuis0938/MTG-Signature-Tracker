@@ -18,10 +18,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const events = await getEvents();
+    const { events, mtgacUpdatedAt } = await getEvents();
 
     return NextResponse.json(
-      { success: true, events },
+      { success: true, events, mtgacUpdatedAt },
       { headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=300" } }
     );
   } catch {
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     // 返回空数组而非错误状态，让前端正常渲染"暂无未来活动"
     // 不缓存此结果，下次请求会重新尝试
     return NextResponse.json(
-      { success: true, events: [] },
+      { success: true, events: [], mtgacUpdatedAt: null },
       { headers: { "Cache-Control": "no-store" } }
     );
   }

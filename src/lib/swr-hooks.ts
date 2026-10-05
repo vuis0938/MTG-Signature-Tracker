@@ -130,6 +130,7 @@ export function mutateCards(
 export interface EventsResponse {
   success: boolean;
   events: CalendarEvent[];
+  mtgacUpdatedAt?: string | null;
 }
 
 /** 活动日历列表 */
@@ -146,7 +147,7 @@ export function useEvents(fallbackData?: EventsResponse) {
       dedupingInterval: 30000,
     }
   );
-  return { events: data?.events || [], error, isLoading, revalidate };
+  return { events: data?.events || [], mtgacUpdatedAt: data?.mtgacUpdatedAt || null, error, isLoading, revalidate };
 }
 
 // ─── Announcements 相关 hooks ──────────────────────────────
