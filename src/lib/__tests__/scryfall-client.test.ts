@@ -276,6 +276,24 @@ describe("Scryfall 印刷查询使用 unique:art", () => {
     expect(url).not.toContain("unique:prints");
   });
 
+  it("fetchArtistCards 剥离画家名中的双引号（直/曲），避免破坏 a:\"...\" 查询", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [], has_more: false }),
+    });
+
+    await fetchArtistCards('Josiah "Jo" Cameron', new RateLimiter(1000)); // 直引号
+    await fetchArtistCards('Josiah “Jo” Cameron', new RateLimiter(1000)); // 曲引号
+
+    const url1 = fetchMock.mock.calls[0][0] as string;
+    const url2 = fetchMock.mock.calls[1][0] as string;
+    // 引号被剥掉 → 拼成 a:"Josiah Jo Cameron"，而非 a:"Josiah "Jo" Cameron"（0 结果）
+    expect(url1).toContain('a:"Josiah%20Jo%20Cameron"');
+    expect(url1).not.toContain("%22");
+    expect(url2).toContain('a:"Josiah%20Jo%20Cameron"');
+  });
+
   it("fetchArtistCards 正确翻页", async () => {
     fetchMock
       .mockResolvedValueOnce({
