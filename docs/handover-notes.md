@@ -54,6 +54,6 @@ SQL 文件位置：`supabase/migrations/001-009.sql`、`supabase-migration.sql`�
 
 ## 七、已知待办 / 注意
 
-- `cards.signed_date`/`signed_event`、`users.id` 三个遗留死列，可日后清理
-- 9 条用户反馈在 `/admin/feedback` 待处理
-- 数据库变更只加不删不改名（向后兼容）
+- ✅ ~~三个遗留死列（`cards.signed_date`/`signed_event`、`users.id`）可日后清理~~ → 已定论：确认无风险，永久搁置不清理
+- ✅ ~~9 条用户反馈在 `/admin/feedback` 待处理~~ → 已全部处理（环境噪音已标已读，基本地 bug 已修复）
+- 数据库变更只加不删不改名（向后兼容，纪律）

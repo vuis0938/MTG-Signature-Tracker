@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { LayoutDashboard, Users, ScrollText, Tag, ArrowLeft, Calendar, Database, UserCheck, Megaphone, Download, MessageSquareWarning } from "lucide-react";
 
 const adminNavItems = [
-  { href: "/admin/dashboard", label: "仪表盘", icon: LayoutDashboard },
+  { href: "/admin/dashboard", label: "后台仪表", icon: LayoutDashboard },
   { href: "/admin/users", label: "用户管理", icon: Users },
   { href: "/admin/events", label: "活动管理", icon: Calendar },
   { href: "/admin/artists", label: "画家别名", icon: UserCheck },
@@ -68,7 +68,7 @@ export function AdminNav() {
       {/* 桌面端：左侧侧边栏 */}
       <aside className="hidden md:flex flex-col w-56 border-r bg-background shrink-0">
         <div className="px-5 py-5 border-b">
-          <h1 className="text-base font-semibold">管理后台</h1>
+          <h1 className="text-lg font-semibold">管理后台</h1>
           <p className="text-xs text-muted-foreground mt-0.5">MTG 签绘管家</p>
         </div>
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
