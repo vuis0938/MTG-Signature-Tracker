@@ -700,7 +700,11 @@ export async function fetchArtistCards(
 ): Promise<{ cards: ArtistCard[]; complete: boolean }> {
   const cards: ArtistCard[] = [];
   const target = artistName.trim();
-  let pageUrl: string | null = `${SCRYFALL_BASE_URL}/cards/search?q=a:"${encodeURIComponent(target)}"+unique:art&order=released`;
+  // 剥离双引号（直 " 与曲 “ ”）：画家名含引号会破坏 a:"..." 查询语法。
+  // 例：Josiah "Jo" Cameron 若保留引号会拼成 a:"Josiah "Jo" Cameron" → 0 结果；
+  // Scryfall 的 a: 按词匹配，去掉引号后 a:"Josiah Jo Cameron" 仍命中同一批卡。
+  const queryName = target.replace(/["“”]/g, "");
+  let pageUrl: string | null = `${SCRYFALL_BASE_URL}/cards/search?q=a:"${encodeURIComponent(queryName)}"+unique:art&order=released`;
   let complete = true;
 
   while (pageUrl) {
