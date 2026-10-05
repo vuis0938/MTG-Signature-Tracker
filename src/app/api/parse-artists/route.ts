@@ -11,14 +11,14 @@ import { getSupabase } from "@/lib/supabase";
 const DEEPSEEK_KEY = process.env.DEEPSEEK_API_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 
-const PROMPT = `你是一个文本解析器。以下是万智牌活动的画家出席名单原文。请从中提取所有画家的英文全名，返回纯 JSON 字符串数组。
+const PROMPT = `你是一个文本解析器。以下是万智牌活动的画家出席名单原文。请从中提取所有画家的英文全名，返回一个 JSON 对象。
 
 规则：
 1. 只提取画家姓名，去掉序号、价格、时间、摊位号、活动标题、中文说明等无关信息
 2. 如果只有中文译名或昵称，保留原文不做翻译
 3. 多人合作写成一条的，拆分为独立条目
-4. 仅返回 JSON 数组，不要其他任何文字
-5. 如果无法识别任何画家，返回空数组 []
+4. 仅返回 JSON 对象，格式为 {"artists": ["画家名1", "画家名2"]}，不要其他任何文字
+5. 如果无法识别任何画家，返回 {"artists": []}
 
 示例 1：
 原文：
@@ -35,7 +35,7 @@ KIERAN YANNER
 KELOGSLOOPS
 邮寄须知：
 ---
-应返回：["ROVINA CAI", "BENJAMIN EE", "APRIL PRIME", "ALEX STONE", "RK POST", "KIERAN YANNER", "KELOGSLOOPS"]
+应返回：{"artists": ["ROVINA CAI", "BENJAMIN EE", "APRIL PRIME", "ALEX STONE", "RK POST", "KIERAN YANNER", "KELOGSLOOPS"]}
 
 示例 2：
 原文：
@@ -43,7 +43,7 @@ KELOGSLOOPS
 1. John Avon - $40
 2. Rebecca Guay (full art)
 ---
-应返回：["John Avon", "Rebecca Guay"]`;
+应返回：{"artists": ["John Avon", "Rebecca Guay"]}`;
 
 async function parseWithLLM(rawText: string): Promise<{ artists: string[]; model: string }> {
   // 优先 DeepSeek
@@ -79,6 +79,8 @@ async function callOpenAICompatible(
     body: JSON.stringify({
       model,
       max_tokens: 1024,
+      temperature: 0,
+      response_format: { type: "json_object" },
       messages: [
         { role: "user", content: `${PROMPT}\n\n原文：\n---\n${rawText}\n---` },
       ],
@@ -94,11 +96,10 @@ async function callOpenAICompatible(
 
   const data = await res.json();
   const text: string = data.choices?.[0]?.message?.content || "";
-  const match = text.match(/\[[\s\S]*\]/);
-  if (!match) return [];
   try {
-    const artists = JSON.parse(match[0]);
-    return Array.isArray(artists) ? artists : [];
+    // response_format=json_object 保证返回合法 JSON 对象 {"artists": [...]}
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed.artists) ? parsed.artists : [];
   } catch {
     return [];
   }
@@ -241,8 +242,16 @@ export async function POST(request: NextRequest) {
     if (DEEPSEEK_KEY || ANTHROPIC_KEY) {
       try {
         const result = await parseWithLLM(text);
-        artists = result.artists;
-        method = result.model;
+        if (result.artists.length > 0) {
+          artists = result.artists;
+          method = result.model;
+        } else {
+          // LLM 返回空数组（小模型偶发吐不出有效 JSON 或按提示词返回 []），
+          // 不抛异常但也没结果，降级正则兜底，避免「已解析 0 位」假失败
+          console.warn("[Parse] LLM 返回空，降级为正则");
+          artists = parseWithRegex(text);
+          method = "regex (LLM empty fallback)";
+        }
       } catch (e) {
         console.warn("[Parse] LLM 失败，降级为正则:", e);
         artists = parseWithRegex(text);

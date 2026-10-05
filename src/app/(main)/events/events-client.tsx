@@ -48,16 +48,16 @@ const ArtistGalleryDialog = dynamic(() => import("@/components/artist-gallery-di
 
 interface EventsClientProps {
   fallbackEvents?: CalendarEvent[];
+  mtgacUpdatedAt?: string | null;
 }
 
-export default function EventsClient({ fallbackEvents }: EventsClientProps = {}) {
+export default function EventsClient({ fallbackEvents, mtgacUpdatedAt }: EventsClientProps = {}) {
   const fallbackData =
     fallbackEvents !== undefined
-      ? { success: true, events: fallbackEvents }
+      ? { success: true, events: fallbackEvents, mtgacUpdatedAt: mtgacUpdatedAt ?? null }
       : undefined;
-  const { events, isLoading: loading } = useEvents(fallbackData);
+  const { events, isLoading: loading, mtgacUpdatedAt: dataUpdatedAt } = useEvents(fallbackData);
   const { toast: showToast } = useToast();
-  const [lastUpdated, setLastUpdated] = useState<string>("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   // 画家卡牌弹窗
@@ -69,13 +69,6 @@ export default function EventsClient({ fallbackEvents }: EventsClientProps = {})
   useEffect(() => {
     preloadDialogChunks();
   }, []);
-
-  // 首次加载完成后记录更新时间
-  useEffect(() => {
-    if (!loading) {
-      setLastUpdated(new Date().toLocaleString("zh-CN"));
-    }
-  }, [loading]);
 
   const toggleExpand = (id: string) => {
     setExpanded((prev) => {
@@ -107,6 +100,20 @@ export default function EventsClient({ fallbackEvents }: EventsClientProps = {})
       return `${parts[0]}/${parseInt(parts[1], 10)}/${parseInt(parts[2], 10)}`;
     }
     return "时间待定";
+  };
+
+  /** 把 ISO 时间格式化成「X 天前 / X 小时前 / 1 小时内」，用于提示 mtgac 数据新鲜度 */
+  const formatAgo = (iso: string | null | undefined): string | null => {
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    const diffMs = Date.now() - d.getTime();
+    const days = Math.floor(diffMs / 86_400_000);
+    if (days <= 0) {
+      const hours = Math.floor(diffMs / 3_600_000);
+      return hours <= 0 ? "1 小时内" : `${hours} 小时前`;
+    }
+    return `${days} 天前`;
   };
 
   // 点击画家名，加载其所有卡牌（优先取 hover 预加载的缓存）
@@ -234,7 +241,7 @@ export default function EventsClient({ fallbackEvents }: EventsClientProps = {})
 
       <p className="text-xs text-muted-foreground text-center pt-4">
         数据来源：mtgartistconnection.com · mountainmagesigs.com
-        {lastUpdated && ` · 上次更新：${lastUpdated}`}
+        {dataUpdatedAt && ` · MTGAC 数据更新于 ${formatAgo(dataUpdatedAt)}`}
       </p>
 
       {/* ─── 画家卡牌画廊弹窗（懒加载，打开时才下载 chunk）─── */}
