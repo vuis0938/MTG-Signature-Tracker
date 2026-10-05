@@ -26,7 +26,7 @@ const navItems = [
   },
   {
     href: "/events",
-    label: "活动",
+    label: "日历",
     icon: Calendar,
   },
   {

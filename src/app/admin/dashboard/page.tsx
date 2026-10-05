@@ -98,7 +98,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">仪表盘</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">后台仪表</h1>
         <p className="text-muted-foreground text-sm">平台整体数据概览</p>
       </div>
 
