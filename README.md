@@ -51,6 +51,13 @@ npm run dev
 3. `003_security_questions.sql` — 密保问题表
 4. `004_feedback.sql` — 用户反馈表
 5. `005_add_foreign_keys.sql` — 外键约束
+6. `006_fix_rls_policies.sql` — RLS 策略冲突修复
+7. `007_delete_user_function.sql` — 永久删除用户函数
+8. `008_add_updated_at_to_decks.sql` — decks 表补 updated_at 列
+9. `009_scryfall_meta.sql` — Scryfall 数据版本号表
+10. `010_artist_names.sql` — 全量画家标准名单表
+11. `011_mtgac_events_cache.sql` — MTGAC 活动缓存表
+12. `012_user_stats_view.sql` — 用户统计视图（套牌/卡牌数）
 
 ## 脚本
 
