@@ -40,6 +40,13 @@ export async function GET(request: NextRequest) {
       .limit(1)
       .single();
 
+    // 上次增量刷新时间（scryfall_meta 的 last_delta_check）
+    const { data: deltaMeta } = await supabase
+      .from("scryfall_meta")
+      .select("value")
+      .eq("key", "last_delta_check")
+      .single();
+
     // 搜索或分页列表
     let query = supabase
       .from("card_printings")
@@ -65,6 +72,8 @@ export async function GET(request: NextRequest) {
         artistCardsCount: artistCardsCount ?? 0,
         oldestCreatedAt: oldest?.created_at || null,
         newestUpdatedAt: newest?.updated_at || null,
+        lastDeltaRefreshAt:
+          (deltaMeta?.value as { checked_at?: string } | null)?.checked_at ?? null,
       },
       items: enrichedData,
       total: count ?? 0,

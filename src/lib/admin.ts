@@ -43,7 +43,8 @@ export type AdminAction =
   | "announcement_delete"
   | "data_export"
   | "feedback_read"
-  | "feedback_delete";
+  | "feedback_delete"
+  | "cron_refresh_fail";
 
 /**
  * 记录管理员操作到审计日志表

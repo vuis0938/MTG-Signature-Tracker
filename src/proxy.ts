@@ -15,6 +15,7 @@ const PUBLIC_PATHS = [
   "/api/auth",
   "/api/forgot-password", // 密码重置：未登录用户使用
   "/api/error-log", // 客户端错误上报：未登录场景也需可用
+  "/api/cron/refresh-card-cache", // Vercel cron 调用：无登录 cookie，改用 CRON_SECRET 鉴权
 ];
 
 export async function proxy(request: NextRequest) {
