@@ -18,6 +18,7 @@ interface CacheStats {
   artistCardsCount: number;
   oldestCreatedAt: string | null;
   newestUpdatedAt: string | null;
+  lastDeltaRefreshAt: string | null;
 }
 
 export default function CachePage() {
@@ -152,7 +153,7 @@ export default function CachePage() {
 
       {/* 统计卡片 */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <Card>
             <CardContent className="pt-5">
               <div className="flex items-center justify-between mb-2">
@@ -181,6 +182,12 @@ export default function CachePage() {
             <CardContent className="pt-5">
               <span className="text-sm text-muted-foreground">最近更新</span>
               <div className="text-base font-medium mt-1">{formatDate(stats.newestUpdatedAt)}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-5">
+              <span className="text-sm text-muted-foreground">上次增量刷新</span>
+              <div className="text-base font-medium mt-1">{formatDate(stats.lastDeltaRefreshAt)}</div>
             </CardContent>
           </Card>
         </div>

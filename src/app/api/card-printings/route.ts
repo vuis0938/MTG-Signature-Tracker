@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
 
     // ── 2. 缓存未命中，查 Scryfall ──────────────────────
     const allPrintings: Printing[] = [];
-    let pageUrl = `${SCRYFALL_BASE_URL}/cards/search?q=!"${encodeURIComponent(target)}"+unique:prints&order=released`;
+    let pageUrl = `${SCRYFALL_BASE_URL}/cards/search?q=!"${encodeURIComponent(target)}"+unique:art&order=released`;
 
     let isFirstPage = true;
     while (pageUrl) {
